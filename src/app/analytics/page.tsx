@@ -1,13 +1,12 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { 
   BarChart3, 
   Target, 
   Trophy, 
   TrendingUp,
-  Calendar,
   Zap,
   Flame
 } from 'lucide-react';
@@ -21,18 +20,11 @@ import {
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell,
-  LineChart,
-  Line
+  Cell
 } from 'recharts';
 
 export default function AnalyticsPage() {
-  const { tasks, xp, level, streak, gold } = useGameStore();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const { tasks, xp, level, streak } = useGameStore();
 
   const stats = useMemo(() => {
     const completedTasks = tasks.filter(t => t.completed);
@@ -77,8 +69,6 @@ export default function AnalyticsPage() {
       xpByDay
     };
   }, [tasks]);
-
-  if (!mounted) return null;
 
   return (
     <div className="page-transition space-y-6">

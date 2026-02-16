@@ -1,7 +1,6 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { useEffect, useState } from 'react';
 import { 
   Trophy, 
   Lock, 
@@ -112,12 +111,6 @@ const ACHIEVEMENTS_DATA = [
 
 export default function AchievementsPage() {
   const { achievements, level, streak, tasks } = useGameStore();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const completedTasks = tasks.filter(t => t.completed).length;
 
   const getAchievementProgress = (achievement: typeof ACHIEVEMENTS_DATA[0]) => {
@@ -148,8 +141,6 @@ export default function AchievementsPage() {
 
   const unlockedCount = achievements.length;
   const totalCount = ACHIEVEMENTS_DATA.length;
-
-  if (!mounted) return null;
 
   return (
     <div className="page-transition space-y-6">

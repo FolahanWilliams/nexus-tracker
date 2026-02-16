@@ -2,11 +2,11 @@
 
 import { useGameStore } from '@/store/useGameStore';
 import { useState, useMemo } from 'react';
-import { 
-  Plus, 
-  Check, 
-  Trash2, 
-  Sparkles, 
+import {
+  Plus,
+  Check,
+  Trash2,
+  Sparkles,
   Target,
   Filter,
   ArrowUpDown,
@@ -21,13 +21,13 @@ export default function QuestsPage() {
   const [sortBy, setSortBy] = useState<'newest' | 'difficulty' | 'xp'>('newest');
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<Array<{title: string, difficulty: string, xp: number}>>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<Array<{ title: string, difficulty: string, xp: number }>>([]);
 
   const filteredTasks = useMemo(() => {
     let filtered = tasks;
     if (filter === 'active') filtered = tasks.filter(t => !t.completed);
     if (filter === 'completed') filtered = tasks.filter(t => t.completed);
-    
+
     return [...filtered].sort((a, b) => {
       if (sortBy === 'newest') return new Date(b.id).getTime() - new Date(a.id).getTime();
       if (sortBy === 'difficulty') {
@@ -64,8 +64,8 @@ export default function QuestsPage() {
     }
   };
 
-  const acceptAiQuest = (quest: {title: string, difficulty: string, xp: number}) => {
-    addTask(quest.title, quest.difficulty as any, quest.xp);
+  const acceptAiQuest = (quest: { title: string, difficulty: string, xp: number }) => {
+    addTask(quest.title, quest.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic', quest.xp);
     setAiSuggestions(prev => prev.filter(q => q !== quest));
   };
 
@@ -112,7 +112,7 @@ export default function QuestsPage() {
             <div className="flex gap-3">
               <select
                 value={difficulty}
-                onChange={(e) => setDifficulty(e.target.value as any)}
+                onChange={(e) => setDifficulty(e.target.value as 'Easy' | 'Medium' | 'Hard' | 'Epic')}
                 className="input select min-w-[140px]"
               >
                 {difficultyOptions.map(opt => (
@@ -145,7 +145,7 @@ export default function QuestsPage() {
             <p className="text-white/60 text-sm">Powered by Gemini 3.0 Flash</p>
           </div>
         </div>
-        
+
         <div className="flex gap-3">
           <input
             type="text"
@@ -172,7 +172,7 @@ export default function QuestsPage() {
           <div className="mt-4 space-y-3">
             <p className="text-sm text-white/60">AI Suggestions:</p>
             {aiSuggestions.map((quest, idx) => (
-              <div 
+              <div
                 key={idx}
                 className="flex items-center justify-between p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors animate-fade-in-up"
                 style={{ animationDelay: `${idx * 100}ms` }}
@@ -180,11 +180,10 @@ export default function QuestsPage() {
                 <div>
                   <p className="font-medium">{quest.title}</p>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      quest.difficulty === 'Easy' ? 'badge-easy' :
-                      quest.difficulty === 'Medium' ? 'badge-medium' :
-                      quest.difficulty === 'Hard' ? 'badge-hard' : 'badge-epic'
-                    }`}>
+                    <span className={`text-xs px-2 py-1 rounded-full ${quest.difficulty === 'Easy' ? 'badge-easy' :
+                        quest.difficulty === 'Medium' ? 'badge-medium' :
+                          quest.difficulty === 'Hard' ? 'badge-hard' : 'badge-epic'
+                      }`}>
                       {quest.difficulty}
                     </span>
                     <span className="text-xs text-white/50">+{quest.xp} XP</span>
@@ -212,11 +211,10 @@ export default function QuestsPage() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  filter === f
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${filter === f
                     ? 'bg-indigo-500 text-white'
                     : 'bg-white/5 text-white/60 hover:bg-white/10'
-                }`}
+                  }`}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
@@ -228,7 +226,7 @@ export default function QuestsPage() {
           <ArrowUpDown size={18} className="text-white/50" />
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'newest' | 'difficulty' | 'xp')}
             className="input select py-2 px-4 text-sm"
           >
             <option value="newest">Newest First</option>
@@ -247,8 +245,8 @@ export default function QuestsPage() {
             </div>
             <h3 className="text-xl font-bold mb-2">No quests found</h3>
             <p className="text-white/60">
-              {filter === 'completed' 
-                ? 'Complete some quests to see them here!' 
+              {filter === 'completed'
+                ? 'Complete some quests to see them here!'
                 : 'Start by adding a new quest above'}
             </p>
           </div>
@@ -256,18 +254,16 @@ export default function QuestsPage() {
           filteredTasks.map((task, index) => (
             <div
               key={task.id}
-              className={`card p-4 flex items-center gap-4 group animate-fade-in-up ${
-                task.completed ? 'opacity-60' : ''
-              }`}
+              className={`card p-4 flex items-center gap-4 group animate-fade-in-up ${task.completed ? 'opacity-60' : ''
+                }`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
               <button
                 onClick={() => toggleTask(task.id)}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                  task.completed
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${task.completed
                     ? 'bg-emerald-500 text-white'
                     : 'bg-white/10 text-white/30 hover:bg-white/20'
-                }`}
+                  }`}
               >
                 {task.completed && <Check size={18} />}
               </button>
@@ -277,11 +273,10 @@ export default function QuestsPage() {
                   {task.title}
                 </p>
                 <div className="flex items-center gap-3 mt-1">
-                  <span className={`text-xs px-2 py-1 rounded-full ${
-                    task.difficulty === 'Easy' ? 'badge-easy' :
-                    task.difficulty === 'Medium' ? 'badge-medium' :
-                    task.difficulty === 'Hard' ? 'badge-hard' : 'badge-epic'
-                  }`}>
+                  <span className={`text-xs px-2 py-1 rounded-full ${task.difficulty === 'Easy' ? 'badge-easy' :
+                      task.difficulty === 'Medium' ? 'badge-medium' :
+                        task.difficulty === 'Hard' ? 'badge-hard' : 'badge-epic'
+                    }`}>
                     {task.difficulty}
                   </span>
                   <span className="text-xs text-white/50">+{task.xpReward} XP</span>

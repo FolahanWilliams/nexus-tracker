@@ -2,16 +2,14 @@
 
 import { useGameStore } from '@/store/useGameStore';
 import { Trophy, X, Sparkles, Zap, Star } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import confetti from 'canvas-confetti';
 
 export default function LevelUpModal() {
   const { level, showLevelUp, closeLevelUp } = useGameStore();
-  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     if (showLevelUp) {
-      setVisible(true);
       // Trigger confetti
       const duration = 3000;
       const end = Date.now() + duration;
@@ -37,12 +35,10 @@ export default function LevelUpModal() {
         }
       };
       frame();
-    } else {
-      setVisible(false);
     }
   }, [showLevelUp]);
 
-  if (!visible) return null;
+  if (!showLevelUp) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
