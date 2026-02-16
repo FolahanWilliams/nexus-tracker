@@ -11,20 +11,35 @@ import {
   BarChart3,
   Trophy,
   User,
-  Activity
+  Activity,
+  Map,
+  Sparkles,
+  Sword,
+  Hammer,
+  Store,
+  Crown,
+  Settings
 } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/quests', label: 'Operations', icon: Target },
-  { href: '/shop', label: 'Acquisitions', icon: ShoppingBag },
-  { href: '/analytics', label: 'Performance', icon: BarChart3 },
-  { href: '/achievements', label: 'Milestones', icon: Trophy },
+  { href: '/quests', label: 'Quests', icon: Target },
+  { href: '/chains', label: 'Quest Chains', icon: Map },
+  { href: '/bosses', label: 'Boss Battles', icon: Sword },
+  { href: '/shop', label: 'Shop', icon: ShoppingBag },
+  { href: '/auction', label: 'Auction House', icon: Store },
+  { href: '/inventory', label: 'Inventory', icon: Sparkles },
+  { href: '/skills', label: 'Skills', icon: Activity },
+  { href: '/crafting', label: 'Crafting', icon: Hammer },
+  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { href: '/achievements', label: 'Achievements', icon: Trophy },
+  { href: '/leaderboard', label: 'Leaderboard', icon: Crown },
+  { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function Navigation() {
   const pathname = usePathname();
-  const { level } = useGameStore();
+  const { level, title, characterName } = useGameStore();
 
   return (
     <nav className="fixed left-0 top-0 bottom-0 w-64 bg-[var(--bg-panel)] border-r border-[var(--border)] z-50 hidden lg:flex flex-col">
@@ -34,13 +49,13 @@ export default function Navigation() {
           <Activity className="text-white" size={18} />
         </div>
         <div>
-          <h1 className="text-sm font-bold tracking-tight text-white uppercase">Keystone</h1>
-          <p className="text-[10px] text-[var(--text-secondary)] uppercase">Analytics v3.0</p>
+          <h1 className="text-sm font-bold tracking-tight text-white uppercase">QuestFlow</h1>
+          <p className="text-[10px] text-[var(--text-secondary)] uppercase">AI Productivity RPG</p>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 py-4 flex flex-col gap-1 px-2">
+      <div className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.href;
@@ -65,8 +80,8 @@ export default function Navigation() {
       <div className="p-4 border-t border-[var(--border)] space-y-3">
         {/* Level Indicator */}
         <div className="flex items-center justify-between text-xs px-2">
-          <span className="text-[var(--text-secondary)]">CLEARANCE</span>
-          <span className="text-[var(--accent-blue)] font-mono">LVL {level}</span>
+          <span className="text-[var(--text-secondary)]">LEVEL {level}</span>
+          <span className="text-[var(--accent-blue)] font-mono">{title}</span>
         </div>
 
         <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--bg-hover)] border border-[var(--border)]">
@@ -74,7 +89,7 @@ export default function Navigation() {
             <User size={14} className="text-[var(--text-secondary)]" />
           </div>
           <div className="flex-1">
-            <p className="text-xs font-bold text-white">Guest User</p>
+            <p className="text-xs font-bold text-white">{characterName}</p>
             <div className="flex items-center gap-1">
               <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse" />
               <p className="text-[10px] text-[var(--text-secondary)]">ONLINE</p>

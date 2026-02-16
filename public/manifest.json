@@ -1,12 +1,13 @@
 {
-    "name": "Nexus Tracker",
-    "short_name": "Nexus",
-    "theme_color": "#0a0a0a",
-    "background_color": "#0a0a0a",
+    "name": "QuestFlow - AI Productivity RPG",
+    "short_name": "QuestFlow",
+    "theme_color": "#8b5cf6",
+    "background_color": "#0f0f23",
     "display": "standalone",
     "orientation": "portrait",
     "scope": "/",
     "start_url": "/",
+    "description": "A gamified AI productivity tracker with RPG elements",
     "icons": [
         {
             "src": "/icon-192x192.png",

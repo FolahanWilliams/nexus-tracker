@@ -1,223 +1,332 @@
-
 'use client';
 
-import { useGameStore } from '@/store/useGameStore';
 import Link from 'next/link';
-import {
-  Target,
-  ShoppingBag,
-  Trophy,
-  Zap,
-  TrendingUp,
-  Activity,
-  BarChart3,
-  MoreHorizontal
-} from 'lucide-react';
-import Ticker from '@/components/Ticker';
+import { useGameStore } from '@/store/useGameStore';
+import { useState, useEffect } from 'react';
+import { Gamepad2, Flame, Gift, Sparkles, Sword, Target, Zap } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { useToastStore } from '@/components/ToastContainer';
 
-export default function DashboardPage() {
-  const { xp, level, gold, streak, tasks } = useGameStore();
+const menuItems = [
+  { href: '/quests', emoji: '📦', label: 'QUESTS' },
+  { href: '/chains', emoji: '🗺️', label: 'QUEST CHAINS' },
+  { href: '/bosses', emoji: '⚔️', label: 'BOSS BATTLES' },
+  { href: '/character', emoji: '⚔️', label: 'CHARACTER' },
+  { href: '/inventory', emoji: '🎒', label: 'INVENTORY' },
+  { href: '/skills', emoji: '🧠', label: 'SKILL TREE' },
+  { href: '/crafting', emoji: '🔨', label: 'CRAFTING' },
+  { href: '/auction', emoji: '🏪', label: 'AUCTION' },
+  { href: '/shop', emoji: '💎', label: 'SHOP' },
+  { href: '/analytics', emoji: '🏛️', label: 'ANALYTICS' },
+  { href: '/achievements', emoji: '🏆', label: 'ACHIEVEMENTS' },
+  { href: '/leaderboard', emoji: '👑', label: 'LEADERBOARD' },
+  { href: '/settings', emoji: '⚙️', label: 'SETTINGS' },
+];
 
-  const recentTasks = tasks.slice(-5).reverse();
+const getRemainingMinutes = (expiresAt: string): number => {
+  return Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 60000);
+};
+
+export default function HomePage() {
+  const { 
+    level, xp, gold, gems, streak, title, 
+    dailyQuests, checkDailyQuests, generateDailyQuests,
+    claimDailyReward, lastDailyRewardClaim, loginStreak,
+    addTask, totalQuestsCompleted, checkBuffs, activeBuffs
+  } = useGameStore();
+  const { addToast } = useToastStore();
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+
+  useEffect(() => {
+    checkDailyQuests();
+    checkBuffs();
+    
+    // Auto-claim daily reward if not claimed today
+    const today = new Date().toISOString().split('T')[0];
+    if (lastDailyRewardClaim !== today) {
+      // Show claim button instead
+    }
+  }, []);
+
+  const handleClaimDailyReward = () => {
+    const today = new Date().toISOString().split('T')[0];
+    if (lastDailyRewardClaim === today) {
+      addToast('Daily reward already claimed! Come back tomorrow.', 'info');
+      return;
+    }
+    claimDailyReward();
+    
+    const reward = DAILY_REWARDS[(loginStreak % 7)];
+    addToast(`Daily reward claimed! +${reward.gold} Gold, +${reward.gems} Gems`, 'success');
+  };
+
+  const handleGeneratePlan = async () => {
+    setIsGeneratingPlan(true);
+    try {
+      const response = await fetch('/api/generate-quest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: 'Generate a daily productivity plan with 3-5 tasks'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.tasks && Array.isArray(data.tasks)) {
+        data.tasks.forEach((task: string, index: number) => {
+          const difficulty = ['Easy', 'Medium', 'Hard'][Math.floor(Math.random() * 3)] as 'Easy' | 'Medium' | 'Hard';
+          addTask(task, difficulty);
+        });
+        addToast(`Generated ${data.tasks.length} AI-powered tasks!`, 'success');
+      }
+    } catch (error) {
+      addToast('Failed to generate plan. Please try again.', 'error');
+    }
+    setIsGeneratingPlan(false);
+  };
+
+  const xpForNextLevel = Math.pow(level, 2) * 100;
+  const xpProgress = (xp / xpForNextLevel) * 100;
+
+  const completedDailyQuests = dailyQuests.filter(q => q.completed).length;
+  const canClaimDaily = lastDailyRewardClaim !== new Date().toISOString().split('T')[0];
 
   return (
-    <div className="min-h-screen bg-[var(--bg-app)] text-[var(--text-primary)] font-sans">
-      {/* Scrollable Ticker */}
-      <Ticker />
+    <div className="min-h-screen flex flex-col">
+      {/* Header Banner */}
+      <motion.div 
+        className="relative w-full h-48 overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+      >
+        <img
+          src="https://pixabay.com/get/gf51f6ee744734e160ebff49d36ebcb591c1184e14a1cf0341cc1a9ecbc4747ac633989e6062c57bac2383b7deb9cd2d5.png"
+          alt="Pixel art fantasy landscape"
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[var(--color-bg-dark)]" />
+      </motion.div>
 
-      {/* Main Content Area */}
-      <div className="p-6 space-y-6">
-
-        {/* Header Section */}
-        <div className="flex items-end justify-between border-b border-[var(--border)] pb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="status-dot status-live"></div>
-              <span className="text-xs font-mono text-[var(--text-secondary)] tracking-wider">SYSTEM STATUS: OPTIMAL</span>
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight">Command Center</h1>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-[var(--text-secondary)] mb-1">CURRENT SESSION</p>
-            <p className="text-xl font-mono text-[var(--text-primary)]">
-              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          </div>
-        </div>
-
-        {/* Bento Grid */}
-        <div className="grid grid-cols-12 gap-6">
-
-          {/* Main Hero Card - Focus Status */}
-          <div className="col-span-12 lg:col-span-8 k-card p-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Activity size={120} />
-            </div>
-            <div className="relative z-10">
-              <h3 className="text-sm text-[var(--text-secondary)] uppercase mb-4 font-mono">Focus Environment</h3>
-              <div className="grid grid-cols-2 gap-8">
-                <div>
-                  <p className="text-xs text-[var(--text-muted)] mb-1">PRODUCTIVITY RATE</p>
-                  <p className="text-4xl font-mono font-bold text-[var(--accent-green)]">94.2<span className="text-lg">%</span></p>
-                  <p className="text-xs text-[var(--text-secondary)] mt-2 flex items-center gap-1">
-                    <TrendingUp size={12} className="text-[var(--accent-green)]" />
-                    +2.4% vs last session
-                  </p>
+      {/* Main Content */}
+      <div className="flex-1 -mt-12 relative z-10">
+        <div className="max-w-3xl mx-auto px-4 pb-12">
+          {/* Stats Bar */}
+          <motion.div 
+            className="rpg-card mb-6 -mt-4"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-16 bg-gradient-to-br from-[var(--color-purple)] to-[var(--color-blue)] rounded-full flex items-center justify-center text-2xl font-bold">
+                  {level}
                 </div>
                 <div>
-                  <p className="text-xs text-[var(--text-muted)] mb-1">ACTIVE STREAK</p>
-                  <p className="text-4xl font-mono font-bold text-[var(--accent-blue)]">{streak}</p>
-                  <p className="text-xs text-[var(--text-secondary)] mt-2">Days Consecutive</p>
+                  <p className="text-sm text-[var(--color-text-muted)]">Level</p>
+                  <p className="font-bold">{title}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <p className="text-xl font-bold text-[var(--color-yellow)]">{gold}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Gold</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-[var(--color-blue)]">{gems}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Gems</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xl font-bold text-[var(--color-orange)]">{streak}</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">Streak</p>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Side Stats Panel */}
-          <div className="col-span-12 lg:col-span-4 grid grid-rows-2 gap-6">
-            <div className="k-card p-4 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] text-[var(--text-secondary)] uppercase mb-1">Gold Balance</p>
-                  <p className="text-2xl font-mono font-bold text-[var(--accent-yellow)]">{gold}</p>
-                </div>
-                <Zap size={16} className="text-[var(--accent-yellow)] opacity-50" />
+            
+            {/* XP Progress */}
+            <div>
+              <div className="flex justify-between text-xs mb-1">
+                <span>XP Progress</span>
+                <span>{xp} / {xpForNextLevel}</span>
               </div>
-              <div className="w-full bg-[var(--bg-app)] h-1 mt-4 rounded-full overflow-hidden">
-                <div className="h-full bg-[var(--accent-yellow)] w-[75%]"></div>
+              <div className="h-3 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+                <motion.div 
+                  className="h-full bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)]"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${xpProgress}%` }}
+                  transition={{ duration: 1, ease: 'easeOut' }}
+                />
               </div>
             </div>
+          </motion.div>
 
-            <div className="k-card p-4 flex flex-col justify-between">
-              <div className="flex justify-between items-start">
-                <div>
-                  <p className="text-[10px] text-[var(--text-secondary)] uppercase mb-1">XP Accumulation</p>
-                  <p className="text-2xl font-mono font-bold text-[var(--accent-blue)]">{xp}</p>
-                </div>
-                <Trophy size={16} className="text-[var(--accent-blue)] opacity-50" />
+          {/* Daily Section */}
+          <motion.div 
+            className="grid grid-cols-2 gap-4 mb-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            {/* Daily Quests */}
+            <div className="rpg-card">
+              <div className="flex items-center gap-2 mb-3">
+                <Target className="text-[var(--color-green)]" size={20} />
+                <h3 className="font-bold">Daily Quests</h3>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  ({completedDailyQuests}/{dailyQuests.length})
+                </span>
               </div>
-              <p className="text-[10px] text-[var(--text-muted)] mt-1">Level {level} Clearance</p>
+              <div className="space-y-2">
+                {dailyQuests.slice(0, 3).map((quest) => (
+                  <div key={quest.id} className="flex items-center gap-2 text-sm">
+                    <span className={quest.completed ? 'text-[var(--color-green)]' : 'text-[var(--color-text-muted)]'}>
+                      {quest.completed ? '✓' : '○'}
+                    </span>
+                    <span className={quest.completed ? 'line-through' : ''}>
+                      {quest.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/quests" className="text-xs text-[var(--color-purple)] mt-3 block">
+                View all →
+              </Link>
             </div>
-          </div>
 
-          {/* Quick Actions Bar */}
-          <div className="col-span-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Link href="/quests" className="k-card k-card-interactive p-4 flex items-center gap-4 group">
-              <div className="w-10 h-10 rounded bg-[var(--bg-app)] flex items-center justify-center border border-[var(--border)] group-hover:border-[var(--accent-green)] transition-colors">
-                <Target size={20} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-green)]" />
+            {/* Daily Login */}
+            <div className="rpg-card">
+              <div className="flex items-center gap-2 mb-3">
+                <Gift className="text-[var(--color-yellow)]" size={20} />
+                <h3 className="font-bold">Daily Login</h3>
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  Day {loginStreak + 1}
+                </span>
               </div>
+              
+              {canClaimDaily ? (
+                <button
+                  onClick={handleClaimDailyReward}
+                  className="w-full rpg-button !bg-[var(--color-yellow)] !text-black !py-2"
+                >
+                  <Gift size={16} />
+                  Claim Reward!
+                </button>
+              ) : (
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  Come back tomorrow!
+                </p>
+              )}
+              
+              <div className="flex justify-center gap-1 mt-2">
+                {[1,2,3,4,5,6,7].map(day => (
+                  <div 
+                    key={day}
+                    className={`w-6 h-6 rounded flex items-center justify-center text-xs ${
+                      day <= (loginStreak % 7) + 1 
+                        ? 'bg-[var(--color-yellow)] text-black' 
+                        : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
+                    }`}
+                  >
+                    {day}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+
+          {/* AI Plan Generator */}
+          <motion.div 
+            className="rpg-card mb-6 !bg-gradient-to-r from-[var(--color-purple)]/20 to-[var(--color-blue)]/20"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+          >
+            <div className="flex items-center justify-between">
               <div>
-                <h4 className="font-bold text-sm">Initiate Operation</h4>
-                <p className="text-xs text-[var(--text-secondary)]">Manage active quests</p>
+                <h3 className="font-bold flex items-center gap-2">
+                  <Sparkles className="text-[var(--color-purple)]" />
+                  AI Plan Generator
+                </h3>
+                <p className="text-sm text-[var(--color-text-secondary)]">
+                  Let AI create your daily quest plan
+                </p>
               </div>
-            </Link>
-
-            <Link href="/shop" className="k-card k-card-interactive p-4 flex items-center gap-4 group">
-              <div className="w-10 h-10 rounded bg-[var(--bg-app)] flex items-center justify-center border border-[var(--border)] group-hover:border-[var(--accent-yellow)] transition-colors">
-                <ShoppingBag size={20} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-yellow)]" />
-              </div>
-              <div>
-                <h4 className="font-bold text-sm">Reward Shop</h4>
-                <p className="text-xs text-[var(--text-secondary)]">Spend gold on rewards</p>
-              </div>
-            </Link>
-
-            <Link href="/analytics" className="k-card k-card-interactive p-4 flex items-center gap-4 group">
-              <div className="w-10 h-10 rounded bg-[var(--bg-app)] flex items-center justify-center border border-[var(--border)] group-hover:border-[var(--accent-blue)] transition-colors">
-                <BarChart3 size={20} className="text-[var(--text-secondary)] group-hover:text-[var(--accent-blue)]" />
-              </div>
-              <div>
-                <h4 className="font-bold text-sm">Data Analysis</h4>
-                <p className="text-xs text-[var(--text-secondary)]">View performance metrics</p>
-              </div>
-            </Link>
-          </div>
-
-          {/* Active Operations List */}
-          <div className="col-span-12 lg:col-span-8 k-card">
-            <div className="k-card-header">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">Active Quest Log</h3>
-              <button className="text-[var(--text-muted)] hover:text-white transition-colors">
-                <MoreHorizontal size={16} />
+              <button
+                onClick={handleGeneratePlan}
+                disabled={isGeneratingPlan}
+                className="rpg-button !bg-[var(--color-purple)] !text-white"
+              >
+                {isGeneratingPlan ? (
+                  <>Generating...</>
+                ) : (
+                  <>
+                    <Zap size={16} />
+                    Generate Plan
+                  </>
+                )}
               </button>
             </div>
-            <div className="k-card-body p-0">
-              {recentTasks.length > 0 ? (
-                <div className="divide-y divide-[var(--border)]">
-                  {recentTasks.map(task => (
-                    <div key={task.id} className="p-4 flex items-center justify-between hover:bg-[var(--bg-hover)] transition-colors group">
-                      <div className="flex items-center gap-4">
-                        <div className={`w-2 h-2 rounded-full ${task.completed ? 'bg-[var(--text-muted)]' : 'bg-[var(--accent-green)] shadow-[0_0_8px_rgba(0,220,130,0.4)]'}`}></div>
-                        <div>
-                          <p className={`text-sm font-medium ${task.completed ? 'text-[var(--text-muted)] line-through' : 'text-white'}`}>{task.title}</p>
-                          <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">{`${task.difficulty.toUpperCase()} // +${task.xpReward} XP`}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <span className={`text-[10px] px-2 py-1 rounded border ${task.completed
-                            ? 'border-[var(--border)] text-[var(--text-muted)]'
-                            : 'border-[var(--accent-green)] text-[var(--accent-green)] bg-[rgba(0,220,130,0.05)]'
-                          }`}>
-                          {task.completed ? 'RESOLVED' : 'ACTIVE'}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="p-8 text-center text-[var(--text-muted)]">
-                  <p className="text-sm">No active operations found.</p>
-                </div>
-              )}
-            </div>
-          </div>
+          </motion.div>
 
-          {/* News / Updates Feed */}
-          <div className="col-span-12 lg:col-span-4 k-card">
-            <div className="k-card-header">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">System Logs</h3>
-            </div>
-            <div className="k-card-body space-y-4">
-              <div className="flex gap-3">
-                <div className="mt-1 flex-shrink-0">
-                  <div className="w-2 h-2 rounded-full bg-[var(--accent-blue)]"></div>
-                </div>
-                <div>
-                  <p className="text-xs text-[var(--text-primary)] leading-relaxed">
-                    System initialization complete. Dashboard v3.0 loaded successfully.
-                  </p>
-                  <p className="text-[10px] text-[var(--text-muted)] mt-1 font-mono">10m ago</p>
-                </div>
+          {/* Active Buffs */}
+          {activeBuffs.length > 0 && (
+            <motion.div 
+              className="rpg-card mb-6 !border-[var(--color-green)]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+            >
+              <h3 className="font-bold mb-2 flex items-center gap-2">
+                <Flame className="text-[var(--color-green)]" />
+                Active Buffs
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {activeBuffs.map((buff, index) => {
+                  const remainingMinutes = getRemainingMinutes(buff.expiresAt);
+                  return (
+                    <span 
+                      key={index}
+                      className="text-xs px-2 py-1 bg-[var(--color-green)]/20 text-[var(--color-green)] rounded"
+                    >
+                      {buff.type} x{buff.value} ({remainingMinutes}m)
+                    </span>
+                  );
+                })}
               </div>
+            </motion.div>
+          )}
 
-               <div className="flex gap-3">
-                 <div className="mt-1 flex-shrink-0">
-                   <div className="w-2 h-2 rounded-full bg-[var(--accent-yellow)]"></div>
-                 </div>
-                 <div>
-                   <p className="text-xs text-[var(--text-primary)] leading-relaxed">
-                     Quest generation AI online. Ready to help with new tasks.
-                   </p>
-                   <p className="text-[10px] text-[var(--text-muted)] mt-1 font-mono">1h ago</p>
-                 </div>
-               </div>
-
-              <div className="flex gap-3">
-                <div className="mt-1 flex-shrink-0">
-                  <div className="w-2 h-2 rounded-full bg-[var(--text-muted)]"></div>
-                </div>
-                <div>
-                  <p className="text-xs text-[var(--text-primary)] leading-relaxed">
-                    Routine maintenance scheduled for 0300 cycle.
-                  </p>
-                  <p className="text-[10px] text-[var(--text-muted)] mt-1 font-mono">4h ago</p>
-                </div>
-              </div>
-            </div>
+          {/* Menu Items */}
+          <div className="space-y-3">
+            {menuItems.map((item, index) => (
+              <motion.div
+                key={item.href}
+                initial={{ opacity: 0, x: -50 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.4 + index * 0.05, duration: 0.4 }}
+              >
+                <Link href={item.href} className="menu-item">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{item.emoji}</span>
+                    <span>{item.label}</span>
+                  </div>
+                  <span className="text-[var(--color-text-muted)]">→</span>
+                </Link>
+              </motion.div>
+            ))}
           </div>
-
         </div>
       </div>
     </div>
   );
 }
+
+const DAILY_REWARDS = [
+  { day: 1, gold: 50, gems: 5 },
+  { day: 2, gold: 75, gems: 5 },
+  { day: 3, gold: 100, gems: 10 },
+  { day: 4, gold: 125, gems: 10 },
+  { day: 5, gold: 150, gems: 15 },
+  { day: 6, gold: 175, gems: 20 },
+  { day: 7, gold: 250, gems: 50 },
+];

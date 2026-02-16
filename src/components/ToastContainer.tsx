@@ -1,7 +1,8 @@
 'use client';
 
 import { create } from 'zustand';
-import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
 
 interface Toast {
   id: string;
@@ -18,10 +19,8 @@ interface ToastStore {
 export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
   addToast: (message, type) => {
-    const id = Math.random().toString(36).substring(7);
+    const id = Math.random().toString(36).substr(2, 9);
     set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
-    
-    // Auto remove after 3 seconds
     setTimeout(() => {
       set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
     }, 3000);
@@ -34,36 +33,36 @@ export const useToastStore = create<ToastStore>((set) => ({
 export default function ToastContainer() {
   const { toasts, removeToast } = useToastStore();
 
-  if (toasts.length === 0) return null;
-
   return (
-    <div className="fixed bottom-24 lg:bottom-8 right-4 lg:right-8 z-50 flex flex-col gap-2">
-      {toasts.map((toast) => {
-        const Icon = toast.type === 'success' ? CheckCircle : 
-                     toast.type === 'error' ? AlertCircle : Info;
-        
-        return (
-          <div
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2">
+      <AnimatePresence>
+        {toasts.map((toast) => (
+          <motion.div
             key={toast.id}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg animate-slide-up ${
-              toast.type === 'success' 
-                ? 'bg-emerald-500/90 text-white' 
+            initial={{ opacity: 0, x: 100, scale: 0.8 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 100, scale: 0.8 }}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[300px] ${
+              toast.type === 'success'
+                ? 'bg-[var(--color-green)] text-white'
                 : toast.type === 'error'
-                ? 'bg-red-500/90 text-white'
-                : 'bg-indigo-500/90 text-white'
+                ? 'bg-[var(--color-red)] text-white'
+                : 'bg-[var(--color-blue)] text-white'
             }`}
           >
-            <Icon size={20} />
-            <p className="font-medium text-sm">{toast.message}</p>
+            {toast.type === 'success' && <CheckCircle size={20} />}
+            {toast.type === 'error' && <AlertCircle size={20} />}
+            {toast.type === 'info' && <Info size={20} />}
+            <span className="flex-1 font-medium">{toast.message}</span>
             <button
               onClick={() => removeToast(toast.id)}
-              className="ml-2 p-1 hover:bg-white/20 rounded-full transition-colors"
+              className="opacity-70 hover:opacity-100"
             >
               <X size={16} />
             </button>
-          </div>
-        );
-      })}
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

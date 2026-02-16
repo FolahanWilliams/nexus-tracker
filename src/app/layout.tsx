@@ -1,17 +1,24 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Nunito } from 'next/font/google';
 import './globals.css';
-import AppLayout from '@/components/AppLayout';
+import LevelUpModal from '@/components/LevelUpModal';
+import SoundManager from '@/components/SoundManager';
+import ConfettiManager from '@/components/ConfettiManager';
+import ToastContainer from '@/components/ToastContainer';
+import Onboarding from '@/components/Onboarding';
 
-const inter = Inter({ subsets: ['latin'] });
+const nunito = Nunito({ 
+  subsets: ['latin'],
+  weight: ['400', '600', '700', '800', '900'],
+});
 
 export const metadata: Metadata = {
-  title: 'QuestFlow - Gamified Productivity',
-  description: 'Turn your tasks into epic quests with AI-powered quest generation',
+  title: 'QuestFlow - AI Productivity RPG',
+  description: 'A gamified AI productivity tracker with RPG elements',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'black-translucent',
+    statusBarStyle: 'default',
     title: 'QuestFlow',
   },
 };
@@ -20,7 +27,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  themeColor: '#6366f1',
+  themeColor: '#8b5cf6',
 };
 
 export default function RootLayout({
@@ -30,8 +37,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>
-        <AppLayout>{children}</AppLayout>
+      <body className={nunito.className}>
+        {children}
+        <Onboarding />
+        <LevelUpModal />
+        <SoundManager />
+        <ConfettiManager />
+        <ToastContainer />
       </body>
     </html>
   );

@@ -1,23 +1,27 @@
-# QuestFlow - Gamified Productivity App
+# QuestFlow - Duolingo-Style Productivity App
 
-A beautiful, interactive task management app with AI-powered quest generation. Transform your boring todo list into an epic adventure!
+A fun, interactive task management app inspired by Duolingo's gamified learning experience. Transform your boring todo list into an epic quest adventure with a cute mascot, XP system, and rewards!
 
 ## ✨ Features
 
-- **Dashboard**: Overview of your progress, stats, and quick actions
-- **Quests**: Full task management with filtering, sorting, and AI generation
-- **Shop**: Spend your earned gold on custom rewards
-- **Analytics**: Track your productivity with beautiful charts
-- **Achievements**: Unlock achievements as you progress
+- **Dashboard**: Colorful home screen with quest path, XP progress, and daily challenges
+- **Quests**: Add and complete quests with difficulty levels (Easy, Medium, Hard, Epic)
+- **Shop**: Spend gems on custom rewards and power-ups
+- **Analytics**: Track your productivity streak and achievements
+- **AI Quest Generator**: Let Gemini AI create quests for you
+- **Cute Mascot**: Animated owl companion that reacts to your progress!
 
-## 🎨 Design
+## 🎨 Design (Duolingo-Inspired)
 
-The app features a modern, vibrant design inspired by Lingo and similar gamified apps:
-- Beautiful gradient backgrounds with animated patterns
-- Glass-morphism cards with smooth hover effects
-- Vibrant purple, pink, indigo, and emerald color scheme
-- Smooth animations and micro-interactions throughout
-- Responsive design for mobile and desktop
+The app features a fun, colorful design inspired by Duolingo:
+- **Bright green (#58cc02)** primary color like Duolingo
+- Cute mascot character with multiple emotions
+- Circular "lesson" buttons like Duolingo's learning path
+- XP bar with shimmer animation
+- Heart lives system and streak counter
+- Fun button press animations with 3D shadows
+- Mobile-first responsive design with bottom navigation
+- Celebratory animations when completing quests
 
 ## 📱 Pages
 
