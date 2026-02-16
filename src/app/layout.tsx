@@ -1,20 +1,27 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import AppLayout from '@/components/AppLayout';
+import AuthProvider from '@/components/AuthProvider';
 
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Nexus Tracker',
-  description: 'Gamified task management with AI assistance',
+  title: 'QuestFlow - Gamified Productivity',
+  description: 'Turn your tasks into epic quests with AI-powered quest generation',
   manifest: '/manifest.json',
-  themeColor: '#00ff94',
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Nexus Tracker',
+    title: 'QuestFlow',
   },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#6366f1',
 };
 
 export default function RootLayout({
@@ -24,7 +31,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <AuthProvider>
+          <AppLayout>{children}</AppLayout>
+        </AuthProvider>
+      </body>
     </html>
   );
 }

@@ -1,36 +1,268 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QuestFlow - Gamified Productivity App
 
-## Getting Started
+A beautiful, interactive task management app with AI-powered quest generation. Transform your boring todo list into an epic adventure!
 
-First, run the development server:
+## ✨ Features
+
+- **Dashboard**: Overview of your progress, stats, and quick actions
+- **Quests**: Full task management with filtering, sorting, and AI generation
+- **Shop**: Spend your earned gold on custom rewards
+- **Analytics**: Track your productivity with beautiful charts
+- **Achievements**: Unlock achievements as you progress
+
+## 🎨 Design
+
+The app features a modern, vibrant design inspired by Lingo and similar gamified apps:
+- Beautiful gradient backgrounds with animated patterns
+- Glass-morphism cards with smooth hover effects
+- Vibrant purple, pink, indigo, and emerald color scheme
+- Smooth animations and micro-interactions throughout
+- Responsive design for mobile and desktop
+
+## 📱 Pages
+
+1. **Dashboard** (`/`) - Overview and quick stats
+2. **Quests** (`/quests`) - Manage all your quests with AI generation
+3. **Shop** (`/shop`) - Buy rewards with your earned gold
+4. **Analytics** (`/analytics`) - View detailed productivity statistics
+5. **Achievements** (`/achievements`) - Track and unlock achievements
+
+## 🔐 Authentication & Data Persistence
+
+### Current Setup (Local Storage)
+Your data is currently stored in your browser's local storage. This means:
+- ✅ Data persists between sessions on the same device/browser
+- ✅ Works immediately without setup
+- ❌ Data doesn't sync across devices
+- ❌ Clearing browser data will reset progress
+
+### Recommended: Add Google Authentication
+
+To save your progress across devices and keep it secure, I recommend adding authentication with **NextAuth.js** and Google Provider. Here's how:
+
+#### Step 1: Install Dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install next-auth@beta @auth/prisma-adapter prisma @prisma/client
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+#### Step 2: Set up Google OAuth
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing
+3. Go to "APIs & Services" > "Credentials"
+4. Click "Create Credentials" > "OAuth client ID"
+5. Configure the OAuth consent screen
+6. Add authorized redirect URI: `http://localhost:3000/api/auth/callback/google`
+7. Copy the Client ID and Client Secret
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+#### Step 3: Set up Database (PostgreSQL with Prisma)
 
-## Learn More
+Create a `.env` file with:
 
-To learn more about Next.js, take a look at the following resources:
+```env
+# Database
+DATABASE_URL="postgresql://user:password@localhost:5432/questflow"
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# NextAuth
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-super-secret-key-here"
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Google OAuth
+GOOGLE_CLIENT_ID="your-google-client-id"
+GOOGLE_CLIENT_SECRET="your-google-client-secret"
+```
 
-## Deploy on Vercel
+#### Step 4: Create Prisma Schema
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Create `prisma/schema.prisma`:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  accounts      Account[]
+  sessions      Session[]
+  gameData      GameData?
+}
+
+model GameData {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  xp        Int      @default(0)
+  level     Int      @default(1)
+  gold      Int      @default(0)
+  streak    Int      @default(0)
+  tasks     Json     @default("[]")
+  shopItems Json     @default("[]")
+  purchasedRewards Json @default("[]")
+  achievements Json @default("[]")
+  updatedAt DateTime @updatedAt
+}
+```
+
+Run:
+```bash
+npx prisma migrate dev --name init
+npx prisma generate
+```
+
+#### Step 5: Create Auth Configuration
+
+Create `src/lib/auth.ts`:
+
+```typescript
+import { NextAuthOptions } from "next-auth"
+import GoogleProvider from "next-auth/providers/google"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import { prisma } from "./prisma"
+
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
+  providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+  ],
+  callbacks: {
+    session: async ({ session, user }) => {
+      if (session?.user) {
+        session.user.id = user.id
+        // Load game data
+        const gameData = await prisma.gameData.findUnique({
+          where: { userId: user.id }
+        })
+        session.user.gameData = gameData
+      }
+      return session
+    },
+  },
+}
+```
+
+#### Step 6: Create API Route
+
+Create `src/app/api/auth/[...nextauth]/route.ts`:
+
+```typescript
+import NextAuth from "next-auth"
+import { authOptions } from "@/lib/auth"
+
+const handler = NextAuth(authOptions)
+
+export { handler as GET, handler as POST }
+```
+
+#### Step 7: Update Navigation Component
+
+Replace the guest user button with actual sign in/sign out buttons:
+
+```typescript
+import { signIn, signOut, useSession } from "next-auth/react"
+
+// In Navigation component
+const { data: session } = useSession()
+
+// Replace user profile section with:
+{session ? (
+  <button onClick={() => signOut()}>
+    {/* Show user info */}
+  </button>
+) : (
+  <button onClick={() => signIn("google")}>
+    Sign in with Google
+  </button>
+)}
+```
+
+### Alternative: Quick Firebase Setup
+
+For a simpler setup without a backend server, use Firebase Authentication:
+
+```bash
+npm install firebase
+```
+
+Then configure Firebase in your app. This syncs data across devices without needing your own database.
+
+## 🚀 Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run development server
+npm run dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+## 🤖 AI Quest Generation
+
+The app uses Google's Gemini 3.0 Flash model to generate quest suggestions. Make sure to set your API key:
+
+```env
+GOOGLE_API_KEY=your_api_key_here
+```
+
+Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
+
+## 🛠 Tech Stack
+
+- **Next.js 16** (App Router)
+- **React 19**
+- **TypeScript**
+- **Tailwind CSS**
+- **Zustand** (state management)
+- **Recharts** (analytics)
+- **Canvas Confetti** (celebrations)
+- **Google Generative AI** (Gemini 3.0 Flash)
+
+## 📄 License
+
+MIT

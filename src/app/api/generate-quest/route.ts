@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         }
 
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash-exp", // User requested "Gemini 3 Flash", using latest 2.0 Flash Experimental
+            model: "gemini-3-flash",
             generationConfig: { responseMimeType: "application/json" }
         });
 
