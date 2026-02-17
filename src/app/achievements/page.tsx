@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Lock, Share2, Trophy, Medal, Crown, Star } from 'lucide-react';
+import { ChevronLeft, Lock, Share2, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 

@@ -63,9 +63,9 @@ export default function HabitsPage() {
   const handleComplete = (habit: Habit) => {
     if (habit.completedDates.includes(today)) return;
     completeHabit(habit.id);
-    const newStreak = habit.lastCompletedDate === (() => {
-      const y = new Date(); y.setDate(y.getDate() - 1); return y.toISOString().split('T')[0];
-    })() ? habit.streak + 1 : 1;
+    // Read the updated streak from store after completion (avoid double-calculation)
+    const updatedHabit = useGameStore.getState().habits.find(h => h.id === habit.id);
+    const newStreak = updatedHabit?.streak ?? 1;
     triggerXPFloat(`+${habit.xpReward} XP`, '#4ade80');
     setTimeout(() => triggerXPFloat(`+${Math.ceil(habit.xpReward / 5)} 🪙`, '#fbbf24'), 200);
 

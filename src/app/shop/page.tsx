@@ -91,7 +91,7 @@ export default function ShopPage() {
           transition={{ delay: 0.1 }}
         >
           <p className="text-[var(--color-purple)] italic font-medium">
-            Spend your gems on rewards and perks.
+            Spend your gold on buffs, or use gems to unlock special boosts.
           </p>
         </motion.div>
 
@@ -145,8 +145,8 @@ export default function ShopPage() {
         <div className="grid grid-cols-2 gap-4 mb-8">
           {([
             {
-              icon: Heart, label: 'Refill Hearts', desc: 'Gain 50 Bonus Gems', cost: 50, gradient: 'from-red-500 to-pink-500',
-              onBuy: () => { addGems(50); addToast('Refilled! +50 Gems added', 'success'); }
+              icon: Heart, label: 'Gem Pack', desc: 'Instantly gain 50 bonus gems', cost: 50, gradient: 'from-red-500 to-pink-500',
+              onBuy: () => { addGems(50); addToast('+50 Gems added to your wallet!', 'success'); }
             },
             {
               icon: Zap, label: 'XP Boost', desc: 'Double XP for 1 hour', cost: 100, gradient: 'from-yellow-400 to-orange-500',

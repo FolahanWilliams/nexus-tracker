@@ -21,7 +21,8 @@ import {
   Settings,
   Repeat2,
   Timer,
-  Flag
+  Flag,
+  Calendar
 } from 'lucide-react';
 
 const navItems = [
@@ -40,6 +41,7 @@ const navItems = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/achievements', label: 'Achievements', icon: Trophy },
   { href: '/leaderboard', label: 'Leaderboard', icon: Crown },
+  { href: '/timeline', label: 'Timeline', icon: Calendar },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

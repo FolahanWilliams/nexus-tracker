@@ -232,6 +232,10 @@ export interface GameState {
     lastDailyRewardClaim: string | null;
     loginStreak: number;
 
+    // Focus Timer Stats
+    focusSessionsTotal: number;
+    focusMinutesTotal: number;
+
     // UI State
     showLevelUp: boolean;
     achievements: string[];
@@ -355,6 +359,9 @@ export interface GameState {
     // Intention & Reflection Actions
     setDailyIntention: (intention: string, energyRating: number) => void;
     addReflectionNote: (note: string, stars: number, xpBonus: number) => void;
+
+    // Focus Timer Actions
+    addFocusSession: (minutesCompleted: number) => void;
 
     // RPG Actions - Quest Chains
     addQuestChain: (chain: Omit<QuestChain, 'id' | 'currentStep' | 'completed'>) => void;
@@ -520,6 +527,8 @@ export const useGameStore = create<GameState>()(
             totalQuestsCompleted: 0,
             lastDailyRewardClaim: null,
             loginStreak: 0,
+            focusSessionsTotal: 0,
+            focusMinutesTotal: 0,
             auctionListings: [],
             habits: [],
             goals: [],
@@ -1064,6 +1073,8 @@ export const useGameStore = create<GameState>()(
                         streak: parsed.streak || 0,
                         totalQuestsCompleted: parsed.totalQuestsCompleted || 0,
                         loginStreak: parsed.loginStreak || 0,
+                        focusSessionsTotal: parsed.focusSessionsTotal || 0,
+                        focusMinutesTotal: parsed.focusMinutesTotal || 0,
                         achievements: parsed.achievements || [],
                         title: parsed.title || 'Novice',
                         settings: parsed.settings || { soundEnabled: true, theme: 'dark', musicEnabled: true, sfxVolume: 0.5, musicVolume: 0.3 },
@@ -1459,16 +1470,28 @@ export const useGameStore = create<GameState>()(
             },
 
             completeGoalMilestone: (goalId, milestoneId) => {
+                const goal = get().goals.find(g => g.id === goalId);
+                if (!goal || goal.completed) return;
+                const wasAlreadyCompleted = goal.milestones.find(m => m.id === milestoneId)?.completed;
+                if (wasAlreadyCompleted) return;
+
                 set((state) => ({
                     goals: state.goals.map(g => {
                         if (g.id !== goalId) return g;
                         const updatedMilestones = g.milestones.map(m =>
                             m.id === milestoneId ? { ...m, completed: true, completedAt: new Date().toISOString() } : m
                         );
-                        const allDone = updatedMilestones.every(m => m.completed);
-                        return { ...g, milestones: updatedMilestones, completed: allDone && g.milestones.length > 0, completedAt: allDone ? new Date().toISOString() : undefined };
+                        const allDone = updatedMilestones.length > 0 && updatedMilestones.every(m => m.completed);
+                        return { ...g, milestones: updatedMilestones, completed: allDone, completedAt: allDone ? new Date().toISOString() : undefined };
                     })
                 }));
+
+                // If all milestones are now done, award XP + gold just like completeGoal
+                const updatedGoal = get().goals.find(g => g.id === goalId);
+                if (updatedGoal?.completed) {
+                    get().addXP(updatedGoal.xpReward);
+                    get().addGold(Math.ceil(updatedGoal.xpReward / 2));
+                }
             },
 
             completeGoal: (goalId) => {
@@ -1577,19 +1600,28 @@ export const useGameStore = create<GameState>()(
                 get().advanceQuestChain(chainId);
             },
 
+            addFocusSession: (minutesCompleted: number) => {
+                set((state) => ({
+                    focusSessionsTotal: state.focusSessionsTotal + 1,
+                    focusMinutesTotal: state.focusMinutesTotal + minutesCompleted,
+                }));
+            },
+
             resetProgress: () => {
-                set({ 
-                    xp: 0, 
-                    level: 1, 
-                    tasks: [], 
+                set({
+                    xp: 0,
+                    level: 1,
+                    tasks: [],
                     dailyQuests: [],
-                    inventory: [], 
-                    equippedItems: {}, 
+                    inventory: [],
+                    equippedItems: {},
                     questChains: [],
                     bossBattles: [],
                     streak: 0,
                     totalQuestsCompleted: 0,
                     loginStreak: 0,
+                    focusSessionsTotal: 0,
+                    focusMinutesTotal: 0,
                     achievements: [],
                     title: 'Novice',
                     auctionListings: [],

@@ -25,15 +25,14 @@ function pad(n: number) {
 }
 
 export default function FocusPage() {
-  const { tasks, addXP, addGold } = useGameStore();
+  const { tasks, addXP, addGold, addFocusSession, focusSessionsTotal, focusMinutesTotal } = useGameStore();
   const { addToast } = useToastStore();
 
   const [mode, setMode] = useState<TimerMode>('focus');
   const [timeLeft, setTimeLeft] = useState(MODES['focus'].duration);
   const [running, setRunning] = useState(false);
-  const [sessionsCompleted, setSessionsCompleted] = useState(0);
+  const [sessionsThisSession, setSessionsThisSession] = useState(0);
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
-  const [totalFocusMinutes, setTotalFocusMinutes] = useState(0);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
@@ -51,9 +50,9 @@ export default function FocusPage() {
     stopTimer();
 
     if (mode === 'focus') {
-      const newSessions = sessionsCompleted + 1;
-      setSessionsCompleted(newSessions);
-      setTotalFocusMinutes(prev => prev + 25);
+      const newSessions = sessionsThisSession + 1;
+      setSessionsThisSession(newSessions);
+      addFocusSession(25);
 
       addXP(XP_PER_FOCUS_SESSION);
       addGold(GOLD_PER_FOCUS_SESSION);
@@ -75,7 +74,7 @@ export default function FocusPage() {
       setMode('focus');
       setTimeLeft(MODES['focus'].duration);
     }
-  }, [mode, sessionsCompleted, stopTimer, addXP, addGold, addToast]);
+  }, [mode, sessionsThisSession, stopTimer, addXP, addGold, addFocusSession, addToast]);
 
   useEffect(() => {
     if (!running) return;
@@ -197,7 +196,7 @@ export default function FocusPage() {
               <div
                 key={i}
                 className={`w-3 h-3 rounded-full transition-all ${
-                  i < (sessionsCompleted % SESSIONS_BEFORE_LONG_BREAK)
+                  i < (sessionsThisSession % SESSIONS_BEFORE_LONG_BREAK)
                     ? 'bg-[var(--color-purple)]'
                     : 'bg-[var(--color-border)]'
                 }`}
@@ -205,7 +204,7 @@ export default function FocusPage() {
             ))}
           </div>
           <p className="text-xs text-[var(--color-text-muted)] mt-1">
-            Session {(sessionsCompleted % SESSIONS_BEFORE_LONG_BREAK) + 1} of {SESSIONS_BEFORE_LONG_BREAK}
+            Session {(sessionsThisSession % SESSIONS_BEFORE_LONG_BREAK) + 1} of {SESSIONS_BEFORE_LONG_BREAK}
           </p>
         </div>
 
@@ -238,15 +237,15 @@ export default function FocusPage() {
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
           <div className="rpg-card text-center !p-3">
-            <p className="text-xl font-bold text-[var(--color-purple)]">{sessionsCompleted}</p>
-            <p className="text-xs text-[var(--color-text-muted)]">Sessions</p>
+            <p className="text-xl font-bold text-[var(--color-purple)]">{focusSessionsTotal}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Total Sessions</p>
           </div>
           <div className="rpg-card text-center !p-3">
-            <p className="text-xl font-bold text-[var(--color-green)]">{totalFocusMinutes}</p>
-            <p className="text-xs text-[var(--color-text-muted)]">Minutes</p>
+            <p className="text-xl font-bold text-[var(--color-green)]">{focusMinutesTotal}</p>
+            <p className="text-xs text-[var(--color-text-muted)]">Total Minutes</p>
           </div>
           <div className="rpg-card text-center !p-3">
-            <p className="text-xl font-bold text-[var(--color-yellow)]">{sessionsCompleted * XP_PER_FOCUS_SESSION}</p>
+            <p className="text-xl font-bold text-[var(--color-yellow)]">{focusSessionsTotal * XP_PER_FOCUS_SESSION}</p>
             <p className="text-xs text-[var(--color-text-muted)]">XP Earned</p>
           </div>
         </div>

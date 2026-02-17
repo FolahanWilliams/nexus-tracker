@@ -3,11 +3,11 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { 
-  Home, 
-  Target, 
-  ShoppingBag, 
-  BarChart3, 
+import {
+  Home,
+  Target,
+  ShoppingBag,
+  BarChart3,
   Trophy,
   Sword,
   Sparkles,
@@ -19,7 +19,8 @@ import {
   MoreHorizontal,
   Repeat2,
   Timer,
-  Flag
+  Flag,
+  Calendar
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -37,6 +38,7 @@ const secondaryNavItems = [
   { href: '/crafting', label: 'Craft', icon: Hammer },
   { href: '/achievements', label: 'Trophies', icon: Trophy },
   { href: '/leaderboard', label: 'Ranks', icon: Crown },
+  { href: '/timeline', label: 'Timeline', icon: Calendar },
   { href: '/analytics', label: 'Stats', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

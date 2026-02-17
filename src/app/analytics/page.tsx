@@ -66,7 +66,7 @@ export default function AnalyticsPage() {
           <Link href="/" className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
             <ChevronLeft size={24} />
           </Link>
-          <h1 className="text-xl font-bold">Skills & Statistics</h1>
+          <h1 className="text-xl font-bold">Analytics</h1>
         </div>
       </div>
 

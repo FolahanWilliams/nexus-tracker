@@ -62,6 +62,7 @@ const menuItems = [
   { href: '/analytics',   emoji: '📊', label: 'Analytics' },
   { href: '/achievements',emoji: '🏆', label: 'Achievements' },
   { href: '/leaderboard', emoji: '👑', label: 'Leaderboard' },
+  { href: '/timeline',    emoji: '📅', label: 'Timeline' },
   { href: '/settings',    emoji: '⚙️', label: 'Settings' },
 ];
 
@@ -131,13 +132,14 @@ export default function HomePage() {
         })
       });
       const data = await response.json();
-      if (data.tasks && Array.isArray(data.tasks)) {
-        data.tasks.forEach((task: { title?: string; difficulty?: string } | string) => {
+      const questList = data.quests ?? data.tasks;
+      if (questList && Array.isArray(questList)) {
+        questList.forEach((task: { title?: string; difficulty?: 'Easy' | 'Medium' | 'Hard' | 'Epic' } | string) => {
           const t = typeof task === 'string' ? task : (task.title ?? String(task));
-          const difficulty = (['Easy', 'Medium', 'Hard'] as const)[Math.floor(Math.random() * 3)];
-          addTask(t, difficulty, undefined, 'Work');
+          const diff = (typeof task === 'object' && task.difficulty) ? task.difficulty : (['Easy', 'Medium', 'Hard'] as const)[Math.floor(Math.random() * 3)];
+          addTask(t, diff, undefined, 'Work');
         });
-        addToast(`Generated ${data.tasks.length} AI-powered quests!`, 'success');
+        addToast(`Generated ${questList.length} AI-powered quests!`, 'success');
       }
     } catch {
       addToast('Failed to generate plan. Try again.', 'error');

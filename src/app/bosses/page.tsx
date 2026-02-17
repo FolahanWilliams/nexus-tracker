@@ -92,7 +92,7 @@ export default function BossBattlesPage() {
 
   const handleStartBattle = (template: typeof BOSS_TEMPLATES[0]) => {
     const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 5);
+    expiresAt.setSeconds(expiresAt.getSeconds() + (template.timeLimit ?? 300));
     
     startBossBattle({
       name: template.name,
@@ -119,12 +119,12 @@ export default function BossBattlesPage() {
     const updatedBoss = updatedBosses.find(b => b.id === selectedBoss.id);
     
     if (updatedBoss) {
-      if (updatedBoss.hp <= playerDamage) {
+      if (updatedBoss.hp <= 0 || updatedBoss.completed) {
         addToast(`Boss defeated! +${selectedBoss.xpReward} XP, +${selectedBoss.goldReward} Gold`, 'success');
         setSelectedBoss(null);
         setBattleTimer(0);
       } else {
-        addToast(`Dealt ${playerDamage} damage!`, 'info');
+        addToast(`Dealt ${playerDamage} damage! ${updatedBoss.hp} HP remaining.`, 'info');
       }
     }
   };
