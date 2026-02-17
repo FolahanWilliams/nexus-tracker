@@ -16,17 +16,23 @@ import {
   X,
   Hammer,
   Crown,
-  MoreHorizontal
+  MoreHorizontal,
+  Repeat2,
+  Timer,
+  Flag
 } from 'lucide-react';
 
 const mainNavItems = [
   { href: '/', label: 'Home', icon: Home },
   { href: '/quests', label: 'Quests', icon: Target },
-  { href: '/bosses', label: 'Boss', icon: Sword },
+  { href: '/habits', label: 'Habits', icon: Repeat2 },
+  { href: '/focus', label: 'Focus', icon: Timer },
   { href: '/shop', label: 'Shop', icon: ShoppingBag },
 ];
 
 const secondaryNavItems = [
+  { href: '/goals', label: 'Goals', icon: Flag },
+  { href: '/bosses', label: 'Boss', icon: Sword },
   { href: '/inventory', label: 'Items', icon: Sparkles },
   { href: '/crafting', label: 'Craft', icon: Hammer },
   { href: '/achievements', label: 'Trophies', icon: Trophy },
@@ -41,19 +47,21 @@ export default function MobileNavigation() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 bg-[var(--color-bg-dark)]/95 backdrop-blur-lg z-50 lg:hidden border-t border-[var(--color-border)]">
+      <nav className="fixed bottom-0 left-0 right-0 bg-[var(--color-bg-dark)]/95 backdrop-blur-lg z-50 lg:hidden border-t border-[var(--color-border)]" aria-label="Main navigation">
         <div className="flex justify-around items-center px-1 py-2">
           {mainNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
-            
+
             return (
               <Link
                 key={item.href}
                 href={item.href}
+                aria-label={item.label}
+                aria-current={isActive ? 'page' : undefined}
                 className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${
-                  isActive 
-                    ? 'text-[var(--color-purple)]' 
+                  isActive
+                    ? 'text-[var(--color-purple)]'
                     : 'text-[var(--color-text-muted)]'
                 }`}
               >
@@ -72,9 +80,11 @@ export default function MobileNavigation() {
           {/* More button */}
           <button
             onClick={() => setShowMore(!showMore)}
+            aria-expanded={showMore}
+            aria-label="More navigation options"
             className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${
               showMore
-                ? 'text-[var(--color-purple)]' 
+                ? 'text-[var(--color-purple)]'
                 : 'text-[var(--color-text-muted)]'
             }`}
           >
@@ -110,9 +120,11 @@ export default function MobileNavigation() {
                     key={item.href}
                     href={item.href}
                     onClick={() => setShowMore(false)}
+                    aria-label={item.label}
+                    aria-current={isActive ? 'page' : undefined}
                     className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${
-                      isActive 
-                        ? 'bg-[var(--color-purple)]/20 text-[var(--color-purple)]' 
+                      isActive
+                        ? 'bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
                         : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-dark)]'
                     }`}
                   >

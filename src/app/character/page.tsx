@@ -1,6 +1,6 @@
 'use client';
 
-import { useGameStore } from '@/store/useGameStore';
+import { useGameStore, CLASS_BONUSES, xpForLevel } from '@/store/useGameStore';
 import Link from 'next/link';
 import { ChevronLeft, Minus } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -204,19 +204,24 @@ export default function CharacterPage() {
               transition={{ delay: 0.4 }}
             >
               <h3 className="text-lg font-bold mb-6 text-center">CHOOSE YOUR CLASS</h3>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3">
                 {CLASSES.map((classOption, index) => (
                   <motion.button
                     key={classOption}
-                    className={`class-button ${characterClass === classOption ? '!bg-[var(--color-purple)] !text-white !border-[var(--color-purple)]' : ''}`}
+                    className={`class-button flex items-center justify-between gap-3 text-left !p-3 ${characterClass === classOption ? '!bg-[var(--color-purple)] !text-white !border-[var(--color-purple)]' : ''}`}
                     onClick={() => handleClassSelect(classOption)}
+                    aria-pressed={characterClass === classOption}
+                    aria-label={`Select ${classOption} class: ${CLASS_BONUSES[classOption].description}`}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.5 + index * 0.1 }}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                   >
-                    {classOption}
+                    <span className="font-bold">{classOption}</span>
+                    <span className={`text-xs ${characterClass === classOption ? 'text-white/80' : 'text-[var(--color-text-muted)]'}`}>
+                      {CLASS_BONUSES[classOption].description}
+                    </span>
                   </motion.button>
                 ))}
               </div>
@@ -228,10 +233,27 @@ export default function CharacterPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <p className="text-sm text-[var(--color-purple)] font-bold mb-2">Class Selected:</p>
-                  <p className="text-lg font-bold">{characterClass}</p>
+                  <p className="text-sm text-[var(--color-purple)] font-bold mb-1">Active Class Bonus</p>
+                  <p className="font-bold mb-1">{characterClass}</p>
+                  <p className="text-xs text-[var(--color-text-secondary)]">{CLASS_BONUSES[characterClass].description}</p>
                 </motion.div>
               )}
+
+              {/* XP Progress to next level */}
+              <div className="mt-6 p-4 bg-[var(--color-bg-dark)] rounded-lg">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-[var(--color-text-secondary)]">Level {level} → {level + 1}</span>
+                  <span className="font-bold text-[var(--color-green)]">{xp} / {xpForLevel(level + 1)} XP</span>
+                </div>
+                <div className="h-3 bg-[var(--color-border)] rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-[var(--color-green)] rounded-full"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(((xp - xpForLevel(level)) / (xpForLevel(level + 1) - xpForLevel(level))) * 100, 100)}%` }}
+                    transition={{ duration: 0.8, delay: 0.5 }}
+                  />
+                </div>
+              </div>
             </motion.div>
           </div>
         </div>

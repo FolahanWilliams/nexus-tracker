@@ -18,12 +18,18 @@ import {
   Hammer,
   Store,
   Crown,
-  Settings
+  Settings,
+  Repeat2,
+  Timer,
+  Flag
 } from 'lucide-react';
 
 const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
   { href: '/quests', label: 'Quests', icon: Target },
+  { href: '/habits', label: 'Habits', icon: Repeat2 },
+  { href: '/focus', label: 'Focus Timer', icon: Timer },
+  { href: '/goals', label: 'Goals', icon: Flag },
   { href: '/chains', label: 'Quest Chains', icon: Map },
   { href: '/bosses', label: 'Boss Battles', icon: Sword },
   { href: '/shop', label: 'Shop', icon: ShoppingBag },

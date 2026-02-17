@@ -1,8 +1,9 @@
 'use client';
 
-import { useGameStore } from '@/store/useGameStore';
+import { useGameStore, TaskCategory } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
-import { useState } from 'react';
+import { triggerXPFloat } from '@/components/XPFloat';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
@@ -22,12 +23,35 @@ interface GeneratedQuest {
 }
 
 export default function QuestsPage() {
-  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, addItem } = useGameStore();
+  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, characterName, characterClass, level, totalQuestsCompleted, streak } = useGameStore();
   const { addToast } = useToastStore();
+
+  // Show toast when an item drops from the store
+  useEffect(() => {
+    if (lastDroppedItem) {
+      addToast(`Item found! ${lastDroppedItem} added to inventory`, 'success');
+      clearDroppedItem();
+    }
+  }, [lastDroppedItem]);
+
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | 'Epic'>('Medium');
+  const [category, setCategory] = useState<TaskCategory>('Other');
+  const [recurring, setRecurring] = useState<'none' | 'daily' | 'weekly'>('none');
+  const [filterCategory, setFilterCategory] = useState<TaskCategory | 'All'>('All');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
+
+  const CATEGORIES: TaskCategory[] = ['Study', 'Health', 'Creative', 'Work', 'Social', 'Personal', 'Other'];
+  const CATEGORY_COLORS: Record<TaskCategory, string> = {
+    Study: 'bg-blue-500/20 text-blue-400',
+    Health: 'bg-green-500/20 text-green-400',
+    Creative: 'bg-purple-500/20 text-purple-400',
+    Work: 'bg-orange-500/20 text-orange-400',
+    Social: 'bg-pink-500/20 text-pink-400',
+    Personal: 'bg-yellow-500/20 text-yellow-400',
+    Other: 'bg-gray-500/20 text-gray-400',
+  };
 
   // Calculate total multipliers from skills and equipment
   const xpMultiplier = getSkillMultiplier('xp');
@@ -47,10 +71,14 @@ export default function QuestsPage() {
   const handleAddTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    addTask(title, difficulty);
+    addTask(title, difficulty, undefined, category, recurring);
     addToast('Quest added!', 'success');
     setTitle('');
   };
+
+  const filteredTasks = filterCategory === 'All'
+    ? tasks
+    : tasks.filter(t => (t.category ?? 'Other') === filterCategory);
 
   const handleGenerateQuests = async () => {
     if (!generatePrompt.trim()) return;
@@ -60,20 +88,32 @@ export default function QuestsPage() {
       const response = await fetch('/api/generate-quest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: generatePrompt }),
+        body: JSON.stringify({
+          prompt: generatePrompt,
+          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak }
+        }),
       });
 
       const data = await response.json();
-      
+
+      if (!response.ok) {
+        addToast('Failed to generate quests. Please try again.', 'error');
+        return;
+      }
+
       if (data.quests && Array.isArray(data.quests)) {
         data.quests.forEach((quest: GeneratedQuest) => {
           addTask(quest.title, quest.difficulty, quest.xp);
         });
+        const count = data.quests.length;
+        const note = data.isMock ? ' (fallback quests)' : '';
+        addToast(`${count} quest${count !== 1 ? 's' : ''} generated${note}!`, 'success');
       }
 
       setGeneratePrompt('');
     } catch (error) {
       console.error('Failed to generate quests:', error);
+      addToast('Network error. Check your connection and try again.', 'error');
     } finally {
       setIsGenerating(false);
     }
@@ -157,7 +197,7 @@ export default function QuestsPage() {
           transition={{ delay: 0.1 }}
         >
           <h2 className="text-lg font-bold mb-4">Create New Quest</h2>
-          
+
           <form onSubmit={handleAddTask} className="space-y-4">
             <input
               type="text"
@@ -165,25 +205,79 @@ export default function QuestsPage() {
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Practice Spanish for 30 minutes"
               className="input-field"
+              aria-label="Quest title"
             />
-            
-            <div className="grid grid-cols-4 gap-2">
-              {(['Easy', 'Medium', 'Hard', 'Epic'] as const).map((diff) => (
-                <motion.button
-                  key={diff}
-                  type="button"
-                  onClick={() => setDifficulty(diff)}
-                  className={`py-2.5 px-4 rounded font-semibold text-sm transition-all ${
-                    difficulty === diff
-                      ? 'bg-[var(--color-purple)] text-white border-2 border-[var(--color-purple)]'
-                      : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border-2 border-[var(--color-border)] hover:border-[var(--color-purple)]'
-                  }`}
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {diff}
-                </motion.button>
-              ))}
+
+            {/* Difficulty */}
+            <div>
+              <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Difficulty</p>
+              <div className="grid grid-cols-4 gap-2">
+                {(['Easy', 'Medium', 'Hard', 'Epic'] as const).map((diff) => (
+                  <motion.button
+                    key={diff}
+                    type="button"
+                    onClick={() => setDifficulty(diff)}
+                    aria-pressed={difficulty === diff}
+                    className={`py-2.5 px-4 rounded font-semibold text-sm transition-all ${
+                      difficulty === diff
+                        ? 'bg-[var(--color-purple)] text-white border-2 border-[var(--color-purple)]'
+                        : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border-2 border-[var(--color-border)] hover:border-[var(--color-purple)]'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {diff}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Category */}
+            <div>
+              <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Category</p>
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map((cat) => (
+                  <motion.button
+                    key={cat}
+                    type="button"
+                    onClick={() => setCategory(cat)}
+                    aria-pressed={category === cat}
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border-2 ${
+                      category === cat
+                        ? 'border-[var(--color-purple)] ' + CATEGORY_COLORS[cat]
+                        : 'border-[var(--color-border)] bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {cat}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
+            {/* Recurring */}
+            <div>
+              <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Repeat</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(['none', 'daily', 'weekly'] as const).map((r) => (
+                  <motion.button
+                    key={r}
+                    type="button"
+                    onClick={() => setRecurring(r)}
+                    aria-pressed={recurring === r}
+                    className={`py-2 rounded text-sm font-semibold transition-all ${
+                      recurring === r
+                        ? 'bg-[var(--color-purple)] text-white'
+                        : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-purple)]'
+                    }`}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {r === 'none' ? 'Once' : r.charAt(0).toUpperCase() + r.slice(1)}
+                  </motion.button>
+                ))}
+              </div>
             </div>
             
             <motion.button
@@ -247,17 +341,42 @@ export default function QuestsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <h2 className="text-lg font-bold mb-4">Your Quests</h2>
-          
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Your Quests</h2>
+            <span className="text-sm text-[var(--color-text-muted)]">{filteredTasks.length} quest{filteredTasks.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {/* Category filter */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {(['All', ...CATEGORIES] as const).map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                aria-pressed={filterCategory === cat}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
+                  filterCategory === cat
+                    ? 'border-[var(--color-purple)] bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
+                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
           {tasks.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-[var(--color-text-secondary)] font-semibold">No quests yet!</p>
-              <p className="text-sm text-[var(--color-text-muted)] mt-1">Add your first quest above</p>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1">Create your first quest above or use the AI generator!</p>
+            </div>
+          ) : filteredTasks.length === 0 ? (
+            <div className="text-center py-8 text-[var(--color-text-muted)]">
+              No {filterCategory} quests yet. Change category or add one above.
             </div>
           ) : (
             <div className="space-y-2">
               <AnimatePresence>
-                {tasks.map((task, index) => (
+                {filteredTasks.map((task, index) => (
                   <motion.div
                     key={task.id}
                     className={`flex items-center gap-4 p-4 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded transition-all hover:border-[var(--color-purple)] ${
@@ -272,38 +391,26 @@ export default function QuestsPage() {
                     <motion.button
                       onClick={() => {
                         if (!task.completed) {
-                          // Calculate bonuses
+                          // Calculate bonuses for display
                           const xpBonus = Math.floor(task.xpReward * (xpMultiplier - 1)) + getEquipmentBonus('xpBonus');
                           const goldBonus = Math.floor((task.xpReward / 2) * (goldMultiplier - 1)) + getEquipmentBonus('goldBonus');
-                          
+
+                          // toggleTask handles XP, gold, drops, streak, achievements
                           toggleTask(task.id);
-                          
+
+                          // Trigger floating XP number
+                          const totalXP = task.xpReward + xpBonus;
+                          triggerXPFloat(`+${totalXP} XP`, '#4ade80');
+                          if (goldBonus > 0 || task.xpReward > 0) {
+                            const gold = Math.floor(task.xpReward / 2) + goldBonus;
+                            setTimeout(() => triggerXPFloat(`+${gold} 🪙`, '#fbbf24'), 200);
+                          }
+
                           let message = `Quest completed! +${task.xpReward} XP, +${Math.floor(task.xpReward / 2)} Gold`;
                           if (xpBonus > 0 || goldBonus > 0) {
                             message += ` (Bonuses: +${xpBonus} XP, +${goldBonus} Gold)`;
                           }
-                          
-                          // Random item drop check
-                          if (Math.random() < 0.15) {
-                            const dropItems = [
-                              { name: 'Health Potion', description: 'Restores health', type: 'consumable' as const, rarity: 'Common' as const, icon: '🧪' },
-                              { name: 'Gold Coin', description: 'A shiny gold coin', type: 'material' as const, rarity: 'Common' as const, icon: '🪙' },
-                              { name: 'XP Scroll', description: 'Grants bonus XP', type: 'consumable' as const, rarity: 'Uncommon' as const, icon: '📜' },
-                              { name: 'Mystery Gem', description: 'A mysterious gem', type: 'material' as const, rarity: 'Rare' as const, icon: '💎' },
-                            ];
-                            const drop = dropItems[Math.floor(Math.random() * dropItems.length)];
-                            addItem({
-                              name: drop.name,
-                              description: drop.description,
-                              type: drop.type,
-                              rarity: drop.rarity,
-                              icon: drop.icon,
-                              quantity: 1,
-                              stats: drop.rarity === 'Uncommon' ? { xpBonus: 10 } : drop.rarity === 'Rare' ? { xpBonus: 25, goldBonus: 10 } : undefined
-                            });
-                            message += ` ${drop.icon} ${drop.name} found!`;
-                          }
-                          
+
                           addToast(message, 'success');
                         } else {
                           toggleTask(task.id);
@@ -325,10 +432,18 @@ export default function QuestsPage() {
                       <p className={`font-semibold ${task.completed ? 'line-through text-[var(--color-text-muted)]' : ''}`}>
                         {task.title}
                       </p>
-                      <div className="flex items-center gap-2 mt-1">
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
                         <span className={`rpg-badge ${difficultyColors[task.difficulty]}`}>
                           {task.difficulty}
                         </span>
+                        <span className={`rpg-badge ${CATEGORY_COLORS[task.category ?? 'Other']}`}>
+                          {task.category ?? 'Other'}
+                        </span>
+                        {task.recurring && task.recurring !== 'none' && (
+                          <span className="rpg-badge bg-[var(--color-purple)]/20 text-[var(--color-purple)]">
+                            🔁 {task.recurring}
+                          </span>
+                        )}
                         <span className="text-xs text-[var(--color-text-muted)] font-semibold">
                           +{task.xpReward} XP
                         </span>

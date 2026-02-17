@@ -1,14 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export type TaskCategory = 'Study' | 'Health' | 'Creative' | 'Work' | 'Social' | 'Personal' | 'Other';
+
 export interface Task {
     id: string;
     title: string;
     completed: boolean;
     xpReward: number;
     difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic';
+    category: TaskCategory;
     completedAt?: string;
     isDaily?: boolean;
+    recurring?: 'none' | 'daily' | 'weekly';
 }
 
 export interface DailyQuest extends Task {
@@ -138,6 +142,42 @@ export interface AuctionListing {
     listedAt: string;
 }
 
+export interface Habit {
+    id: string;
+    name: string;
+    icon: string;
+    category: TaskCategory;
+    xpReward: number;
+    streak: number;
+    longestStreak: number;
+    completedDates: string[]; // ISO date strings: 'YYYY-MM-DD'
+    createdAt: string;
+    lastCompletedDate: string | null;
+}
+
+export type GoalTimeframe = 'week' | 'month' | 'quarter' | 'year' | 'lifetime';
+
+export interface GoalMilestone {
+    id: string;
+    title: string;
+    completed: boolean;
+    completedAt?: string;
+}
+
+export interface Goal {
+    id: string;
+    title: string;
+    description: string;
+    category: TaskCategory;
+    timeframe: GoalTimeframe;
+    targetDate: string; // ISO date string
+    milestones: GoalMilestone[];
+    completed: boolean;
+    completedAt?: string;
+    createdAt: string;
+    xpReward: number;
+}
+
 export interface Settings {
     soundEnabled: boolean;
     theme: 'dark' | 'light';
@@ -195,6 +235,14 @@ export interface GameState {
     // UI State
     showLevelUp: boolean;
     achievements: string[];
+    lastDroppedItem: string | null; // Name of last item dropped, for toast display
+
+    // Daily intention & reflection
+    lastIntentionDate: string | null;
+    lastReflectionDate: string | null;
+    todayIntention: string;
+    todayEnergyRating: number; // 1-5
+    reflectionNotes: { date: string; note: string; stars: number }[];
 
     // RPG Elements
     inventory: InventoryItem[];
@@ -208,6 +256,12 @@ export interface GameState {
 
     // Auction House
     auctionListings: AuctionListing[];
+
+    // Habits
+    habits: Habit[];
+
+    // Goals
+    goals: Goal[];
 
     // Buffs/Effects
     activeBuffs: { type: string; value: number; expiresAt: string }[];
@@ -227,11 +281,12 @@ export interface GameState {
 
     // Task Actions
     addXP: (amount: number) => void;
-    addTask: (title: string, difficulty?: Task['difficulty'], xp?: number) => void;
+    addTask: (title: string, difficulty?: Task['difficulty'], xp?: number, category?: TaskCategory, recurring?: Task['recurring']) => void;
     toggleTask: (id: string) => void;
     deleteTask: (id: string) => void;
     resetProgress: () => void;
     closeLevelUp: () => void;
+    clearDroppedItem: () => void;
     unlockAchievement: (id: string) => void;
     checkAchievements: () => void;
 
@@ -279,7 +334,27 @@ export interface GameState {
     // RPG Actions - Skills
     upgradeSkill: (skillId: string) => void;
     unlockSkill: (skillId: string) => void;
+    resetSkill: (skillId: string) => void;
     getSkillMultiplier: (type: 'xp' | 'gold') => number;
+
+    // Gold sink actions
+    buyGoldBuff: (type: 'xp' | 'gold', durationMinutes: number, goldCost: number) => boolean;
+
+    // Habit Actions
+    addHabit: (name: string, icon: string, category: TaskCategory, xpReward: number) => void;
+    completeHabit: (habitId: string) => void;
+    deleteHabit: (habitId: string) => void;
+    checkHabitResets: () => void;
+
+    // Goal Actions
+    addGoal: (title: string, description: string, category: TaskCategory, timeframe: GoalTimeframe, targetDate: string, milestones: string[], xpReward: number) => void;
+    completeGoalMilestone: (goalId: string, milestoneId: string) => void;
+    completeGoal: (goalId: string) => void;
+    deleteGoal: (goalId: string) => void;
+
+    // Intention & Reflection Actions
+    setDailyIntention: (intention: string, energyRating: number) => void;
+    addReflectionNote: (note: string, stars: number, xpBonus: number) => void;
 
     // RPG Actions - Quest Chains
     addQuestChain: (chain: Omit<QuestChain, 'id' | 'currentStep' | 'completed'>) => void;
@@ -292,6 +367,32 @@ const DIFFICULTY_XP = {
     Medium: 25,
     Hard: 50,
     Epic: 100,
+};
+
+// XP needed to reach a given level (cumulative)
+// Level 1=0, 2=100, 3=250, 4=475, 5=800 ... scales with level^1.8
+export function xpForLevel(level: number): number {
+    if (level <= 1) return 0;
+    return Math.floor(50 * Math.pow(level - 1, 1.8));
+}
+
+// Derive level from total XP using the curve
+export function levelFromXP(xp: number): number {
+    let level = 1;
+    while (xpForLevel(level + 1) <= xp) {
+        level++;
+        if (level >= 100) break; // cap at 100
+    }
+    return level;
+}
+
+// Class passive bonuses applied on top of base rewards
+export const CLASS_BONUSES: Record<NonNullable<CharacterClass>, { xpMultiplier: number; goldMultiplier: number; bossMultiplier: number; dropBonus: number; description: string }> = {
+    Scholar:    { xpMultiplier: 1.20, goldMultiplier: 1.00, bossMultiplier: 1.00, dropBonus: 0.00, description: '+20% XP from all quests' },
+    Strategist: { xpMultiplier: 1.10, goldMultiplier: 1.10, bossMultiplier: 1.15, dropBonus: 0.00, description: '+10% XP & Gold, +15% boss damage' },
+    Warrior:    { xpMultiplier: 1.00, goldMultiplier: 1.00, bossMultiplier: 1.30, dropBonus: 0.05, description: '+30% boss damage, +5% item drop chance' },
+    Merchant:   { xpMultiplier: 1.00, goldMultiplier: 1.25, bossMultiplier: 1.00, dropBonus: 0.05, description: '+25% Gold from all quests, +5% item drop chance' },
+    Creator:    { xpMultiplier: 1.15, goldMultiplier: 1.15, bossMultiplier: 1.00, dropBonus: 0.10, description: '+15% XP & Gold, +10% item drop chance' },
 };
 
 const DAILY_QUEST_TEMPLATES = [
@@ -367,16 +468,28 @@ const CRAFTING_RECIPES: CraftingRecipe[] = [
 ];
 
 const ACHIEVEMENTS = [
-    { id: 'FIRST_BLOOD', name: 'First Blood', description: 'Complete your first quest', condition: (state: GameState) => state.tasks.filter(t => t.completed).length >= 1 },
-    { id: 'LEVEL_5', name: 'High Roller', description: 'Reach Level 5', condition: (state: GameState) => state.level >= 5 },
-    { id: 'QUEST_MASTER', name: 'Quest Master', description: 'Complete 10 quests', condition: (state: GameState) => state.totalQuestsCompleted >= 10 },
-    { id: 'BOSS_SLAYER', name: 'Boss Slayer', description: 'Defeat a boss', condition: (state: GameState) => state.bossBattles.some(b => b.completed) },
-    { id: 'CRAFTSMAN', name: 'Craftsman', description: 'Craft your first item', condition: (state: GameState) => state.inventory.some(i => i.name.includes('Blade') || i.name.includes('Shield') || i.name.includes('Potion')) },
-    { id: 'STREAK_7', name: 'Week Warrior', description: 'Maintain a 7-day streak', condition: (state: GameState) => state.streak >= 7 },
-    { id: 'TITLE_MASTER', name: 'Titled', description: 'Obtain the Master title', condition: (state: GameState) => state.title === 'Master' },
-    { id: 'AUCTIONEER', name: 'Auctioneer', description: 'Buy something from auction', condition: (state: GameState) => state.achievements.includes('AUCTIONEER') },
-    { id: 'DAILY_COMPLETE', name: 'Daily Grind', description: 'Complete all daily quests', condition: (state: GameState) => state.dailyQuests.length > 0 && state.dailyQuests.every(q => q.completed) },
-    { id: 'LOGIN_30', name: 'Dedicated', description: 'Login 30 days in a row', condition: (state: GameState) => state.loginStreak >= 30 },
+    // Original 10
+    { id: 'FIRST_BLOOD',    name: 'First Blood',     description: 'Complete your first quest',           icon: '⚔️',  condition: (state: GameState) => state.totalQuestsCompleted >= 1 },
+    { id: 'LEVEL_5',        name: 'High Roller',      description: 'Reach Level 5',                       icon: '⭐',  condition: (state: GameState) => state.level >= 5 },
+    { id: 'QUEST_MASTER',   name: 'Quest Master',     description: 'Complete 10 quests',                  icon: '📜',  condition: (state: GameState) => state.totalQuestsCompleted >= 10 },
+    { id: 'BOSS_SLAYER',    name: 'Boss Slayer',      description: 'Defeat a boss battle',                icon: '🐉',  condition: (state: GameState) => state.bossBattles.some(b => b.completed) },
+    { id: 'CRAFTSMAN',      name: 'Craftsman',        description: 'Craft your first item',               icon: '🔨',  condition: (state: GameState) => state.inventory.some(i => i.name.includes('Blade') || i.name.includes('Shield') || i.name.includes('Potion')) },
+    { id: 'STREAK_7',       name: 'Week Warrior',     description: 'Maintain a 7-day streak',             icon: '🔥',  condition: (state: GameState) => state.streak >= 7 },
+    { id: 'TITLE_MASTER',   name: 'Titled',           description: 'Obtain the Master title',             icon: '🎖️',  condition: (state: GameState) => state.title === 'Master' },
+    { id: 'AUCTIONEER',     name: 'Auctioneer',       description: 'List an item in the auction house',   icon: '🏛️',  condition: (state: GameState) => state.auctionListings.length > 0 },
+    { id: 'DAILY_COMPLETE', name: 'Daily Grind',      description: 'Complete all daily quests in a day',  icon: '✅',  condition: (state: GameState) => state.dailyQuests.length > 0 && state.dailyQuests.every(q => q.completed) },
+    { id: 'LOGIN_30',       name: 'Dedicated',        description: 'Login 30 days in a row',              icon: '📅',  condition: (state: GameState) => state.loginStreak >= 30 },
+    // New 10
+    { id: 'QUEST_CENTURION',name: 'Centurion',        description: 'Complete 100 quests',                 icon: '💯',  condition: (state: GameState) => state.totalQuestsCompleted >= 100 },
+    { id: 'STREAK_30',      name: 'Streak Legend',    description: 'Maintain a 30-day streak',            icon: '👑',  condition: (state: GameState) => state.streak >= 30 },
+    { id: 'HABIT_HERO',     name: 'Habit Hero',       description: 'Complete a habit 7 days in a row',    icon: '🏆',  condition: (state: GameState) => state.habits.some(h => h.streak >= 7) },
+    { id: 'GOAL_GETTER',    name: 'Goal Getter',      description: 'Complete your first goal',            icon: '🎯',  condition: (state: GameState) => state.goals.some(g => g.completed) },
+    { id: 'HABIT_BUILDER',  name: 'Habit Builder',    description: 'Create 5 habits',                     icon: '🌱',  condition: (state: GameState) => state.habits.length >= 5 },
+    { id: 'EPIC_SLAYER',    name: 'Epic Slayer',      description: 'Complete 10 Epic difficulty quests',  icon: '⚡',  condition: (state: GameState) => state.tasks.filter(t => t.completed && t.difficulty === 'Epic').length >= 10 },
+    { id: 'LEVEL_20',       name: 'Veteran',          description: 'Reach Level 20',                      icon: '💎',  condition: (state: GameState) => state.level >= 20 },
+    { id: 'SCHOLAR_ELITE',  name: 'Scholar Elite',    description: 'Complete 25 Study quests',            icon: '📚',  condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Study').length >= 25 },
+    { id: 'HEALTH_WARRIOR', name: 'Health Warrior',   description: 'Complete 25 Health quests',           icon: '💪',  condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Health').length >= 25 },
+    { id: 'REFLECTOR',      name: 'Self Reflector',   description: 'Submit 7 evening reflections',        icon: '🌙',  condition: (state: GameState) => state.reflectionNotes.length >= 7 },
 ];
 
 const DAILY_REWARDS = [
@@ -408,6 +521,8 @@ export const useGameStore = create<GameState>()(
             lastDailyRewardClaim: null,
             loginStreak: 0,
             auctionListings: [],
+            habits: [],
+            goals: [],
             activeBuffs: [],
 
             // Character defaults
@@ -433,6 +548,14 @@ export const useGameStore = create<GameState>()(
 
             showLevelUp: false,
             achievements: [],
+            lastDroppedItem: null,
+
+            // Daily intention & reflection
+            lastIntentionDate: null,
+            lastReflectionDate: null,
+            todayIntention: '',
+            todayEnergyRating: 3,
+            reflectionNotes: [] as { date: string; note: string; stars: number }[],
 
             // RPG Elements - Default Values
             inventory: [],
@@ -579,12 +702,18 @@ export const useGameStore = create<GameState>()(
                 // Apply any active XP buffs
                 const state = get();
                 let finalAmount = amount;
+
+                // Apply class XP bonus
+                if (state.characterClass) {
+                    finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].xpMultiplier);
+                }
+
                 state.activeBuffs.forEach(buff => {
                     if (buff.type === 'xp' || buff.type === 'buff') {
                         finalAmount = Math.floor(finalAmount * buff.value);
                     }
                 });
-                
+
                 // Lucky star chance for double XP
                 const luckySkill = state.skills.find(s => s.id === 'lucky-star');
                 if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
@@ -592,8 +721,8 @@ export const useGameStore = create<GameState>()(
                 }
 
                 set((state) => {
-                    const newXP = state.xp + finalAmount;
-                    const newLevel = Math.floor(Math.sqrt(newXP / 100)) + 1;
+                    const newXP = Math.max(0, state.xp + finalAmount);
+                    const newLevel = levelFromXP(newXP);
                     const hasLeveledUp = newLevel > state.level;
 
                     return {
@@ -607,11 +736,17 @@ export const useGameStore = create<GameState>()(
             },
 
             closeLevelUp: () => set({ showLevelUp: false }),
+            clearDroppedItem: () => set({ lastDroppedItem: null }),
 
             addGold: (amount) => {
                 const state = get();
                 let finalAmount = amount;
-                
+
+                // Apply class gold bonus (only when gaining gold, not spending)
+                if (amount > 0 && state.characterClass) {
+                    finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].goldMultiplier);
+                }
+
                 state.activeBuffs.forEach(buff => {
                     if (buff.type === 'gold' || buff.type === 'buff') {
                         finalAmount = Math.floor(finalAmount * buff.value);
@@ -703,6 +838,8 @@ export const useGameStore = create<GameState>()(
                     completed: false,
                     xpReward: template.xp,
                     difficulty: template.difficulty,
+                    category: 'Other' as const,
+                    recurring: 'daily' as const,
                     expiresAt: tomorrow.toISOString(),
                     isExpired: false,
                     isDaily: true
@@ -746,7 +883,12 @@ export const useGameStore = create<GameState>()(
                 const boss = state.bossBattles.find(b => b.id === bossId);
                 if (!boss || boss.completed || boss.failed) return;
                 
-                // Apply boss slayer bonus
+                // Apply class boss multiplier
+                if (state.characterClass) {
+                    damage = Math.floor(damage * CLASS_BONUSES[state.characterClass].bossMultiplier);
+                }
+
+                // Apply boss slayer skill bonus
                 const bossSlayerSkill = state.skills.find(s => s.id === 'boss-slayer');
                 if (bossSlayerSkill && bossSlayerSkill.currentLevel > 0) {
                     damage = Math.floor(damage * (1 + bossSlayerSkill.currentLevel * 0.05 * bossSlayerSkill.currentLevel));
@@ -953,7 +1095,7 @@ export const useGameStore = create<GameState>()(
                 });
             },
 
-            addTask: (title, difficulty = 'Medium', customXP, isDaily = false) => {
+            addTask: (title, difficulty = 'Medium', customXP, category = 'Other', recurring = 'none', isDaily = false) => {
                 const xpReward = customXP || DIFFICULTY_XP[difficulty];
                 const newTask: Task = {
                     id: crypto.randomUUID(),
@@ -961,6 +1103,8 @@ export const useGameStore = create<GameState>()(
                     completed: false,
                     xpReward,
                     difficulty,
+                    category,
+                    recurring,
                     isDaily
                 };
                 set((state) => ({ tasks: [...state.tasks, newTask] }));
@@ -978,22 +1122,34 @@ export const useGameStore = create<GameState>()(
                         state.checkStreak();
                         set((s) => ({ totalQuestsCompleted: s.totalQuestsCompleted + 1 }));
                         
-                        // Random item drop check
-                        if (Math.random() < 0.15) {
+                        // Difficulty-scaled item drop chance + class bonus
+                        const classDropBonus = state.characterClass ? CLASS_BONUSES[state.characterClass].dropBonus : 0;
+                        const dropChance = ({ Easy: 0.10, Medium: 0.15, Hard: 0.25, Epic: 0.40 }[task.difficulty] ?? 0.15) + classDropBonus;
+                        if (Math.random() < dropChance) {
                             const dropItems = [
                                 { name: 'Health Potion', description: 'Restores health', type: 'consumable' as const, rarity: 'Common' as const, icon: '🧪' },
                                 { name: 'Gold Coin', description: 'A shiny gold coin', type: 'material' as const, rarity: 'Common' as const, icon: '🪙' },
                                 { name: 'XP Scroll', description: 'Grants bonus XP', type: 'consumable' as const, rarity: 'Uncommon' as const, icon: '📜' },
                                 { name: 'Mystery Gem', description: 'A mysterious gem', type: 'material' as const, rarity: 'Rare' as const, icon: '💎' },
+                                { name: 'Dragon Scale', description: 'A rare crafting material', type: 'material' as const, rarity: 'Epic' as const, icon: '🐉' },
                             ];
-                            const randomItem = dropItems[Math.floor(Math.random() * dropItems.length)];
+                            // Hard/Epic quests have better loot pools
+                            const availableDrops = task.difficulty === 'Epic'
+                                ? dropItems
+                                : task.difficulty === 'Hard'
+                                ? dropItems.slice(0, 4)
+                                : dropItems.slice(0, 3);
+                            const randomItem = availableDrops[Math.floor(Math.random() * availableDrops.length)];
                             const newItem: InventoryItem = {
                                 ...randomItem,
                                 id: crypto.randomUUID(),
                                 quantity: 1,
-                                stats: randomItem.rarity === 'Uncommon' ? { xpBonus: 10 } : randomItem.rarity === 'Rare' ? { xpBonus: 25, goldBonus: 10 } : undefined
+                                stats: randomItem.rarity === 'Uncommon' ? { xpBonus: 10 }
+                                    : randomItem.rarity === 'Rare' ? { xpBonus: 25, goldBonus: 10 }
+                                    : randomItem.rarity === 'Epic' ? { xpBonus: 50, goldBonus: 25 }
+                                    : undefined
                             };
-                            set((s) => ({ inventory: [...s.inventory, newItem] }));
+                            set((s) => ({ inventory: [...s.inventory, newItem], lastDroppedItem: `${randomItem.icon} ${randomItem.name}` }));
                         }
                     } else {
                         state.addXP(-task.xpReward);
@@ -1014,6 +1170,21 @@ export const useGameStore = create<GameState>()(
                             q.id === id ? { ...q, completed: !q.completed } : q
                         )
                     }));
+
+                    // Reset recurring tasks after a delay
+                    if (!task.completed && task.recurring && task.recurring !== 'none') {
+                        const delay = task.recurring === 'daily' ? 86400000 : 604800000; // 24h or 7d
+                        setTimeout(() => {
+                            const current = get().tasks.find(t => t.id === id);
+                            if (current?.completed) {
+                                set((state) => ({
+                                    tasks: state.tasks.map((t) =>
+                                        t.id === id ? { ...t, completed: false, completedAt: undefined } : t
+                                    )
+                                }));
+                            }
+                        }, delay);
+                    }
 
                     get().checkAchievements();
                 }
@@ -1136,6 +1307,23 @@ export const useGameStore = create<GameState>()(
                 });
             },
 
+            resetSkill: (skillId) => {
+                set((state) => {
+                    const skill = state.skills.find(s => s.id === skillId);
+                    if (!skill || skill.currentLevel === 0) return state;
+                    // Refund 70% of XP spent on this skill
+                    const xpRefund = Math.floor(
+                        Array.from({ length: skill.currentLevel }, (_, i) => skill.cost * (i + 1)).reduce((a, b) => a + b, 0) * 0.7
+                    );
+                    return {
+                        xp: state.xp + xpRefund,
+                        skills: state.skills.map(s =>
+                            s.id === skillId ? { ...s, currentLevel: 0 } : s
+                        )
+                    };
+                });
+            },
+
             unlockSkill: (skillId) => {
                 set((state) => {
                     const skill = state.skills.find(s => s.id === skillId);
@@ -1178,6 +1366,143 @@ export const useGameStore = create<GameState>()(
                 });
                 
                 return multiplier;
+            },
+
+            buyGoldBuff: (type, durationMinutes, goldCost) => {
+                const state = get();
+                if (state.gold < goldCost) return false;
+                set((s) => ({ gold: s.gold - goldCost }));
+                get().addBuff(type, 1.5, durationMinutes);
+                return true;
+            },
+
+            // Habit Actions
+            addHabit: (name, icon, category, xpReward) => {
+                const newHabit: Habit = {
+                    id: crypto.randomUUID(),
+                    name,
+                    icon,
+                    category,
+                    xpReward,
+                    streak: 0,
+                    longestStreak: 0,
+                    completedDates: [],
+                    createdAt: new Date().toISOString(),
+                    lastCompletedDate: null,
+                };
+                set((state) => ({ habits: [...state.habits, newHabit] }));
+            },
+
+            completeHabit: (habitId) => {
+                const today = new Date().toISOString().split('T')[0];
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+                const habit = get().habits.find(h => h.id === habitId);
+                if (!habit || habit.completedDates.includes(today)) return;
+
+                const newStreak = habit.lastCompletedDate === yesterdayStr ? habit.streak + 1 : 1;
+                const newLongest = Math.max(newStreak, habit.longestStreak);
+
+                set((state) => ({
+                    habits: state.habits.map(h =>
+                        h.id === habitId
+                            ? { ...h, completedDates: [...h.completedDates, today], streak: newStreak, longestStreak: newLongest, lastCompletedDate: today }
+                            : h
+                    )
+                }));
+
+                get().addXP(habit.xpReward);
+                get().addGold(Math.ceil(habit.xpReward / 5));
+            },
+
+            deleteHabit: (habitId) => {
+                set((state) => ({ habits: state.habits.filter(h => h.id !== habitId) }));
+            },
+
+            checkHabitResets: () => {
+                const today = new Date().toISOString().split('T')[0];
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
+                set((state) => ({
+                    habits: state.habits.map(habit => {
+                        // If last completed date is not today or yesterday, streak broke
+                        if (habit.streak > 0 && habit.lastCompletedDate !== today && habit.lastCompletedDate !== yesterdayStr) {
+                            return { ...habit, streak: 0 };
+                        }
+                        return habit;
+                    })
+                }));
+            },
+
+            // Goal Actions
+            addGoal: (title, description, category, timeframe, targetDate, milestones, xpReward) => {
+                const newGoal: Goal = {
+                    id: crypto.randomUUID(),
+                    title,
+                    description,
+                    category,
+                    timeframe,
+                    targetDate,
+                    milestones: milestones.filter(m => m.trim()).map(m => ({
+                        id: crypto.randomUUID(),
+                        title: m,
+                        completed: false,
+                    })),
+                    completed: false,
+                    createdAt: new Date().toISOString(),
+                    xpReward,
+                };
+                set((state) => ({ goals: [...state.goals, newGoal] }));
+            },
+
+            completeGoalMilestone: (goalId, milestoneId) => {
+                set((state) => ({
+                    goals: state.goals.map(g => {
+                        if (g.id !== goalId) return g;
+                        const updatedMilestones = g.milestones.map(m =>
+                            m.id === milestoneId ? { ...m, completed: true, completedAt: new Date().toISOString() } : m
+                        );
+                        const allDone = updatedMilestones.every(m => m.completed);
+                        return { ...g, milestones: updatedMilestones, completed: allDone && g.milestones.length > 0, completedAt: allDone ? new Date().toISOString() : undefined };
+                    })
+                }));
+            },
+
+            completeGoal: (goalId) => {
+                const goal = get().goals.find(g => g.id === goalId);
+                if (!goal || goal.completed) return;
+                set((state) => ({
+                    goals: state.goals.map(g => g.id === goalId ? { ...g, completed: true, completedAt: new Date().toISOString() } : g)
+                }));
+                get().addXP(goal.xpReward);
+                get().addGold(Math.ceil(goal.xpReward / 2));
+            },
+
+            deleteGoal: (goalId) => {
+                set((state) => ({ goals: state.goals.filter(g => g.id !== goalId) }));
+            },
+
+            // Intention & Reflection Actions
+            setDailyIntention: (intention, energyRating) => {
+                const today = new Date().toISOString().split('T')[0];
+                set({ todayIntention: intention, todayEnergyRating: energyRating, lastIntentionDate: today });
+                // Small XP reward for setting intention
+                get().addXP(10);
+            },
+
+            addReflectionNote: (note, stars, xpBonus) => {
+                const today = new Date().toISOString().split('T')[0];
+                set((state) => ({
+                    lastReflectionDate: today,
+                    reflectionNotes: [
+                        { date: today, note, stars },
+                        ...state.reflectionNotes.slice(0, 29) // keep last 30
+                    ]
+                }));
+                if (xpBonus > 0) get().addXP(xpBonus);
             },
 
             // RPG Actions - Quest Chains
@@ -1268,6 +1593,8 @@ export const useGameStore = create<GameState>()(
                     achievements: [],
                     title: 'Novice',
                     auctionListings: [],
+                    habits: [],
+                    goals: [],
                     activeBuffs: [],
                     gems: 0
                 });

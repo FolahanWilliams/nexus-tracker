@@ -30,7 +30,7 @@ const rewardIcons = [
 ];
 
 export default function ShopPage() {
-  const { gold, shopItems, addShopItem, deleteShopItem, buyReward } = useGameStore();
+  const { gold, gems, shopItems, addShopItem, deleteShopItem, buyReward, addGems, addBuff, buyGoldBuff } = useGameStore();
   const { addToast } = useToastStore();
   const [newItemName, setNewItemName] = useState('');
   const [newItemCost, setNewItemCost] = useState(100);
@@ -138,14 +138,25 @@ export default function ShopPage() {
 
         {/* Premium Items */}
         <h2 className="text-xl font-bold mb-4">Special Items</h2>
+        <div className="flex items-center gap-2 mb-4 text-sm text-[var(--color-text-secondary)]">
+          <Gem className="text-[var(--color-blue)]" size={16} />
+          <span>You have <span className="font-bold text-[var(--color-blue)]">{gems}</span> gems</span>
+        </div>
         <div className="grid grid-cols-2 gap-4 mb-8">
-          {[
-            { icon: Heart, label: 'Refill Hearts', desc: 'Get 5 more lives', cost: 50, gradient: 'from-red-500 to-pink-500' },
-            { icon: Zap, label: 'XP Boost', desc: 'Double XP for 1 hour', cost: 100, gradient: 'from-yellow-400 to-orange-500' },
-          ].map((item, index) => {
+          {([
+            {
+              icon: Heart, label: 'Refill Hearts', desc: 'Gain 50 Bonus Gems', cost: 50, gradient: 'from-red-500 to-pink-500',
+              onBuy: () => { addGems(50); addToast('Refilled! +50 Gems added', 'success'); }
+            },
+            {
+              icon: Zap, label: 'XP Boost', desc: 'Double XP for 1 hour', cost: 100, gradient: 'from-yellow-400 to-orange-500',
+              onBuy: () => { addBuff('xp', 2, 60); addToast('XP Boost active! 2x XP for 60 minutes', 'success'); }
+            },
+          ] as const).map((item, index) => {
             const Icon = item.icon;
+            const canAfford = gems >= item.cost;
             return (
-              <motion.div 
+              <motion.div
                 key={item.label}
                 className="rpg-card text-center"
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -158,10 +169,64 @@ export default function ShopPage() {
                 </div>
                 <h3 className="font-bold mb-1">{item.label}</h3>
                 <p className="text-xs text-[var(--color-text-secondary)] mb-3">{item.desc}</p>
-                <button className="rpg-button w-full !bg-[var(--color-orange)] !text-white text-sm !py-2">
+                <motion.button
+                  onClick={() => {
+                    if (!canAfford) {
+                      addToast(`Not enough gems! Need ${item.cost - gems} more.`, 'error');
+                      return;
+                    }
+                    addGems(-item.cost);
+                    item.onBuy();
+                  }}
+                  className={`rpg-button w-full !text-white text-sm !py-2 ${canAfford ? '!bg-[var(--color-orange)]' : 'opacity-50 cursor-not-allowed !bg-[var(--color-bg-hover)]'}`}
+                  whileHover={canAfford ? { scale: 1.05 } : {}}
+                  whileTap={canAfford ? { scale: 0.95 } : {}}
+                  aria-label={`Buy ${item.label} for ${item.cost} gems`}
+                >
                   <Gem size={16} />
-                  {item.cost}
-                </button>
+                  {item.cost} Gems
+                </motion.button>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* Gold Exchange */}
+        <h2 className="text-xl font-bold mb-4">Gold Exchange</h2>
+        <div className="flex items-center gap-2 mb-4 text-sm text-[var(--color-text-secondary)]">
+          <span className="text-[var(--color-yellow)]">🪙</span>
+          <span>You have <span className="font-bold text-[var(--color-yellow)]">{gold}</span> gold</span>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          {[
+            { label: 'XP Elixir', desc: '+50% XP for 30 min', cost: 150, type: 'xp' as const, duration: 30 },
+            { label: 'Gold Aura', desc: '+50% Gold for 30 min', cost: 200, type: 'gold' as const, duration: 30 },
+          ].map((item) => {
+            const canAfford = gold >= item.cost;
+            return (
+              <motion.div
+                key={item.label}
+                className="rpg-card text-center"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                whileHover={{ scale: 1.03 }}
+              >
+                <p className="text-3xl mb-2">{item.type === 'xp' ? '✨' : '💫'}</p>
+                <h3 className="font-bold mb-1">{item.label}</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] mb-3">{item.desc}</p>
+                <motion.button
+                  onClick={() => {
+                    const success = buyGoldBuff(item.type, item.duration, item.cost);
+                    if (success) addToast(`${item.label} active for ${item.duration} min!`, 'success');
+                    else addToast(`Need ${item.cost - gold} more gold!`, 'error');
+                  }}
+                  className={`rpg-button w-full !text-white text-sm !py-2 ${canAfford ? '!bg-[var(--color-yellow)] !text-black' : 'opacity-50 cursor-not-allowed'}`}
+                  whileHover={canAfford ? { scale: 1.05 } : {}}
+                  whileTap={canAfford ? { scale: 0.95 } : {}}
+                  aria-label={`Buy ${item.label} for ${item.cost} gold`}
+                >
+                  🪙 {item.cost} Gold
+                </motion.button>
               </motion.div>
             );
           })}

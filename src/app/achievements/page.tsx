@@ -8,16 +8,30 @@ import { motion } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 
 const ACHIEVEMENTS_DATA = [
-  { id: 'FIRST_BLOOD', name: 'First Blood', description: 'Complete your first quest', icon: '⚔️', rarity: 'common' },
-  { id: 'LEVEL_5', name: 'High Roller', description: 'Reach Level 5', icon: '🎰', rarity: 'rare' },
-  { id: 'QUEST_MASTER', name: 'Quest Master', description: 'Complete 10 quests', icon: '📦', rarity: 'rare' },
-  { id: 'BOSS_SLAYER', name: 'Boss Slayer', description: 'Defeat a boss', icon: '💀', rarity: 'epic' },
-  { id: 'CRAFTSMAN', name: 'Craftsman', description: 'Craft your first item', icon: '🔨', rarity: 'rare' },
-  { id: 'STREAK_7', name: 'Week Warrior', description: 'Maintain a 7-day streak', icon: '🔥', rarity: 'rare' },
-  { id: 'TITLE_MASTER', name: 'Titled', description: 'Obtain the Master title', icon: '👑', rarity: 'epic' },
-  { id: 'AUCTIONEER', name: 'Auctioneer', description: 'Buy something from auction', icon: '🏪', rarity: 'common' },
-  { id: 'DAILY_COMPLETE', name: 'Daily Grind', description: 'Complete all daily quests', icon: '📅', rarity: 'rare' },
-  { id: 'LOGIN_30', name: 'Dedicated', description: 'Login 30 days in a row', icon: '⭐', rarity: 'legendary' },
+  // Common
+  { id: 'FIRST_BLOOD',    name: 'First Blood',    description: 'Complete your first quest',            icon: '⚔️',  rarity: 'common' },
+  { id: 'AUCTIONEER',     name: 'Auctioneer',     description: 'List an item in the auction house',    icon: '🏛️',  rarity: 'common' },
+  { id: 'HABIT_BUILDER',  name: 'Habit Builder',  description: 'Create 5 habits',                      icon: '🌱',  rarity: 'common' },
+  // Rare
+  { id: 'LEVEL_5',        name: 'High Roller',    description: 'Reach Level 5',                        icon: '⭐',  rarity: 'rare' },
+  { id: 'QUEST_MASTER',   name: 'Quest Master',   description: 'Complete 10 quests',                   icon: '📜',  rarity: 'rare' },
+  { id: 'CRAFTSMAN',      name: 'Craftsman',      description: 'Craft your first item',                icon: '🔨',  rarity: 'rare' },
+  { id: 'STREAK_7',       name: 'Week Warrior',   description: 'Maintain a 7-day streak',              icon: '🔥',  rarity: 'rare' },
+  { id: 'DAILY_COMPLETE', name: 'Daily Grind',    description: 'Complete all daily quests in a day',   icon: '✅',  rarity: 'rare' },
+  { id: 'GOAL_GETTER',    name: 'Goal Getter',    description: 'Complete your first goal',             icon: '🎯',  rarity: 'rare' },
+  { id: 'REFLECTOR',      name: 'Self Reflector', description: 'Submit 7 evening reflections',         icon: '🌙',  rarity: 'rare' },
+  // Epic
+  { id: 'BOSS_SLAYER',    name: 'Boss Slayer',    description: 'Defeat a boss battle',                 icon: '🐉',  rarity: 'epic' },
+  { id: 'TITLE_MASTER',   name: 'Titled',         description: 'Obtain the Master title',              icon: '🎖️',  rarity: 'epic' },
+  { id: 'HABIT_HERO',     name: 'Habit Hero',     description: 'Complete a habit 7 days in a row',     icon: '🏆',  rarity: 'epic' },
+  { id: 'EPIC_SLAYER',    name: 'Epic Slayer',    description: 'Complete 10 Epic difficulty quests',   icon: '⚡',  rarity: 'epic' },
+  { id: 'SCHOLAR_ELITE',  name: 'Scholar Elite',  description: 'Complete 25 Study category quests',    icon: '📚',  rarity: 'epic' },
+  { id: 'HEALTH_WARRIOR', name: 'Health Warrior', description: 'Complete 25 Health category quests',   icon: '💪',  rarity: 'epic' },
+  // Legendary
+  { id: 'QUEST_CENTURION',name: 'Centurion',      description: 'Complete 100 quests',                  icon: '💯',  rarity: 'legendary' },
+  { id: 'STREAK_30',      name: 'Streak Legend',  description: 'Maintain a 30-day streak',             icon: '👑',  rarity: 'legendary' },
+  { id: 'LEVEL_20',       name: 'Veteran',        description: 'Reach Level 20',                       icon: '💎',  rarity: 'legendary' },
+  { id: 'LOGIN_30',       name: 'Dedicated',      description: 'Login 30 days in a row',               icon: '📅',  rarity: 'legendary' },
 ];
 
 const RARITY_COLORS: Record<string, string> = {

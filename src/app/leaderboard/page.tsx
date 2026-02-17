@@ -43,9 +43,19 @@ const TITLE_COLORS: Record<Title, string> = {
 export default function LeaderboardPage() {
   const { level, title, totalQuestsCompleted, streak, xp, characterName } = useGameStore();
   const [timeFilter, setTimeFilter] = useState<'all' | 'weekly' | 'daily'>('all');
-  
-  // Calculate user's rank (mock - in real app would compare against others)
-  const userRank = MOCK_LEADERBOARD.length + 1;
+
+  // Filter/sort leaderboard based on selected metric
+  const filteredLeaderboard = MOCK_LEADERBOARD.slice().sort((a, b) => {
+    if (timeFilter === 'weekly') return b.streak - a.streak; // Weekly = sort by streak
+    if (timeFilter === 'daily') return b.quests - a.quests;  // Daily = sort by quests
+    return b.xp - a.xp; // All time = sort by XP
+  }).map((entry, i) => ({ ...entry, rank: i + 1 }));
+
+  // Calculate user's rank among mock players based on active filter
+  const userScore = timeFilter === 'weekly' ? streak : timeFilter === 'daily' ? totalQuestsCompleted : xp;
+  const mockScore = (entry: typeof MOCK_LEADERBOARD[0]) =>
+    timeFilter === 'weekly' ? entry.streak : timeFilter === 'daily' ? entry.quests : entry.xp;
+  const userRank = filteredLeaderboard.filter(e => mockScore(e) > userScore).length + 1;
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -117,14 +127,15 @@ export default function LeaderboardPage() {
         </motion.div>
 
         {/* Filters */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-2 mb-2">
           {(['all', 'weekly', 'daily'] as const).map((filter) => (
             <button
               key={filter}
               onClick={() => setTimeFilter(filter)}
+              aria-pressed={timeFilter === filter}
               className={`rpg-button !py-2 !px-4 text-sm ${
-                timeFilter === filter 
-                  ? '!bg-[var(--color-yellow)] !text-black' 
+                timeFilter === filter
+                  ? '!bg-[var(--color-yellow)] !text-black'
                   : ''
               }`}
             >
@@ -132,10 +143,13 @@ export default function LeaderboardPage() {
             </button>
           ))}
         </div>
+        <p className="text-xs text-[var(--color-text-muted)] mb-6">
+          {timeFilter === 'all' ? 'Ranked by total XP' : timeFilter === 'weekly' ? 'Ranked by day streak' : 'Ranked by quests completed'}
+        </p>
 
         {/* Leaderboard */}
         <div className="space-y-3">
-          {MOCK_LEADERBOARD.map((entry, index) => (
+          {filteredLeaderboard.map((entry, index) => (
             <motion.div
               key={entry.rank}
               initial={{ opacity: 0, x: -20 }}

@@ -6,6 +6,9 @@ import SoundManager from '@/components/SoundManager';
 import ConfettiManager from '@/components/ConfettiManager';
 import ToastContainer from '@/components/ToastContainer';
 import Onboarding from '@/components/Onboarding';
+import XPFloat from '@/components/XPFloat';
+import StreakCelebration from '@/components/StreakCelebration';
+import DailyIntention from '@/components/DailyIntention';
 
 const nunito = Nunito({ 
   subsets: ['latin'],
@@ -44,6 +47,9 @@ export default function RootLayout({
         <SoundManager />
         <ConfettiManager />
         <ToastContainer />
+        <XPFloat />
+        <StreakCelebration />
+        <DailyIntention />
       </body>
     </html>
   );

@@ -3,38 +3,44 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Target, Sword, Trophy, Sparkles as Skills, X } from 'lucide-react';
+import { Sparkles, Target, Sword, Trophy, Hammer, Brain, X } from 'lucide-react';
 
 const TUTORIAL_STEPS = [
   {
     title: 'Welcome to QuestFlow!',
-    description: 'Your AI-powered productivity RPG. Level up by completing real-world tasks!',
+    description: 'Your AI-powered productivity RPG. Complete real-world tasks to level up, earn gold, and become a legend!',
     icon: Sparkles,
     color: 'var(--color-purple)'
   },
   {
     title: 'Complete Quests',
-    description: 'Add tasks and mark them complete to earn XP and Gold. Use AI to generate personalized quests!',
+    description: 'Add tasks and mark them complete to earn XP and Gold. Set categories, recurring schedules, and use the AI generator to create personalized quests!',
     icon: Target,
     color: 'var(--color-green)'
   },
   {
     title: 'Battle Bosses',
-    description: 'Take on powerful bosses for big rewards. Defeat them before time runs out!',
+    description: 'Take on powerful bosses like the Procrastination Demon for big rewards. Each boss has a time limit — attack fast and defeat them before time runs out!',
     icon: Sword,
     color: 'var(--color-red)'
   },
   {
-    title: 'Build Your Arsenal',
-    description: 'Collect items, craft powerful gear, and equip them to boost your rewards!',
-    icon: Trophy,
+    title: 'Craft & Collect Items',
+    description: 'Collect material drops from quests (herbs, scales, gems) and use the Crafting page to forge powerful weapons, armor, and potions. Equip gear to boost all your rewards!',
+    icon: Hammer,
     color: 'var(--color-yellow)'
   },
   {
-    title: 'Master Skills',
-    description: 'Upgrade your skill tree to earn bonus XP, gold, and other powerful effects!',
-    icon: Skills,
+    title: 'Choose Your Class & Skills',
+    description: 'Pick a character class (Scholar, Warrior, Merchant…) for unique bonuses. Then spend XP in the Skill Tree to unlock powerful passive effects. You can reset skills for a 70% XP refund!',
+    icon: Brain,
     color: 'var(--color-blue)'
+  },
+  {
+    title: 'Spend Your Rewards',
+    description: 'Spend Gold in the shop to buy real-world rewards like "Watch a movie" or "Take a break". Use Gems to activate XP boosts. The grind is real — and so are the rewards!',
+    icon: Trophy,
+    color: 'var(--color-orange)'
   }
 ];
 

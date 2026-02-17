@@ -1,6 +1,6 @@
 'use client';
 
-import { useGameStore, Skill } from '@/store/useGameStore';
+import { useGameStore, Skill, CLASS_BONUSES } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { useState } from 'react';
 import { 
@@ -31,7 +31,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function SkillsPage() {
-  const { skills, xp, upgradeSkill, unlockSkill, getSkillMultiplier } = useGameStore();
+  const { skills, xp, characterClass, upgradeSkill, unlockSkill, resetSkill, getSkillMultiplier } = useGameStore();
   const { addToast } = useToastStore();
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
 
@@ -106,6 +106,12 @@ export default function SkillsPage() {
               <p className="text-2xl font-bold text-[var(--color-yellow)]">x{goldMultiplier.toFixed(1)}</p>
             </div>
           </div>
+          {characterClass && (
+            <div className="mt-4 p-3 bg-[var(--color-purple)]/10 border border-[var(--color-purple)]/30 rounded-lg">
+              <p className="text-xs text-[var(--color-purple)] font-bold mb-1">{characterClass} Class Bonus</p>
+              <p className="text-xs text-[var(--color-text-secondary)]">{CLASS_BONUSES[characterClass].description}</p>
+            </div>
+          )}
           <p className="text-sm text-[var(--color-text-muted)] mt-4">
             Available XP: <span className="text-[var(--color-green)] font-bold">{xp}</span>
           </p>
@@ -298,6 +304,7 @@ export default function SkillsPage() {
                           onClick={handleUpgrade}
                           disabled={!canAfford(selectedSkill)}
                           className="w-full rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50"
+                          aria-label={`Upgrade ${selectedSkill.name}`}
                         >
                           Upgrade to Level {selectedSkill.currentLevel + 1}
                         </button>
@@ -307,6 +314,19 @@ export default function SkillsPage() {
                         <Star className="mx-auto mb-2 text-[var(--color-yellow)]" size={32} />
                         <p className="font-bold">Max Level Reached!</p>
                       </div>
+                    )}
+                    {selectedSkill.currentLevel > 0 && (
+                      <button
+                        onClick={() => {
+                          resetSkill(selectedSkill.id);
+                          addToast(`${selectedSkill.name} reset — 70% XP refunded`, 'info');
+                          setSelectedSkill(null);
+                        }}
+                        className="w-full rpg-button !border-[var(--color-red)] text-[var(--color-red)] hover:!bg-[var(--color-red)]/10 mt-3 text-sm"
+                        aria-label={`Reset ${selectedSkill.name}`}
+                      >
+                        Reset Skill (70% XP refund)
+                      </button>
                     )}
                   </div>
                 ) : (

@@ -10,8 +10,21 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function TimelinePage() {
-  const [currentDate] = useState(new Date(2026, 1, 16));
+  const today = new Date();
+  const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const { timelineEvents, addTimelineEvent, deleteTimelineEvent } = useGameStore();
+
+  const goToPrevMonth = () => {
+    setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1));
+  };
+
+  const goToNextMonth = () => {
+    setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1));
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  };
 
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [newEventName, setNewEventName] = useState('');
@@ -67,15 +80,26 @@ export default function TimelinePage() {
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const isToday = day === 16;
+      const isToday =
+        day === today.getDate() &&
+        currentDate.getMonth() === today.getMonth() &&
+        currentDate.getFullYear() === today.getFullYear();
+
+      // Check if any timeline event falls on this day
+      const dayStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      const hasEvent = timelineEvents.some(e => e.date === dayStr);
+
       days.push(
         <motion.div
           key={day}
-          className={`calendar-day ${isToday ? 'today' : ''}`}
+          className={`calendar-day ${isToday ? 'today' : ''} relative`}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
           {day}
+          {hasEvent && (
+            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--color-purple)]" />
+          )}
         </motion.div>
       );
     }
@@ -171,11 +195,24 @@ export default function TimelinePage() {
                 {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
               </h3>
               <div className="flex items-center gap-2">
-                <button className="p-1 hover:bg-[var(--color-bg-hover)] rounded transition-colors">
+                <button
+                  onClick={goToPrevMonth}
+                  className="p-1 hover:bg-[var(--color-bg-hover)] rounded transition-colors"
+                  aria-label="Previous month"
+                >
                   <ChevronLeft size={16} />
                 </button>
-                <span className="text-sm font-medium">Today</span>
-                <button className="p-1 hover:bg-[var(--color-bg-hover)] rounded transition-colors">
+                <button
+                  onClick={goToToday}
+                  className="text-sm font-medium px-2 py-0.5 rounded hover:bg-[var(--color-bg-hover)] transition-colors"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={goToNextMonth}
+                  className="p-1 hover:bg-[var(--color-bg-hover)] rounded transition-colors"
+                  aria-label="Next month"
+                >
                   <ChevronRight size={16} />
                 </button>
               </div>

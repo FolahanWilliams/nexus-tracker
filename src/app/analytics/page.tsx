@@ -25,15 +25,33 @@ export default function AnalyticsPage() {
     { icon: Trophy, label: 'Current Level', value: level, color: 'var(--color-blue)' },
   ];
 
-  // Generate stable weekly data using useMemo
+  // Generate real weekly activity data from completed tasks
   const weeklyData = useMemo(() => {
-    return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => ({
-      day,
-      index,
-      height: 20 + (index * 10) % 60 + 20, // Deterministic pseudo-random heights
-      isToday: index === new Date().getDay() - 1
-    }));
-  }, []);
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const today = new Date();
+    // Build a map of completedAt date strings -> count
+    const countByDate: Record<string, number> = {};
+    tasks.forEach(t => {
+      if (t.completed && t.completedAt) {
+        const d = t.completedAt.split('T')[0];
+        countByDate[d] = (countByDate[d] || 0) + 1;
+      }
+    });
+
+    return days.map((day, index) => {
+      // index 0 = Mon, ..., 6 = Sun; JS getDay() 0=Sun,1=Mon,...,6=Sat
+      const jsDay = (index + 1) % 7; // Mon=1,...,Sat=6,Sun=0
+      const offset = (today.getDay() - jsDay + 7) % 7;
+      const date = new Date(today);
+      date.setDate(today.getDate() - offset);
+      const dateStr = date.toISOString().split('T')[0];
+      const count = countByDate[dateStr] || 0;
+      const isToday = offset === 0;
+      // Height: 0 quests = 4%, scale up by count (cap at 100%)
+      const height = Math.min(4 + count * 18, 100);
+      return { day, index, height, count, isToday, dateStr };
+    });
+  }, [tasks]);
 
   return (
     <motion.div 
@@ -152,9 +170,13 @@ export default function AnalyticsPage() {
         >
           <h2 className="text-xl font-bold mb-6">Weekly Activity</h2>
           <div className="flex items-end justify-between h-32 gap-2">
-            {weeklyData.map(({ day, index, height, isToday }) => (
-              <div key={day} className="flex-1 flex flex-col items-center gap-2">
-                <motion.div 
+            {weeklyData.map(({ day, index, height, count, isToday }) => (
+              <div key={day} className="flex-1 flex flex-col items-center gap-2 group relative">
+                {/* Tooltip showing quest count */}
+                <div className="absolute -top-7 left-1/2 -translate-x-1/2 bg-[var(--color-bg-card)] border border-[var(--color-border)] text-xs px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                  {count} quest{count !== 1 ? 's' : ''}
+                </div>
+                <motion.div
                   className={`w-full rounded-t transition-all ${
                     isToday ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-purple)]/60'
                   }`}
@@ -163,7 +185,7 @@ export default function AnalyticsPage() {
                   transition={{ delay: 1.2 + index * 0.1, duration: 0.5 }}
                   whileHover={{ opacity: 0.8 }}
                 />
-                <span className="text-xs font-semibold text-[var(--color-text-secondary)]">{day}</span>
+                <span className={`text-xs font-semibold ${isToday ? 'text-[var(--color-purple)]' : 'text-[var(--color-text-secondary)]'}`}>{day}</span>
               </div>
             ))}
           </div>

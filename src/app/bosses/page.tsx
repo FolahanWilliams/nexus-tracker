@@ -18,13 +18,21 @@ import {
 } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';
 
-const BOSS_TEMPLATES: { name: string; description: string; difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic'; hp: number; xpReward: number; goldReward: number }[] = [
-  { name: 'Procrastination Demon', description: 'The spirit that delays your tasks', difficulty: 'Medium', hp: 100, xpReward: 150, goldReward: 75 },
-  { name: 'Distraction Dragon', description: 'A dragon that breathes fire of interruption', difficulty: 'Hard', hp: 250, xpReward: 350, goldReward: 200 },
-  { name: 'Laziness Giant', description: 'A giant that makes you want to rest', difficulty: 'Medium', hp: 150, xpReward: 200, goldReward: 100 },
-  { name: 'Doubt Wraith', description: 'A spirit that makes you question yourself', difficulty: 'Hard', hp: 200, xpReward: 300, goldReward: 175 },
-  { name: 'Chaos Phoenix', description: 'A mythical beast of disorder', difficulty: 'Epic', hp: 500, xpReward: 750, goldReward: 500 },
+const BOSS_TEMPLATES: { name: string; description: string; difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic'; hp: number; xpReward: number; goldReward: number; timeLimit: number; emoji: string }[] = [
+  { name: 'Procrastination Demon', description: 'The spirit that delays your tasks', difficulty: 'Medium', hp: 100, xpReward: 150, goldReward: 75, timeLimit: 300, emoji: '👿' },
+  { name: 'Distraction Dragon', description: 'A dragon that breathes fire of interruption', difficulty: 'Hard', hp: 250, xpReward: 350, goldReward: 200, timeLimit: 420, emoji: '🐉' },
+  { name: 'Laziness Giant', description: 'A giant that makes you want to rest', difficulty: 'Medium', hp: 150, xpReward: 200, goldReward: 100, timeLimit: 300, emoji: '🦣' },
+  { name: 'Doubt Wraith', description: 'A spirit that makes you question yourself', difficulty: 'Hard', hp: 200, xpReward: 300, goldReward: 175, timeLimit: 420, emoji: '👻' },
+  { name: 'Chaos Phoenix', description: 'A mythical beast of disorder', difficulty: 'Epic', hp: 500, xpReward: 750, goldReward: 500, timeLimit: 600, emoji: '🔥' },
 ];
+
+// Difficulty-based attack power ranges
+const ATTACK_RANGES: Record<string, { min: number; max: number }> = {
+  Easy: { min: 5, max: 30 },
+  Medium: { min: 5, max: 40 },
+  Hard: { min: 10, max: 60 },
+  Epic: { min: 15, max: 80 },
+};
 
 const DIFFICULTY_COLORS = {
   'Easy': 'text-[var(--color-green)]',
@@ -52,17 +60,26 @@ export default function BossBattlesPage() {
   const completedBosses = bossBattles.filter(b => b.completed);
   const failedBosses = bossBattles.filter(b => b.failed);
 
+  // Get the time limit for the currently selected boss
+  const activeBossTemplate = selectedBoss
+    ? BOSS_TEMPLATES.find(t => t.name === selectedBoss.name)
+    : null;
+  const timeLimit = activeBossTemplate?.timeLimit ?? 300;
+  const attackRange = activeBossTemplate ? ATTACK_RANGES[activeBossTemplate.difficulty] : { min: 5, max: 50 };
+
   useEffect(() => {
     checkDailyQuests();
   }, []);
 
   useEffect(() => {
     if (selectedBoss) {
+      const bossTemplate = BOSS_TEMPLATES.find(t => t.name === selectedBoss.name);
+      const limit = bossTemplate?.timeLimit ?? 300;
       const timer = setInterval(() => {
         setBattleTimer(prev => {
-          if (prev >= 300) {
+          if (prev >= limit) {
             failBossBattle(selectedBoss.id);
-            addToast('Boss battle timed out!', 'error');
+            addToast('Boss battle timed out! Defeat next time.', 'error');
             setSelectedBoss(null);
             return 0;
           }
@@ -202,7 +219,7 @@ export default function BossBattlesPage() {
                       </span>
                       <span className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
                         <Timer size={12} />
-                        {formatTime(battleTimer)} / 5:00
+                        {formatTime(battleTimer)} / {formatTime(BOSS_TEMPLATES.find(t => t.name === boss.name)?.timeLimit ?? 300)}
                       </span>
                     </div>
                   </div>
@@ -309,20 +326,25 @@ export default function BossBattlesPage() {
                     className="p-4 bg-[var(--color-bg-dark)] rounded-lg border border-[var(--color-border)] cursor-pointer hover:border-[var(--color-red)]"
                     onClick={() => handleStartBattle(boss)}
                   >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="font-bold">{boss.name}</h3>
-                        <p className="text-sm text-[var(--color-text-secondary)]">{boss.description}</p>
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className={`text-xs font-bold ${DIFFICULTY_COLORS[boss.difficulty]}`}>
-                            {boss.difficulty}
-                          </span>
-                          <span className="text-xs text-[var(--color-text-muted)]">
-                            {boss.hp} HP
-                          </span>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1">
+                        <span className="text-3xl">{boss.emoji}</span>
+                        <div>
+                          <h3 className="font-bold">{boss.name}</h3>
+                          <p className="text-sm text-[var(--color-text-secondary)]">{boss.description}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`text-xs font-bold ${DIFFICULTY_COLORS[boss.difficulty]}`}>
+                              {boss.difficulty}
+                            </span>
+                            <span className="text-xs text-[var(--color-text-muted)]">{boss.hp} HP</span>
+                            <span className="text-xs text-[var(--color-text-muted)] flex items-center gap-1">
+                              <Timer size={10} />
+                              {formatTime(boss.timeLimit)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="text-right text-sm">
+                      <div className="text-right text-sm flex-shrink-0">
                         <p className="text-[var(--color-green)]">+{boss.xpReward} XP</p>
                         <p className="text-[var(--color-yellow)]">+{boss.goldReward} Gold</p>
                       </div>
@@ -388,14 +410,17 @@ export default function BossBattlesPage() {
 
               {/* Damage Control */}
               <div className="mb-6">
-                <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">Attack Power</label>
+                <label className="text-sm text-[var(--color-text-secondary)] mb-2 block">
+                  Attack Power <span className="text-xs text-[var(--color-text-muted)]">({attackRange.min}–{attackRange.max})</span>
+                </label>
                 <input
                   type="range"
-                  min="5"
-                  max="50"
+                  min={attackRange.min}
+                  max={attackRange.max}
                   value={playerDamage}
                   onChange={(e) => setPlayerDamage(Number(e.target.value))}
                   className="w-full"
+                  aria-label="Attack power"
                 />
                 <p className="text-lg font-bold text-[var(--color-red)]">{playerDamage} Damage</p>
               </div>
