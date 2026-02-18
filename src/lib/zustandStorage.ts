@@ -4,6 +4,7 @@ import { hybridStorage } from './indexedDB';
 
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
   getItem: async (name: string): Promise<StorageValue<T> | null> => {
+    if (typeof window === 'undefined') return null;
     try {
       const data = await hybridStorage.load();
       if (!data) return null;
@@ -14,8 +15,9 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       return null;
     }
   },
-  
+
   setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
+    if (typeof window === 'undefined') return;
     try {
       // Stringify the value before storing
       await hybridStorage.save(JSON.stringify(value));
@@ -25,8 +27,9 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       localStorage.setItem(name, JSON.stringify(value));
     }
   },
-  
+
   removeItem: async (name: string): Promise<void> => {
+    if (typeof window === 'undefined') return;
     try {
       await hybridStorage.clear();
     } catch (error) {
@@ -35,3 +38,4 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
     }
   },
 });
+

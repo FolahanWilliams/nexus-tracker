@@ -9,10 +9,14 @@ interface DBSchema {
   updatedAt: string;
 }
 
+const isClient = typeof window !== 'undefined';
+
 class IndexedDBStorage {
   private db: IDBDatabase | null = null;
 
   async init(): Promise<void> {
+    if (!isClient) return;
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -32,13 +36,14 @@ class IndexedDBStorage {
   }
 
   async save(data: string): Promise<void> {
+    if (!isClient) return;
     if (!this.db) await this.init();
     if (!this.db) throw new Error('Database not initialized');
 
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
-      
+
       const record: DBSchema = {
         id: 'gameState',
         data,
@@ -52,6 +57,7 @@ class IndexedDBStorage {
   }
 
   async load(): Promise<string | null> {
+    if (!isClient) return null;
     if (!this.db) await this.init();
     if (!this.db) throw new Error('Database not initialized');
 
@@ -69,6 +75,7 @@ class IndexedDBStorage {
   }
 
   async clear(): Promise<void> {
+    if (!isClient) return;
     if (!this.db) await this.init();
     if (!this.db) throw new Error('Database not initialized');
 
@@ -97,6 +104,7 @@ export const indexedDBStorage = new IndexedDBStorage();
 // Hybrid storage that uses IndexedDB as primary, localStorage as fallback
 export const hybridStorage = {
   async save(data: string): Promise<void> {
+    if (!isClient) return;
     try {
       await indexedDBStorage.save(data);
     } catch (error) {
@@ -106,6 +114,7 @@ export const hybridStorage = {
   },
 
   async load(): Promise<string | null> {
+    if (!isClient) return null;
     try {
       const data = await indexedDBStorage.load();
       if (data) return data;
@@ -116,6 +125,7 @@ export const hybridStorage = {
   },
 
   async clear(): Promise<void> {
+    if (!isClient) return;
     try {
       await indexedDBStorage.clear();
     } catch (error) {
@@ -127,6 +137,7 @@ export const hybridStorage = {
 
 // Migrate existing localStorage data to IndexedDB
 export async function migrateToIndexedDB(): Promise<void> {
+  if (!isClient) return;
   const localData = localStorage.getItem('questflow-game-storage');
   if (localData) {
     try {
@@ -137,3 +148,4 @@ export async function migrateToIndexedDB(): Promise<void> {
     }
   }
 }
+
