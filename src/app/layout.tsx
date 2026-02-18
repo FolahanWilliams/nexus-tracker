@@ -9,6 +9,8 @@ import Onboarding from '@/components/Onboarding';
 import XPFloat from '@/components/XPFloat';
 import StreakCelebration from '@/components/StreakCelebration';
 import DailyIntention from '@/components/DailyIntention';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import SkipLink from '@/components/SkipLink';
 
 const nunito = Nunito({ 
   subsets: ['latin'],
@@ -29,8 +31,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  maximumScale: 5,
+  userScalable: true,
   themeColor: '#8b5cf6',
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -41,15 +45,20 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={nunito.className}>
-        {children}
-        <Onboarding />
-        <LevelUpModal />
-        <SoundManager />
-        <ConfettiManager />
-        <ToastContainer />
-        <XPFloat />
-        <StreakCelebration />
-        <DailyIntention />
+        <ErrorBoundary>
+          <SkipLink />
+          <main id="main-content" className="min-h-screen">
+            {children}
+          </main>
+          <Onboarding />
+          <LevelUpModal />
+          <SoundManager />
+          <ConfettiManager />
+          <ToastContainer />
+          <XPFloat />
+          <StreakCelebration />
+          <DailyIntention />
+        </ErrorBoundary>
       </body>
     </html>
   );

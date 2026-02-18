@@ -35,13 +35,13 @@ Player Profile:
 - Current Streak: ${context.streak || 0} days
 Tailor the quests to suit a ${context.characterClass || 'general'} player at level ${context.level || 1}.` : '';
 
-        const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG. Break down the user's goal into 3-5 executable "quests" (tasks).
+        const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG. Break down the user's goal into 1-2 executable "quests" (tasks).
 For each quest, output a JSON object with:
 - title: Actionable, specific task name (written like a real RPG quest objective)
 - xp: Experience points (10=Easy, 25=Medium, 50=Hard, 100=Epic)
 - difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic'
 
-Scale difficulty based on effort required. Mix difficulties for variety.
+Scale difficulty based on effort required. Focus on quality over quantity - generate only the most essential tasks.
 ${playerContext}
 Output ONLY a valid JSON object with a "quests" array. No other text.`;
 

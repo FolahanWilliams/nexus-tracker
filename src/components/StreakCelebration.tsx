@@ -6,10 +6,10 @@ import confetti from 'canvas-confetti';
 import { useToastStore } from './ToastContainer';
 
 const STREAK_MILESTONES: Record<number, { emoji: string; message: string; gold: number }> = {
-  3:   { emoji: '🔥', message: '3-Day Streak! You\'re on fire!', gold: 25 },
-  7:   { emoji: '💎', message: 'ONE WEEK STREAK! Incredible consistency!', gold: 75 },
-  14:  { emoji: '⚡', message: '2-WEEK WARRIOR! You\'re unstoppable!', gold: 150 },
-  30:  { emoji: '👑', message: '30-DAY LEGEND! This is elite level!', gold: 500 },
+  3: { emoji: '🔥', message: '3-Day Streak! You\'re on fire!', gold: 25 },
+  7: { emoji: '💎', message: 'ONE WEEK STREAK! Incredible consistency!', gold: 75 },
+  14: { emoji: '⚡', message: '2-WEEK WARRIOR! You\'re unstoppable!', gold: 150 },
+  30: { emoji: '👑', message: '30-DAY LEGEND! This is elite level!', gold: 500 },
   100: { emoji: '🌟', message: '100 DAYS! You are an absolute MACHINE!', gold: 2000 },
 };
 

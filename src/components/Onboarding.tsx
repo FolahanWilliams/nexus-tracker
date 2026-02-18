@@ -53,7 +53,7 @@ export default function Onboarding() {
   useEffect(() => {
     if (hasCheckedRef.current) return;
     hasCheckedRef.current = true;
-    
+
     // Show onboarding for new users (less than 3 tasks and no achievements)
     if (tasks.length < 3 && achievements.length === 0) {
       const seenOnboarding = localStorage.getItem('questflow-onboarding');
@@ -123,11 +123,10 @@ export default function Onboarding() {
             {TUTORIAL_STEPS.map((_, index) => (
               <div
                 key={index}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  index <= currentStep 
-                    ? 'bg-[var(--color-purple)] w-6' 
+                className={`w-2 h-2 rounded-full transition-all ${index <= currentStep
+                    ? 'bg-[var(--color-purple)] w-6'
                     : 'bg-[var(--color-bg-dark)]'
-                }`}
+                  }`}
               />
             ))}
           </div>

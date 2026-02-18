@@ -41,13 +41,13 @@ export default function LevelUpModal() {
   if (!showLevelUp) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-md animate-scale-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+      <div className="relative w-full max-w-md mx-auto my-auto animate-scale-in max-h-[90vh] overflow-y-auto">
         {/* Background Glow */}
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-3xl blur-xl opacity-50 animate-pulse" />
         
         {/* Modal Content */}
-        <div className="relative bg-[#0f0f23] rounded-3xl p-8 border border-white/20 shadow-2xl">
+        <div className="relative bg-[#0f0f23] rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-white/20 shadow-2xl">
           {/* Close Button */}
           <button
             onClick={closeLevelUp}
@@ -64,30 +64,30 @@ export default function LevelUpModal() {
           </div>
 
           {/* Title */}
-          <h2 className="text-3xl font-bold text-center mb-2">
+          <h2 className="text-2xl sm:text-3xl font-bold text-center mb-2">
             <span className="text-gradient">Level Up!</span>
           </h2>
 
           {/* Level Display */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/5 border border-white/10">
-              <Star className="text-yellow-400" size={24} />
-              <span className="text-5xl font-bold">{level}</span>
-              <Star className="text-yellow-400" size={24} />
+          <div className="text-center mb-4 sm:mb-6">
+            <div className="inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 rounded-xl sm:rounded-2xl bg-white/5 border border-white/10">
+              <Star className="text-yellow-400" size={20} />
+              <span className="text-4xl sm:text-5xl font-bold">{level}</span>
+              <Star className="text-yellow-400" size={20} />
             </div>
           </div>
 
           {/* Rewards */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="text-center p-4 rounded-xl bg-white/5">
-              <Zap className="mx-auto mb-2 text-yellow-400" size={24} />
-              <p className="text-sm text-white/60">XP Boost</p>
-              <p className="font-bold">Unlocked!</p>
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 mb-6 sm:mb-8">
+            <div className="text-center p-3 sm:p-4 rounded-xl bg-white/5">
+              <Zap className="mx-auto mb-1 sm:mb-2 text-yellow-400" size={20} />
+              <p className="text-xs sm:text-sm text-white/60">XP Boost</p>
+              <p className="font-bold text-sm sm:text-base">Unlocked!</p>
             </div>
-            <div className="text-center p-4 rounded-xl bg-white/5">
-              <Sparkles className="mx-auto mb-2 text-purple-400" size={24} />
-              <p className="text-sm text-white/60">New Title</p>
-              <p className="font-bold">Earned!</p>
+            <div className="text-center p-3 sm:p-4 rounded-xl bg-white/5">
+              <Sparkles className="mx-auto mb-1 sm:mb-2 text-purple-400" size={20} />
+              <p className="text-xs sm:text-sm text-white/60">New Title</p>
+              <p className="font-bold text-sm sm:text-base">Earned!</p>
             </div>
           </div>
 
@@ -99,10 +99,10 @@ export default function LevelUpModal() {
           {/* Button */}
           <button
             onClick={closeLevelUp}
-            className="w-full btn btn-primary py-4 text-lg"
+            className="w-full rpg-button !bg-gradient-to-r !from-indigo-500 !via-purple-500 !to-pink-500 !text-white py-3 sm:py-4 text-base sm:text-lg flex items-center justify-center gap-2"
           >
             Continue Adventure
-            <Sparkles size={20} />
+            <Sparkles size={18} className="sm:w-5 sm:h-5" />
           </button>
         </div>
       </div>

@@ -133,11 +133,10 @@ export default function DailyIntention() {
                       <button
                         key={i}
                         onClick={() => setEnergyRating(i + 1)}
-                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${
-                          energyRating === i + 1
+                        className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${energyRating === i + 1
                             ? 'border-transparent text-white'
                             : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
-                        }`}
+                          }`}
                         style={energyRating === i + 1 ? { backgroundColor: ENERGY_COLORS[i] } : {}}
                       >
                         {label}

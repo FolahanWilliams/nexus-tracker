@@ -61,40 +61,36 @@ export default function MobileNavigation() {
                 href={item.href}
                 aria-label={item.label}
                 aria-current={isActive ? 'page' : undefined}
-                className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${
-                  isActive
+                className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${isActive
                     ? 'text-[var(--color-purple)]'
                     : 'text-[var(--color-text-muted)]'
-                }`}
+                  }`}
               >
-                <div className={`p-2 rounded-xl transition-all ${
-                  isActive 
-                    ? 'bg-[var(--color-purple)]/20' 
+                <div className={`p-2 rounded-xl transition-all ${isActive
+                    ? 'bg-[var(--color-purple)]/20'
                     : ''
-                }`}>
+                  }`}>
                   <Icon size={20} />
                 </div>
                 <span className="text-[10px] font-medium">{item.label}</span>
               </Link>
             );
           })}
-          
+
           {/* More button */}
           <button
             onClick={() => setShowMore(!showMore)}
             aria-expanded={showMore}
             aria-label="More navigation options"
-            className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${
-              showMore
+            className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${showMore
                 ? 'text-[var(--color-purple)]'
                 : 'text-[var(--color-text-muted)]'
-            }`}
+              }`}
           >
-            <div className={`p-2 rounded-xl transition-all ${
-              showMore 
-                ? 'bg-[var(--color-purple)]/20' 
+            <div className={`p-2 rounded-xl transition-all ${showMore
+                ? 'bg-[var(--color-purple)]/20'
                 : ''
-            }`}>
+              }`}>
               {showMore ? <X size={20} /> : <MoreHorizontal size={20} />}
             </div>
             <span className="text-[10px] font-medium">More</span>
@@ -104,11 +100,11 @@ export default function MobileNavigation() {
 
       {/* More menu overlay */}
       {showMore && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setShowMore(false)}
         >
-          <div 
+          <div
             className="absolute bottom-20 left-2 right-2 bg-[var(--color-bg-card)] rounded-xl border border-[var(--color-border)] p-2"
             onClick={(e) => e.stopPropagation()}
           >
@@ -116,7 +112,7 @@ export default function MobileNavigation() {
               {secondaryNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
-                
+
                 return (
                   <Link
                     key={item.href}
@@ -124,11 +120,10 @@ export default function MobileNavigation() {
                     onClick={() => setShowMore(false)}
                     aria-label={item.label}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${
-                      isActive
+                    className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${isActive
                         ? 'bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
                         : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-dark)]'
-                    }`}
+                      }`}
                   >
                     <Icon size={20} />
                     <span className="text-xs font-medium">{item.label}</span>

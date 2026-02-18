@@ -1,5 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { createIndexedDBStorage } from '@/lib/zustandStorage';
+import {
+  validateTaskTitle,
+  validateCharacterName,
+  validateMotto,
+  validateStrengths,
+  validateShopItemName,
+  validateGoalTitle,
+  validateGoalDescription,
+  validateHabitName,
+  validateTimelineEventName,
+  validateTimelineSubject,
+  validateCost,
+  validateAmount,
+  ValidationError,
+} from '@/lib/validation';
 
 export type TaskCategory = 'Study' | 'Health' | 'Creative' | 'Work' | 'Social' | 'Personal' | 'Other';
 
@@ -654,7 +670,34 @@ export const useGameStore = create<GameState>()(
             // Character Actions
             setCharacterClass: (characterClass) => set({ characterClass }),
             
-            updateCharacterInfo: (info) => set((state) => ({ ...state, ...info })),
+            updateCharacterInfo: (info) => {
+                try {
+                    const validatedInfo: Partial<Pick<GameState, 'characterName' | 'characterAge' | 'characterYearLevel' | 'characterMotto' | 'characterStrengths'>> = {};
+                    
+                    if (info.characterName !== undefined) {
+                        validatedInfo.characterName = validateCharacterName(info.characterName);
+                    }
+                    if (info.characterAge !== undefined) {
+                        validatedInfo.characterAge = info.characterAge.slice(0, 10); // Limit age input
+                    }
+                    if (info.characterYearLevel !== undefined) {
+                        validatedInfo.characterYearLevel = info.characterYearLevel.slice(0, 20);
+                    }
+                    if (info.characterMotto !== undefined) {
+                        validatedInfo.characterMotto = validateMotto(info.characterMotto);
+                    }
+                    if (info.characterStrengths !== undefined) {
+                        validatedInfo.characterStrengths = validateStrengths(info.characterStrengths);
+                    }
+                    
+                    set((state) => ({ ...state, ...validatedInfo }));
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
+                }
+            },
 
             updateTitle: () => {
                 const state = get();
@@ -675,15 +718,24 @@ export const useGameStore = create<GameState>()(
 
             // Timeline Actions
             addTimelineEvent: (name, date, subject, status, statusColor) => {
-                const newEvent: TimelineEvent = {
-                    id: crypto.randomUUID(),
-                    name,
-                    date,
-                    subject,
-                    status,
-                    statusColor,
-                };
-                set((state) => ({ timelineEvents: [...state.timelineEvents, newEvent] }));
+                try {
+                    const validatedName = validateTimelineEventName(name);
+                    const validatedSubject = validateTimelineSubject(subject);
+                    const newEvent: TimelineEvent = {
+                        id: crypto.randomUUID(),
+                        name: validatedName,
+                        date,
+                        subject: validatedSubject,
+                        status,
+                        statusColor,
+                    };
+                    set((state) => ({ timelineEvents: [...state.timelineEvents, newEvent] }));
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
+                }
             },
 
             updateTimelineEvent: (id, updates) => {
@@ -708,9 +760,11 @@ export const useGameStore = create<GameState>()(
             },
 
             addXP: (amount) => {
-                // Apply any active XP buffs
-                const state = get();
-                let finalAmount = amount;
+                try {
+                    const validatedAmount = validateAmount(amount);
+                    // Apply any active XP buffs
+                    const state = get();
+                    let finalAmount = validatedAmount;
 
                 // Apply class XP bonus
                 if (state.characterClass) {
@@ -742,40 +796,63 @@ export const useGameStore = create<GameState>()(
                 });
                 get().checkAchievements();
                 get().updateTitle();
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
+                }
             },
 
             closeLevelUp: () => set({ showLevelUp: false }),
             clearDroppedItem: () => set({ lastDroppedItem: null }),
 
             addGold: (amount) => {
-                const state = get();
-                let finalAmount = amount;
+                try {
+                    const validatedAmount = validateAmount(amount);
+                    const state = get();
+                    let finalAmount = validatedAmount;
 
-                // Apply class gold bonus (only when gaining gold, not spending)
-                if (amount > 0 && state.characterClass) {
-                    finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].goldMultiplier);
-                }
-
-                state.activeBuffs.forEach(buff => {
-                    if (buff.type === 'gold' || buff.type === 'buff') {
-                        finalAmount = Math.floor(finalAmount * buff.value);
+                    // Apply class gold bonus (only when gaining gold, not spending)
+                    if (validatedAmount > 0 && state.characterClass) {
+                        finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].goldMultiplier);
                     }
-                });
-                
-                // Lucky star chance for double gold
-                const luckySkill = state.skills.find(s => s.id === 'lucky-star');
-                if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
-                    finalAmount *= 2;
+
+                    state.activeBuffs.forEach(buff => {
+                        if (buff.type === 'gold' || buff.type === 'buff') {
+                            finalAmount = Math.floor(finalAmount * buff.value);
+                        }
+                    });
+                    
+                    // Lucky star chance for double gold
+                    const luckySkill = state.skills.find(s => s.id === 'lucky-star');
+                    if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
+                        finalAmount *= 2;
+                    }
+                    
+                    set((state) => ({ gold: state.gold + finalAmount }));
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
                 }
-                
-                set((state) => ({ gold: state.gold + finalAmount }));
             },
 
             addGems: (amount) => set((state) => ({ gems: state.gems + amount })),
 
             addShopItem: (name, cost) => {
-                const newItem: Reward = { id: crypto.randomUUID(), name, cost, purchased: false };
-                set((state) => ({ shopItems: [...state.shopItems, newItem] }));
+                try {
+                    const validatedName = validateShopItemName(name);
+                    const validatedCost = validateCost(cost);
+                    const newItem: Reward = { id: crypto.randomUUID(), name: validatedName, cost: validatedCost, purchased: false };
+                    set((state) => ({ shopItems: [...state.shopItems, newItem] }));
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
+                }
             },
 
             deleteShopItem: (id) => {
@@ -1107,18 +1184,26 @@ export const useGameStore = create<GameState>()(
             },
 
             addTask: (title, difficulty = 'Medium', customXP, category = 'Other', recurring = 'none', isDaily = false) => {
-                const xpReward = customXP || DIFFICULTY_XP[difficulty];
-                const newTask: Task = {
-                    id: crypto.randomUUID(),
-                    title,
-                    completed: false,
-                    xpReward,
-                    difficulty,
-                    category,
-                    recurring,
-                    isDaily
-                };
-                set((state) => ({ tasks: [...state.tasks, newTask] }));
+                try {
+                    const validatedTitle = validateTaskTitle(title);
+                    const xpReward = customXP || DIFFICULTY_XP[difficulty];
+                    const newTask: Task = {
+                        id: crypto.randomUUID(),
+                        title: validatedTitle,
+                        completed: false,
+                        xpReward,
+                        difficulty,
+                        category,
+                        recurring,
+                        isDaily
+                    };
+                    set((state) => ({ tasks: [...state.tasks, newTask] }));
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
+                }
             },
 
             toggleTask: (id) => {
@@ -1389,19 +1474,27 @@ export const useGameStore = create<GameState>()(
 
             // Habit Actions
             addHabit: (name, icon, category, xpReward) => {
-                const newHabit: Habit = {
-                    id: crypto.randomUUID(),
-                    name,
-                    icon,
-                    category,
-                    xpReward,
-                    streak: 0,
-                    longestStreak: 0,
-                    completedDates: [],
-                    createdAt: new Date().toISOString(),
-                    lastCompletedDate: null,
-                };
-                set((state) => ({ habits: [...state.habits, newHabit] }));
+                try {
+                    const validatedName = validateHabitName(name);
+                    const newHabit: Habit = {
+                        id: crypto.randomUUID(),
+                        name: validatedName,
+                        icon: icon.slice(0, 10), // Limit icon length
+                        category,
+                        xpReward,
+                        streak: 0,
+                        longestStreak: 0,
+                        completedDates: [],
+                        createdAt: new Date().toISOString(),
+                        lastCompletedDate: null,
+                    };
+                    set((state) => ({ habits: [...state.habits, newHabit] }));
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
+                }
             },
 
             completeHabit: (habitId) => {
@@ -1450,23 +1543,37 @@ export const useGameStore = create<GameState>()(
 
             // Goal Actions
             addGoal: (title, description, category, timeframe, targetDate, milestones, xpReward) => {
-                const newGoal: Goal = {
-                    id: crypto.randomUUID(),
-                    title,
-                    description,
-                    category,
-                    timeframe,
-                    targetDate,
-                    milestones: milestones.filter(m => m.trim()).map(m => ({
+                try {
+                    const validatedTitle = validateGoalTitle(title);
+                    const validatedDescription = validateGoalDescription(description);
+                    const validatedMilestones = milestones
+                        .filter(m => m.trim())
+                        .map(m => m.slice(0, 150)) // Limit milestone length
+                        .slice(0, 20); // Limit number of milestones
+                    
+                    const newGoal: Goal = {
                         id: crypto.randomUUID(),
-                        title: m,
+                        title: validatedTitle,
+                        description: validatedDescription,
+                        category,
+                        timeframe,
+                        targetDate,
+                        milestones: validatedMilestones.map(m => ({
+                            id: crypto.randomUUID(),
+                            title: m,
+                            completed: false,
+                        })),
                         completed: false,
-                    })),
-                    completed: false,
-                    createdAt: new Date().toISOString(),
-                    xpReward,
-                };
-                set((state) => ({ goals: [...state.goals, newGoal] }));
+                        createdAt: new Date().toISOString(),
+                        xpReward,
+                    };
+                    set((state) => ({ goals: [...state.goals, newGoal] }));
+                } catch (error) {
+                    if (error instanceof ValidationError) {
+                        console.error('Validation error:', error.message);
+                    }
+                    throw error;
+                }
             },
 
             completeGoalMilestone: (goalId, milestoneId) => {
@@ -1634,6 +1741,7 @@ export const useGameStore = create<GameState>()(
         }),
         {
             name: 'ai-productivity-storage',
+            storage: createIndexedDBStorage<GameState>(),
         }
     )
 );

@@ -3,6 +3,7 @@
 import { useGameStore, TaskCategory } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+import { ValidationError } from '@/lib/validation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { 
@@ -68,12 +69,33 @@ export default function QuestsPage() {
     return bonus;
   };
 
-  const handleAddTask = (e: React.FormEvent) => {
+  const [titleError, setTitleError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    addTask(title, difficulty, undefined, category, recurring);
-    addToast('Quest added!', 'success');
-    setTitle('');
+    if (!title.trim()) {
+      setTitleError('Quest title cannot be empty');
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setTitleError('');
+    
+    try {
+      await addTask(title, difficulty, undefined, category, recurring);
+      addToast('Quest added!', 'success');
+      setTitle('');
+    } catch (error) {
+      if (error instanceof ValidationError) {
+        setTitleError(error.message);
+        addToast(error.message, 'error');
+      } else {
+        addToast('Failed to add quest. Please try again.', 'error');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const filteredTasks = filterCategory === 'All'
@@ -198,15 +220,31 @@ export default function QuestsPage() {
         >
           <h2 className="text-lg font-bold mb-4">Create New Quest</h2>
 
-          <form onSubmit={handleAddTask} className="space-y-4">
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., Practice Spanish for 30 minutes"
-              className="input-field"
-              aria-label="Quest title"
-            />
+          <form onSubmit={handleAddTask} className="space-y-4" noValidate>
+            <div>
+              <label htmlFor="quest-title" className="sr-only">Quest title</label>
+              <input
+                id="quest-title"
+                type="text"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (titleError) setTitleError('');
+                }}
+                placeholder="e.g., Practice Spanish for 30 minutes"
+                className={`input-field ${titleError ? 'border-red-500 focus:border-red-500' : ''}`}
+                aria-label="Quest title"
+                aria-invalid={!!titleError}
+                aria-describedby={titleError ? 'title-error' : undefined}
+                maxLength={200}
+                disabled={isSubmitting}
+              />
+              {titleError && (
+                <p id="title-error" className="mt-1 text-sm text-red-500" role="alert">
+                  {titleError}
+                </p>
+              )}
+            </div>
 
             {/* Difficulty */}
             <div>
@@ -282,13 +320,23 @@ export default function QuestsPage() {
             
             <motion.button
               type="submit"
-              disabled={!title.trim()}
+              disabled={!title.trim() || isSubmitting}
               className="rpg-button w-full !bg-[var(--color-purple)] !text-white hover:!bg-[var(--color-purple-light)] disabled:opacity-50 disabled:cursor-not-allowed"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+              whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+              aria-busy={isSubmitting}
             >
-              <Plus size={20} />
-              Add Quest
+              {isSubmitting ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus size={20} />
+                  Add Quest
+                </>
+              )}
             </motion.button>
           </form>
         </motion.div>
@@ -314,22 +362,35 @@ export default function QuestsPage() {
             </div>
           </div>
           <div className="space-y-3">
+            <label htmlFor="ai-prompt" className="sr-only">Describe what you want to achieve</label>
             <input
+              id="ai-prompt"
               type="text"
               value={generatePrompt}
               onChange={(e) => setGeneratePrompt(e.target.value)}
               placeholder="e.g., Learn to play guitar"
               className="input-field"
+              aria-label="AI quest generation prompt"
+              maxLength={500}
+              disabled={isGenerating}
             />
             <motion.button 
               onClick={handleGenerateQuests}
               disabled={isGenerating || !generatePrompt.trim()}
               className="rpg-button w-full !bg-[var(--color-purple)] !text-white hover:!bg-[var(--color-purple-light)] disabled:opacity-50"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: isGenerating ? 1 : 1.02 }}
+              whileTap={{ scale: isGenerating ? 1 : 0.98 }}
+              aria-busy={isGenerating}
             >
               <Sparkles size={20} />
-              {isGenerating ? 'Generating...' : 'Generate Quests'}
+              {isGenerating ? (
+                <>
+                  <span className="animate-spin mr-2">✨</span>
+                  Generating...
+                </>
+              ) : (
+                'Generate Quests'
+              )}
             </motion.button>
           </div>
         </motion.div>
@@ -417,13 +478,22 @@ export default function QuestsPage() {
                           addToast('Quest uncompleted', 'info');
                         }
                       }}
-                      className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 transition-all ${
+                      className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:ring-offset-2 ${
                         task.completed
                           ? 'bg-[var(--color-green)] text-white'
                           : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)] border border-[var(--color-border)] hover:bg-[var(--color-green)] hover:text-white'
                       }`}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
+                      aria-label={task.completed ? `Mark "${task.title}" as incomplete` : `Complete "${task.title}"`}
+                      aria-pressed={task.completed}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          (e.target as HTMLButtonElement).click();
+                        }
+                      }}
                     >
                       <Check size={20} />
                     </motion.button>
@@ -455,9 +525,17 @@ export default function QuestsPage() {
                         deleteTask(task.id);
                         addToast('Quest deleted', 'info');
                       }}
-                      className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors flex-shrink-0"
+                      className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-red)] focus:ring-offset-2 rounded"
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
+                      aria-label={`Delete "${task.title}"`}
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          (e.target as HTMLButtonElement).click();
+                        }
+                      }}
                     >
                       <Trash2 size={20} />
                     </motion.button>

@@ -127,7 +127,7 @@ export default function HomePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          prompt: 'Generate a focused daily productivity plan with 3-5 actionable tasks',
+          prompt: 'Generate a focused daily productivity plan with 1-2 actionable tasks',
           context: { name: characterName, characterClass, level, totalQuestsCompleted, streak }
         })
       });

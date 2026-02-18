@@ -132,7 +132,7 @@ export default function HabitsPage() {
         >
           <div className="flex items-center justify-between mb-3">
             <div>
-              <p className="text-sm text-[var(--color-text-secondary)]">Today's Progress</p>
+              <p className="text-sm text-[var(--color-text-secondary)]">Today&apos;s Progress</p>
               <p className="text-2xl font-bold">{completedToday} / {totalHabits} habits</p>
             </div>
             <div className="text-right">
