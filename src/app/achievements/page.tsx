@@ -9,29 +9,28 @@ import { useToastStore } from '@/components/ToastContainer';
 
 const ACHIEVEMENTS_DATA = [
   // Common
-  { id: 'FIRST_BLOOD',    name: 'First Blood',    description: 'Complete your first quest',            icon: '⚔️',  rarity: 'common' },
-  { id: 'AUCTIONEER',     name: 'Auctioneer',     description: 'List an item in the auction house',    icon: '🏛️',  rarity: 'common' },
-  { id: 'HABIT_BUILDER',  name: 'Habit Builder',  description: 'Create 5 habits',                      icon: '🌱',  rarity: 'common' },
+  { id: 'FIRST_BLOOD', name: 'First Blood', description: 'Complete your first quest', icon: '⚔️', rarity: 'common' },
+  { id: 'HABIT_BUILDER', name: 'Habit Builder', description: 'Create 5 habits', icon: '🌱', rarity: 'common' },
   // Rare
-  { id: 'LEVEL_5',        name: 'High Roller',    description: 'Reach Level 5',                        icon: '⭐',  rarity: 'rare' },
-  { id: 'QUEST_MASTER',   name: 'Quest Master',   description: 'Complete 10 quests',                   icon: '📜',  rarity: 'rare' },
-  { id: 'CRAFTSMAN',      name: 'Craftsman',      description: 'Craft your first item',                icon: '🔨',  rarity: 'rare' },
-  { id: 'STREAK_7',       name: 'Week Warrior',   description: 'Maintain a 7-day streak',              icon: '🔥',  rarity: 'rare' },
-  { id: 'DAILY_COMPLETE', name: 'Daily Grind',    description: 'Complete all daily quests in a day',   icon: '✅',  rarity: 'rare' },
-  { id: 'GOAL_GETTER',    name: 'Goal Getter',    description: 'Complete your first goal',             icon: '🎯',  rarity: 'rare' },
-  { id: 'REFLECTOR',      name: 'Self Reflector', description: 'Submit 7 evening reflections',         icon: '🌙',  rarity: 'rare' },
+  { id: 'LEVEL_5', name: 'High Roller', description: 'Reach Level 5', icon: '⭐', rarity: 'rare' },
+  { id: 'QUEST_MASTER', name: 'Quest Master', description: 'Complete 10 quests', icon: '📜', rarity: 'rare' },
+  { id: 'CRAFTSMAN', name: 'Craftsman', description: 'Craft your first item', icon: '🔨', rarity: 'rare' },
+  { id: 'STREAK_7', name: 'Week Warrior', description: 'Maintain a 7-day streak', icon: '🔥', rarity: 'rare' },
+  { id: 'DAILY_COMPLETE', name: 'Daily Grind', description: 'Complete all daily quests in a day', icon: '✅', rarity: 'rare' },
+  { id: 'GOAL_GETTER', name: 'Goal Getter', description: 'Complete your first goal', icon: '🎯', rarity: 'rare' },
+  { id: 'REFLECTOR', name: 'Self Reflector', description: 'Submit 7 evening reflections', icon: '🌙', rarity: 'rare' },
   // Epic
-  { id: 'BOSS_SLAYER',    name: 'Boss Slayer',    description: 'Defeat a boss battle',                 icon: '🐉',  rarity: 'epic' },
-  { id: 'TITLE_MASTER',   name: 'Titled',         description: 'Obtain the Master title',              icon: '🎖️',  rarity: 'epic' },
-  { id: 'HABIT_HERO',     name: 'Habit Hero',     description: 'Complete a habit 7 days in a row',     icon: '🏆',  rarity: 'epic' },
-  { id: 'EPIC_SLAYER',    name: 'Epic Slayer',    description: 'Complete 10 Epic difficulty quests',   icon: '⚡',  rarity: 'epic' },
-  { id: 'SCHOLAR_ELITE',  name: 'Scholar Elite',  description: 'Complete 25 Study category quests',    icon: '📚',  rarity: 'epic' },
-  { id: 'HEALTH_WARRIOR', name: 'Health Warrior', description: 'Complete 25 Health category quests',   icon: '💪',  rarity: 'epic' },
+  { id: 'BOSS_SLAYER', name: 'Boss Slayer', description: 'Defeat a boss battle', icon: '🐉', rarity: 'epic' },
+  { id: 'TITLE_MASTER', name: 'Titled', description: 'Obtain the Master title', icon: '🎖️', rarity: 'epic' },
+  { id: 'HABIT_HERO', name: 'Habit Hero', description: 'Complete a habit 7 days in a row', icon: '🏆', rarity: 'epic' },
+  { id: 'EPIC_SLAYER', name: 'Epic Slayer', description: 'Complete 10 Epic difficulty quests', icon: '⚡', rarity: 'epic' },
+  { id: 'SCHOLAR_ELITE', name: 'Scholar Elite', description: 'Complete 25 Study category quests', icon: '📚', rarity: 'epic' },
+  { id: 'HEALTH_WARRIOR', name: 'Health Warrior', description: 'Complete 25 Health category quests', icon: '💪', rarity: 'epic' },
   // Legendary
-  { id: 'QUEST_CENTURION',name: 'Centurion',      description: 'Complete 100 quests',                  icon: '💯',  rarity: 'legendary' },
-  { id: 'STREAK_30',      name: 'Streak Legend',  description: 'Maintain a 30-day streak',             icon: '👑',  rarity: 'legendary' },
-  { id: 'LEVEL_20',       name: 'Veteran',        description: 'Reach Level 20',                       icon: '💎',  rarity: 'legendary' },
-  { id: 'LOGIN_30',       name: 'Dedicated',      description: 'Login 30 days in a row',               icon: '📅',  rarity: 'legendary' },
+  { id: 'QUEST_CENTURION', name: 'Centurion', description: 'Complete 100 quests', icon: '💯', rarity: 'legendary' },
+  { id: 'STREAK_30', name: 'Streak Legend', description: 'Maintain a 30-day streak', icon: '👑', rarity: 'legendary' },
+  { id: 'LEVEL_20', name: 'Veteran', description: 'Reach Level 20', icon: '💎', rarity: 'legendary' },
+  { id: 'LOGIN_30', name: 'Dedicated', description: 'Login 30 days in a row', icon: '📅', rarity: 'legendary' },
 ];
 
 const RARITY_COLORS: Record<string, string> = {
@@ -65,7 +64,7 @@ export default function AchievementsPage() {
       navigator.share({
         title: 'QuestFlow Achievement',
         text: shareText,
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       navigator.clipboard.writeText(shareText);
       addToast('Copied to clipboard!', 'success');
@@ -74,12 +73,12 @@ export default function AchievementsPage() {
 
   const handleShareAll = () => {
     const shareText = `🎮 QuestFlow Progress Update! 🚀\n\nLevel: ${level} | Title: ${title}\nXP: ${xp.toLocaleString()} | Gold: ${gold} | Gems: ${gems}\nQuests: ${totalQuestsCompleted} | Streak: ${streak} days | Login: ${loginStreak} days\n\nAchievements: ${unlockedCount}/${totalCount} unlocked!`;
-    
+
     if (navigator.share) {
       navigator.share({
         title: 'QuestFlow Progress',
         text: shareText,
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       navigator.clipboard.writeText(shareText);
       addToast('Copied to clipboard!', 'success');
@@ -87,7 +86,7 @@ export default function AchievementsPage() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen pb-12"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -118,7 +117,7 @@ export default function AchievementsPage() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Stats */}
-        <motion.div 
+        <motion.div
           className="rpg-card mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -148,7 +147,7 @@ export default function AchievementsPage() {
         </motion.div>
 
         {/* Filter Buttons */}
-        <motion.div 
+        <motion.div
           className="mb-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -159,11 +158,10 @@ export default function AchievementsPage() {
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
-                  filter === f 
-                    ? 'bg-[var(--color-purple)] text-white' 
+                className={`px-4 py-2 rounded text-sm font-medium transition-colors ${filter === f
+                    ? 'bg-[var(--color-purple)] text-white'
                     : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]'
-                }`}
+                  }`}
               >
                 {f === 'all' ? '🏅 All' : f === 'unlocked' ? '✅ Unlocked' : '🔒 Locked'}
               </button>
@@ -175,7 +173,7 @@ export default function AchievementsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredAchievements.map((achievement, index) => {
             const isUnlocked = achievements.includes(achievement.id);
-            
+
             return (
               <motion.div
                 key={achievement.id}
@@ -187,7 +185,7 @@ export default function AchievementsPage() {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
-                    <motion.span 
+                    <motion.span
                       className="text-3xl"
                       animate={{ rotate: isUnlocked ? [0, 10, 0] : 0 }}
                       transition={{ repeat: isUnlocked ? Infinity : 0, duration: 2, ease: "easeInOut" }}
@@ -212,11 +210,10 @@ export default function AchievementsPage() {
 
                 <button
                   onClick={() => handleShare(achievement)}
-                  className={`w-full rpg-button text-sm ${
-                    isUnlocked 
-                      ? '!bg-[var(--color-blue)] !text-white' 
+                  className={`w-full rpg-button text-sm ${isUnlocked
+                      ? '!bg-[var(--color-blue)] !text-white'
                       : '!bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
-                  }`}
+                    }`}
                 >
                   <Share2 size={14} />
                   {isUnlocked ? 'Share Achievement' : 'Share Progress'}

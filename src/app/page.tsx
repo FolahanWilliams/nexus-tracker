@@ -61,7 +61,6 @@ const menuItems = [
   { href: '/shop', emoji: '💎', label: 'Shop' },
   { href: '/analytics', emoji: '📊', label: 'Analytics' },
   { href: '/achievements', emoji: '🏆', label: 'Achievements' },
-  { href: '/leaderboard', emoji: '👑', label: 'Leaderboard' },
   { href: '/timeline', emoji: '📅', label: 'Timeline' },
   { href: '/settings', emoji: '⚙️', label: 'Settings' },
 ];

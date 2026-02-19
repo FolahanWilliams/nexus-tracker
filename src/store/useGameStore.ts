@@ -151,14 +151,6 @@ export interface QuestStep {
     taskId?: string;
 }
 
-export interface AuctionListing {
-    id: string;
-    item: InventoryItem;
-    price: number;
-    sellerId: string;
-    listedAt: string;
-}
-
 export interface Habit {
     id: string;
     name: string;
@@ -275,9 +267,6 @@ export interface GameState {
         accessory?: InventoryItem;
     };
 
-    // Auction House
-    auctionListings: AuctionListing[];
-
     // Habits
     habits: Habit[];
 
@@ -331,11 +320,6 @@ export interface GameState {
 
     // Crafting Actions
     craftItem: (recipeId: string) => boolean;
-
-    // Auction House Actions
-    listItem: (itemId: string, price: number) => void;
-    buyFromAuction: (listingId: string) => void;
-    cancelListing: (listingId: string) => void;
 
     // Buff Actions
     addBuff: (type: string, value: number, durationMinutes: number) => void;
@@ -429,7 +413,6 @@ const DAILY_QUEST_TEMPLATES = [
     { title: 'Equip a weapon', difficulty: 'Easy' as const, xp: 15 },
     { title: 'Upgrade a skill', difficulty: 'Medium' as const, xp: 40 },
     { title: 'Complete a quest chain step', difficulty: 'Medium' as const, xp: 35 },
-    { title: 'List an item in auction', difficulty: 'Easy' as const, xp: 20 },
 ];
 
 // BOSS_TEMPLATES moved to bosses/page.tsx
@@ -500,7 +483,6 @@ const ACHIEVEMENTS = [
     { id: 'CRAFTSMAN', name: 'Craftsman', description: 'Craft your first item', icon: '🔨', condition: (state: GameState) => state.inventory.some(i => i.name.includes('Blade') || i.name.includes('Shield') || i.name.includes('Potion')) },
     { id: 'STREAK_7', name: 'Week Warrior', description: 'Maintain a 7-day streak', icon: '🔥', condition: (state: GameState) => state.streak >= 7 },
     { id: 'TITLE_MASTER', name: 'Titled', description: 'Obtain the Master title', icon: '🎖️', condition: (state: GameState) => state.title === 'Master' },
-    { id: 'AUCTIONEER', name: 'Auctioneer', description: 'List an item in the auction house', icon: '🏛️', condition: (state: GameState) => state.auctionListings.length > 0 },
     { id: 'DAILY_COMPLETE', name: 'Daily Grind', description: 'Complete all daily quests in a day', icon: '✅', condition: (state: GameState) => state.dailyQuests.length > 0 && state.dailyQuests.every(q => q.completed) },
     { id: 'LOGIN_30', name: 'Dedicated', description: 'Login 30 days in a row', icon: '📅', condition: (state: GameState) => state.loginStreak >= 30 },
     // New 10
@@ -546,7 +528,6 @@ export const useGameStore = create<GameState>()(
             loginStreak: 0,
             focusSessionsTotal: 0,
             focusMinutesTotal: 0,
-            auctionListings: [],
             habits: [],
             goals: [],
             activeBuffs: [],
@@ -1046,50 +1027,7 @@ export const useGameStore = create<GameState>()(
                 return true;
             },
 
-            // Auction House Actions
-            listItem: (itemId, price) => {
-                const state = get();
-                const item = state.inventory.find(i => i.id === itemId);
-                if (!item) return;
 
-                const listing: AuctionListing = {
-                    id: crypto.randomUUID(),
-                    item: { ...item },
-                    price,
-                    sellerId: 'player',
-                    listedAt: new Date().toISOString()
-                };
-
-                get().removeItem(itemId, item.quantity);
-                set((state) => ({ auctionListings: [...state.auctionListings, listing] }));
-            },
-
-            buyFromAuction: (listingId) => {
-                const state = get();
-                const listing = state.auctionListings.find(l => l.id === listingId);
-                if (!listing || state.gold < listing.price) return;
-
-                set((state) => ({
-                    gold: state.gold - listing.price,
-                    inventory: [...state.inventory, { ...listing.item, id: crypto.randomUUID() }],
-                    auctionListings: state.auctionListings.filter(l => l.id !== listingId)
-                }));
-
-                if (listing.sellerId !== 'player') {
-                    state.unlockAchievement('AUCTIONEER');
-                }
-            },
-
-            cancelListing: (listingId) => {
-                const state = get();
-                const listing = state.auctionListings.find(l => l.id === listingId);
-                if (!listing || listing.sellerId !== 'player') return;
-
-                set((state) => ({
-                    auctionListings: state.auctionListings.filter(l => l.id !== listingId),
-                    inventory: [...state.inventory, { ...listing.item, id: crypto.randomUUID() }]
-                }));
-            },
 
             // Buff Actions
             addBuff: (type, value, durationMinutes) => {
@@ -1732,7 +1670,6 @@ export const useGameStore = create<GameState>()(
                     focusMinutesTotal: 0,
                     achievements: [],
                     title: 'Novice',
-                    auctionListings: [],
                     habits: [],
                     goals: [],
                     activeBuffs: [],

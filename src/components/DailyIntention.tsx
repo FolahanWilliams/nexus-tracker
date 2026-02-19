@@ -109,12 +109,12 @@ export default function DailyIntention() {
                   <Sun className="inline text-[var(--color-yellow)]" size={40} />
                 </motion.div>
                 <h2 className="text-xl font-bold">Morning Check-In</h2>
-                <p className="text-sm text-[var(--color-text-muted)] mt-1">What's your #1 focus today?</p>
+                <p className="text-sm text-[var(--color-text-muted)] mt-1">What&apos;s your #1 focus today?</p>
               </div>
 
               <div className="space-y-5">
                 <div>
-                  <label className="text-sm font-semibold block mb-2">Today's Intention</label>
+                  <label className="text-sm font-semibold block mb-2">Today&apos;s Intention</label>
                   <input
                     type="text"
                     value={intention}
@@ -134,8 +134,8 @@ export default function DailyIntention() {
                         key={i}
                         onClick={() => setEnergyRating(i + 1)}
                         className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${energyRating === i + 1
-                            ? 'border-transparent text-white'
-                            : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
+                          ? 'border-transparent text-white'
+                          : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
                           }`}
                         style={energyRating === i + 1 ? { backgroundColor: ENERGY_COLORS[i] } : {}}
                       >
@@ -190,7 +190,7 @@ export default function DailyIntention() {
                 <h2 className="text-xl font-bold">Evening Reflection</h2>
                 {todayIntention && (
                   <p className="text-sm text-[var(--color-text-muted)] mt-1">
-                    Today's intention: <span className="text-[var(--color-purple)] italic">"{todayIntention}"</span>
+                    Today&apos;s intention: <span className="text-[var(--color-purple)] italic">&quot;{todayIntention}&quot;</span>
                   </p>
                 )}
               </div>

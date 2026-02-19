@@ -30,7 +30,7 @@ export default function ContributionHeatmap({ dates, color = 'var(--color-green)
 
     // Generate the days
     const weeks: { date: string; count: number }[][] = [];
-    let currentDay = startDate.clone();
+    const currentDay = startDate.clone();
 
     while (currentDay.isBefore(today.clone().add(1, 'days'))) {
         if (currentDay.day() === 0) {
