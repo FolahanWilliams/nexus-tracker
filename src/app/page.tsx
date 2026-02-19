@@ -78,6 +78,7 @@ export default function HomePage() {
   const { addToast } = useToastStore();
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [aiCoachMessage, setAiCoachMessage] = useState<string | null>(null);
+  const [trendInsight, setTrendInsight] = useState<string | null>(null);
 
   // Fetch AI Coach message on mount if we have recent reflections
   useEffect(() => {
@@ -99,12 +100,16 @@ export default function HomePage() {
             reflection: lastReflection.note,
             energyRating: todayEnergyRating,
             recentTasks: tasks.filter(t => t.completedAt?.startsWith(new Date().toISOString().split('T')[0])),
-            playerContext: { name: characterName, characterClass, level, streak }
+            playerContext: { name: characterName, characterClass, level, streak },
+            reflectionHistory: reflectionNotes
           })
         });
         const data = await response.json();
         if (data?.message) {
           setAiCoachMessage(data.message);
+        }
+        if (data?.trendInsight) {
+          setTrendInsight(data.trendInsight);
         }
       } catch (error) {
         console.error('Failed to fetch AI Coach message:', error);
@@ -333,6 +338,11 @@ export default function HomePage() {
                   <div>
                     <p className="text-xs font-bold text-[var(--color-blue)] uppercase tracking-wide mb-1">Hoot says:</p>
                     <p className="text-sm italic text-[var(--color-text-secondary)]">&quot;{aiCoachMessage}&quot;</p>
+                    {trendInsight && (
+                      <p className="text-xs text-[var(--color-yellow)] mt-2 flex items-center gap-1">
+                        📊 <span className="italic">{trendInsight}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
               </motion.div>

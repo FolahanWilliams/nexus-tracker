@@ -27,7 +27,7 @@ interface GeneratedQuest {
 }
 
 export default function QuestsPage() {
-  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, characterName, characterClass, level, totalQuestsCompleted, streak } = useGameStore();
+  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
   const { addToast } = useToastStore();
 
   // Show toast when an item drops from the store
@@ -236,6 +236,45 @@ export default function QuestsPage() {
       addToast('Failed to process command.', 'error');
     } finally {
       setIsCommandProcessing(false);
+    }
+  };
+
+  // Smart achievement check after completing a quest
+  const checkSmartAchievements = async () => {
+    const today = new Date().toISOString().split('T')[0];
+    const completedToday = tasks.filter(t => t.completed && t.completedAt?.startsWith(today));
+    if (completedToday.length < 3) return;
+
+    const categoriesToday = [...new Set(completedToday.map(t => t.category))];
+    try {
+      const response = await fetch('/api/smart-achievements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recentActivity: {
+            completedToday: completedToday.length,
+            categoriesToday,
+            streak,
+            totalCompleted: totalQuestsCompleted,
+            sessionTasks: completedToday.slice(-5)
+          }
+        })
+      });
+      const data = await response.json();
+      if (data.earned && data.name) {
+        addDynamicAchievement({ name: data.name, description: data.description, icon: data.icon });
+        addToast(`🌟 New Achievement: ${data.icon} ${data.name}!`, 'success');
+      }
+    } catch (error) {
+      console.error('Smart achievement check failed:', error);
+    }
+  };
+
+  const handleToggleTask = (taskId: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    toggleTask(taskId);
+    if (task && !task.completed) {
+      checkSmartAchievements();
     }
   };
 
@@ -696,7 +735,7 @@ export default function QuestsPage() {
                           const goldBonus = Math.floor((task.xpReward / 2) * (goldMultiplier - 1)) + getEquipmentBonus('goldBonus');
 
                           // toggleTask handles XP, gold, drops, streak, achievements
-                          toggleTask(task.id);
+                          handleToggleTask(task.id);
 
                           // Trigger floating XP number
                           const totalXP = task.xpReward + xpBonus;
@@ -713,7 +752,7 @@ export default function QuestsPage() {
 
                           addToast(message, 'success');
                         } else {
-                          toggleTask(task.id);
+                          handleToggleTask(task.id);
                           addToast('Quest uncompleted', 'info');
                         }
                       }}
