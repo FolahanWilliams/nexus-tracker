@@ -17,7 +17,6 @@ import {
   Sword,
   Hammer,
   Store,
-  Crown,
   Settings,
   Repeat2,
   Timer,
@@ -40,7 +39,6 @@ const navItems = [
   { href: '/crafting', label: 'Crafting', icon: Hammer },
   { href: '/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/achievements', label: 'Achievements', icon: Trophy },
-  { href: '/leaderboard', label: 'Leaderboard', icon: Crown },
   { href: '/timeline', label: 'Timeline', icon: Calendar },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

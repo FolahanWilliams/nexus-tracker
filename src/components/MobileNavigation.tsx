@@ -12,10 +12,8 @@ import {
   Sword,
   Sparkles,
   Settings,
-  Menu,
   X,
   Hammer,
-  Crown,
   MoreHorizontal,
   Repeat2,
   Timer,
@@ -37,7 +35,6 @@ const secondaryNavItems = [
   { href: '/inventory', label: 'Items', icon: Sparkles },
   { href: '/crafting', label: 'Craft', icon: Hammer },
   { href: '/achievements', label: 'Trophies', icon: Trophy },
-  { href: '/leaderboard', label: 'Ranks', icon: Crown },
   { href: '/timeline', label: 'Timeline', icon: Calendar },
   { href: '/analytics', label: 'Stats', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
@@ -62,13 +59,13 @@ export default function MobileNavigation() {
                 aria-label={item.label}
                 aria-current={isActive ? 'page' : undefined}
                 className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${isActive
-                    ? 'text-[var(--color-purple)]'
-                    : 'text-[var(--color-text-muted)]'
+                  ? 'text-[var(--color-purple)]'
+                  : 'text-[var(--color-text-muted)]'
                   }`}
               >
                 <div className={`p-2 rounded-xl transition-all ${isActive
-                    ? 'bg-[var(--color-purple)]/20'
-                    : ''
+                  ? 'bg-[var(--color-purple)]/20'
+                  : ''
                   }`}>
                   <Icon size={20} />
                 </div>
@@ -83,13 +80,13 @@ export default function MobileNavigation() {
             aria-expanded={showMore}
             aria-label="More navigation options"
             className={`flex flex-col items-center gap-1 px-2 py-1 rounded-xl transition-all duration-200 ${showMore
-                ? 'text-[var(--color-purple)]'
-                : 'text-[var(--color-text-muted)]'
+              ? 'text-[var(--color-purple)]'
+              : 'text-[var(--color-text-muted)]'
               }`}
           >
             <div className={`p-2 rounded-xl transition-all ${showMore
-                ? 'bg-[var(--color-purple)]/20'
-                : ''
+              ? 'bg-[var(--color-purple)]/20'
+              : ''
               }`}>
               {showMore ? <X size={20} /> : <MoreHorizontal size={20} />}
             </div>
@@ -121,8 +118,8 @@ export default function MobileNavigation() {
                     aria-label={item.label}
                     aria-current={isActive ? 'page' : undefined}
                     className={`flex flex-col items-center gap-1 p-3 rounded-xl transition-all ${isActive
-                        ? 'bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
-                        : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-dark)]'
+                      ? 'bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-dark)]'
                       }`}
                   >
                     <Icon size={20} />

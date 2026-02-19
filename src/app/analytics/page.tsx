@@ -5,11 +5,27 @@ import Link from 'next/link';
 import { Target, Zap, Flame, Trophy, ChevronLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMemo } from 'react';
+import ContributionHeatmap from '@/components/ContributionHeatmap';
 
 export default function AnalyticsPage() {
-  const { xp, level, streak, tasks } = useGameStore();
+  const { xp, level, streak, tasks, habits } = useGameStore();
   const completedTasks = tasks.filter(t => t.completed).length;
   const totalTasks = tasks.length;
+
+  // Gather all dates for the heatmap
+  const allActivityDates = useMemo(() => {
+    const dates: string[] = [];
+    tasks.forEach(t => {
+      if (t.completed && t.completedAt) {
+        dates.push(t.completedAt.split('T')[0]);
+      }
+    });
+    habits.forEach(h => {
+      h.completedDates.forEach(d => dates.push(d));
+    });
+    return dates;
+  }, [tasks, habits]);
+
 
   const difficultyCount = {
     Easy: tasks.filter(t => t.difficulty === 'Easy' && t.completed).length,
@@ -54,7 +70,7 @@ export default function AnalyticsPage() {
   }, [tasks]);
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen pb-12"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -73,7 +89,7 @@ export default function AnalyticsPage() {
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Intro Text */}
-        <motion.div 
+        <motion.div
           className="mb-8 border-l-4 border-[var(--color-purple)] pl-4"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -97,13 +113,13 @@ export default function AnalyticsPage() {
                 transition={{ delay: 0.2 + index * 0.1 }}
                 whileHover={{ scale: 1.05 }}
               >
-                <div 
+                <div
                   className="w-12 h-12 rounded-lg mx-auto mb-3 flex items-center justify-center"
                   style={{ backgroundColor: stat.color }}
                 >
                   <Icon className="text-white" size={24} />
                 </div>
-                <motion.p 
+                <motion.p
                   className="text-2xl font-bold"
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
@@ -118,7 +134,7 @@ export default function AnalyticsPage() {
         </div>
 
         {/* Difficulty Breakdown */}
-        <motion.div 
+        <motion.div
           className="rpg-card mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -134,9 +150,9 @@ export default function AnalyticsPage() {
                 Hard: 'var(--color-badge-yellow)',
                 Epic: 'var(--color-badge-purple)',
               };
-              
+
               return (
-                <motion.div 
+                <motion.div
                   key={difficulty}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -147,7 +163,7 @@ export default function AnalyticsPage() {
                     <span className="text-[var(--color-text-secondary)]">{count}</span>
                   </div>
                   <div className="h-2 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
-                    <motion.div 
+                    <motion.div
                       className="h-full rounded-full"
                       style={{ backgroundColor: colors[difficulty as keyof typeof colors] }}
                       initial={{ width: 0 }}
@@ -162,7 +178,7 @@ export default function AnalyticsPage() {
         </motion.div>
 
         {/* Weekly Progress */}
-        <motion.div 
+        <motion.div
           className="rpg-card"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -177,9 +193,8 @@ export default function AnalyticsPage() {
                   {count} quest{count !== 1 ? 's' : ''}
                 </div>
                 <motion.div
-                  className={`w-full rounded-t transition-all ${
-                    isToday ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-purple)]/60'
-                  }`}
+                  className={`w-full rounded-t transition-all ${isToday ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-purple)]/60'
+                    }`}
                   initial={{ height: 0 }}
                   animate={{ height: `${height}%` }}
                   transition={{ delay: 1.2 + index * 0.1, duration: 0.5 }}
@@ -189,6 +204,20 @@ export default function AnalyticsPage() {
               </div>
             ))}
           </div>
+        </motion.div>
+
+        {/* Contribution Heatmap */}
+        <motion.div
+          className="rpg-card mt-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.3 }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Activity Heatmap</h2>
+            <span className="text-xs text-[var(--color-text-muted)]">{allActivityDates.length} total actions</span>
+          </div>
+          <ContributionHeatmap dates={allActivityDates} color="var(--color-green)" />
         </motion.div>
       </div>
     </motion.div>

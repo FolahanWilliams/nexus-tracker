@@ -25,12 +25,12 @@ function getGreeting(name: string, streak: number): string {
   const timeGreeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const displayName = name === 'Your Name' ? 'Hero' : name.split(' ')[0];
 
-  if (streak >= 30) return `${timeGreeting}, ${displayName}. 30+ day streak — you're an absolute machine. 🔥`;
+  if (streak >= 30) return `${timeGreeting}, ${displayName}. 30+ day streak — you&apos;re an absolute machine. 🔥`;
   if (streak >= 14) return `${timeGreeting}, ${displayName}. ${streak} day streak — unstoppable! ⚡`;
   if (streak >= 7) return `${timeGreeting}, ${displayName}. One week streak! Keep the chain alive. 💎`;
-  if (streak >= 3) return `${timeGreeting}, ${displayName}. ${streak} days in a row. Don't break it! 🔥`;
+  if (streak >= 3) return `${timeGreeting}, ${displayName}. ${streak} days in a row. Don&apos;t break it! 🔥`;
   if (streak === 0) return `${timeGreeting}, ${displayName}. Today is a fresh start. Make it count.`;
-  return `${timeGreeting}, ${displayName}. Let's get things done today.`;
+  return `${timeGreeting}, ${displayName}. Let&apos;s get things done today.`;
 }
 
 function getProductivityScore(params: {
@@ -48,22 +48,22 @@ function getProductivityScore(params: {
 }
 
 const menuItems = [
-  { href: '/quests',      emoji: '📦', label: 'Quests' },
-  { href: '/habits',      emoji: '🔁', label: 'Habits' },
-  { href: '/focus',       emoji: '⏱️', label: 'Focus Timer' },
-  { href: '/goals',       emoji: '🎯', label: 'Goals' },
-  { href: '/chains',      emoji: '🗺️', label: 'Quest Chains' },
-  { href: '/bosses',      emoji: '⚔️', label: 'Boss Battles' },
-  { href: '/character',   emoji: '🧙', label: 'Character' },
-  { href: '/inventory',   emoji: '🎒', label: 'Inventory' },
-  { href: '/skills',      emoji: '🧠', label: 'Skill Tree' },
-  { href: '/crafting',    emoji: '🔨', label: 'Crafting' },
-  { href: '/shop',        emoji: '💎', label: 'Shop' },
-  { href: '/analytics',   emoji: '📊', label: 'Analytics' },
-  { href: '/achievements',emoji: '🏆', label: 'Achievements' },
+  { href: '/quests', emoji: '📦', label: 'Quests' },
+  { href: '/habits', emoji: '🔁', label: 'Habits' },
+  { href: '/focus', emoji: '⏱️', label: 'Focus Timer' },
+  { href: '/goals', emoji: '🎯', label: 'Goals' },
+  { href: '/chains', emoji: '🗺️', label: 'Quest Chains' },
+  { href: '/bosses', emoji: '⚔️', label: 'Boss Battles' },
+  { href: '/character', emoji: '🧙', label: 'Character' },
+  { href: '/inventory', emoji: '🎒', label: 'Inventory' },
+  { href: '/skills', emoji: '🧠', label: 'Skill Tree' },
+  { href: '/crafting', emoji: '🔨', label: 'Crafting' },
+  { href: '/shop', emoji: '💎', label: 'Shop' },
+  { href: '/analytics', emoji: '📊', label: 'Analytics' },
+  { href: '/achievements', emoji: '🏆', label: 'Achievements' },
   { href: '/leaderboard', emoji: '👑', label: 'Leaderboard' },
-  { href: '/timeline',    emoji: '📅', label: 'Timeline' },
-  { href: '/settings',    emoji: '⚙️', label: 'Settings' },
+  { href: '/timeline', emoji: '📅', label: 'Timeline' },
+  { href: '/settings', emoji: '⚙️', label: 'Settings' },
 ];
 
 export default function HomePage() {
@@ -73,15 +73,47 @@ export default function HomePage() {
     dailyQuests, checkDailyQuests, generateDailyQuests,
     claimDailyReward, lastDailyRewardClaim, loginStreak,
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
-    tasks, habits, goals,
+    tasks, habits, goals, reflectionNotes, todayEnergyRating
   } = useGameStore();
   const { addToast } = useToastStore();
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [aiCoachMessage, setAiCoachMessage] = useState<string | null>(null);
 
+  // Fetch AI Coach message on mount if we have recent reflections
   useEffect(() => {
     checkDailyQuests();
     checkBuffs();
-  }, []);
+
+    const fetchAiCoach = async () => {
+      if (reflectionNotes.length === 0) return;
+
+      try {
+        const lastReflection = reflectionNotes[reflectionNotes.length - 1];
+        // Only fetch if reflection is from today
+        if (lastReflection.date !== new Date().toISOString().split('T')[0]) return;
+
+        const response = await fetch('/api/ai-coach', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reflection: lastReflection.note,
+            energyRating: todayEnergyRating,
+            recentTasks: tasks.filter(t => t.completedAt?.startsWith(new Date().toISOString().split('T')[0])),
+            playerContext: { name: characterName, characterClass, level, streak }
+          })
+        });
+        const data = await response.json();
+        if (data?.message) {
+          setAiCoachMessage(data.message);
+        }
+      } catch (error) {
+        console.error('Failed to fetch AI Coach message:', error);
+      }
+    };
+
+    fetchAiCoach();
+  }, [reflectionNotes.length]);
+
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -287,6 +319,26 @@ export default function HomePage() {
             </div>
           </motion.div>
 
+          {/* AI Reflection Coach */}
+          <AnimatePresence>
+            {aiCoachMessage && (
+              <motion.div
+                className="rpg-card mb-4 !bg-gradient-to-r from-[var(--color-blue)]/10 to-[var(--color-purple)]/10 !border-[var(--color-blue)]/30"
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+              >
+                <div className="flex gap-3 items-start">
+                  <div className="text-2xl mt-1">🦉</div>
+                  <div>
+                    <p className="text-xs font-bold text-[var(--color-blue)] uppercase tracking-wide mb-1">Hoot says:</p>
+                    <p className="text-sm italic text-[var(--color-text-secondary)]">&quot;{aiCoachMessage}&quot;</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Quick Actions Row */}
           <motion.div
             className="grid grid-cols-4 gap-2 mb-4"
@@ -366,11 +418,10 @@ export default function HomePage() {
                 {[1, 2, 3, 4, 5, 6, 7].map(day => (
                   <div
                     key={day}
-                    className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${
-                      day <= (loginStreak % 7) + 1
-                        ? 'bg-[var(--color-yellow)] text-black'
-                        : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
-                    }`}
+                    className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${day <= (loginStreak % 7) + 1
+                      ? 'bg-[var(--color-yellow)] text-black'
+                      : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
+                      }`}
                   >
                     {day}
                   </div>

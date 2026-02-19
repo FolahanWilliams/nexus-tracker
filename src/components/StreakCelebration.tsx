@@ -46,7 +46,7 @@ export default function StreakCelebration() {
 
     addGold(milestone.gold);
     addToast(`${milestone.emoji} ${milestone.message} +${milestone.gold} Gold bonus!`, 'success');
-  }, [streak]);
+  }, [streak, addGold, addToast]);
 
   return null;
 }

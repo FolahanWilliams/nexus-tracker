@@ -45,7 +45,7 @@ const TUTORIAL_STEPS = [
 ];
 
 export default function Onboarding() {
-  const { tasks, level, achievements } = useGameStore();
+  const { tasks, achievements } = useGameStore();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const hasCheckedRef = useRef(false);
@@ -124,8 +124,8 @@ export default function Onboarding() {
               <div
                 key={index}
                 className={`w-2 h-2 rounded-full transition-all ${index <= currentStep
-                    ? 'bg-[var(--color-purple)] w-6'
-                    : 'bg-[var(--color-bg-dark)]'
+                  ? 'bg-[var(--color-purple)] w-6'
+                  : 'bg-[var(--color-bg-dark)]'
                   }`}
               />
             ))}

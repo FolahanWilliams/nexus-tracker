@@ -4,11 +4,11 @@ import { useGameStore, BossBattle } from '@/store/useGameStore';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronLeft, 
-  Sword, 
-  Zap, 
-  Coins, 
+import {
+  ChevronLeft,
+  Sword,
+  Zap,
+  Coins,
   Trophy,
   Skull,
   Heart,
@@ -55,10 +55,11 @@ export default function BossBattlesPage() {
   const [selectedBoss, setSelectedBoss] = useState<BossBattle | null>(null);
   const [battleTimer, setBattleTimer] = useState(0);
   const [playerDamage, setPlayerDamage] = useState(10);
-  
+
   const activeBosses = bossBattles.filter(b => !b.completed && !b.failed);
   const completedBosses = bossBattles.filter(b => b.completed);
   const failedBosses = bossBattles.filter(b => b.failed);
+  const [isGeneratingBoss, setIsGeneratingBoss] = useState(false);
 
   // Get the time limit for the currently selected boss
   const activeBossTemplate = selectedBoss
@@ -93,7 +94,7 @@ export default function BossBattlesPage() {
   const handleStartBattle = (template: typeof BOSS_TEMPLATES[0]) => {
     const expiresAt = new Date();
     expiresAt.setSeconds(expiresAt.getSeconds() + (template.timeLimit ?? 300));
-    
+
     startBossBattle({
       name: template.name,
       description: template.description,
@@ -104,20 +105,57 @@ export default function BossBattlesPage() {
       goldReward: template.goldReward,
       expiresAt: expiresAt.toISOString()
     });
-    
+
     setShowBossSelect(false);
     addToast(`Boss battle started: ${template.name}!`, 'success');
   };
 
+  const handleGenerateBoss = async () => {
+    setIsGeneratingBoss(true);
+    try {
+      const { tasks, habits, level } = useGameStore.getState();
+      const uncompletedTasks = tasks.filter(t => !t.completed).slice(0, 10);
+      const failedHabits = habits.filter(h => h.completedDates.length === 0 || !h.completedDates.includes(new Date().toISOString().split('T')[0]));
+
+      const response = await fetch('/api/generate-boss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uncompletedTasks,
+          failedHabits,
+          playerContext: { level }
+        })
+      });
+      const data = await response.json();
+
+      if (data.name) {
+        startBossBattle({
+          name: data.name,
+          description: data.description,
+          difficulty: data.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic',
+          hp: data.hp,
+          maxHp: data.maxHp,
+          xpReward: data.xpReward,
+          goldReward: data.goldReward,
+          expiresAt: data.expiresAt
+        });
+        addToast(`Vanquish the ${data.name}!`, 'success');
+      }
+    } catch (error) {
+      addToast('Failed to summon boss. The arcane energies fizzled.', 'error');
+    }
+    setIsGeneratingBoss(false);
+  };
+
   const handleAttack = () => {
     if (!selectedBoss) return;
-    
+
     damageBoss(selectedBoss.id, playerDamage);
-    
+
     // Get fresh boss data after damage
     const { bossBattles: updatedBosses } = useGameStore.getState();
     const updatedBoss = updatedBosses.find(b => b.id === selectedBoss.id);
-    
+
     if (updatedBoss) {
       if (updatedBoss.hp <= 0 || updatedBoss.completed) {
         addToast(`Boss defeated! +${selectedBoss.xpReward} XP, +${selectedBoss.goldReward} Gold`, 'success');
@@ -136,7 +174,7 @@ export default function BossBattlesPage() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen pb-20"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -153,19 +191,29 @@ export default function BossBattlesPage() {
               Boss Battles
             </h1>
           </div>
-          <button
-            onClick={() => setShowBossSelect(true)}
-            className="rpg-button !bg-[var(--color-red)] !text-white"
-          >
-            <Play size={18} />
-            Start Battle
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleGenerateBoss}
+              disabled={isGeneratingBoss}
+              className="rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50"
+            >
+              <Zap size={18} className={isGeneratingBoss ? "animate-pulse" : ""} />
+              {isGeneratingBoss ? "Summoning..." : "AI Summon"}
+            </button>
+            <button
+              onClick={() => setShowBossSelect(true)}
+              className="rpg-button !bg-[var(--color-red)] !text-white"
+            >
+              <Play size={18} />
+              Start Battle
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-6">
         {/* Stats */}
-        <motion.div 
+        <motion.div
           className="grid grid-cols-3 gap-4 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -189,9 +237,9 @@ export default function BossBattlesPage() {
           <Skull size={20} className="text-[var(--color-red)]" />
           Active Battles
         </h2>
-        
+
         {activeBosses.length === 0 ? (
-          <motion.div 
+          <motion.div
             className="rpg-card text-center py-12 mb-8"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -234,7 +282,7 @@ export default function BossBattlesPage() {
                     Fight
                   </button>
                 </div>
-                
+
                 {/* HP Bar */}
                 <div className="mb-2">
                   <div className="flex justify-between text-xs mb-1">
@@ -242,14 +290,14 @@ export default function BossBattlesPage() {
                     <span>{boss.hp} / {boss.maxHp}</span>
                   </div>
                   <div className="h-4 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
-                    <motion.div 
+                    <motion.div
                       className={`h-full ${DIFFICULTY_BG[boss.difficulty]} rounded-full`}
                       initial={{ width: '100%' }}
                       animate={{ width: `${(boss.hp / boss.maxHp) * 100}%` }}
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex gap-4 text-sm">
                   <span className="text-[var(--color-green)]">+{boss.xpReward} XP</span>
                   <span className="text-[var(--color-yellow)]">+{boss.goldReward} Gold</span>
@@ -381,7 +429,7 @@ export default function BossBattlesPage() {
               >
                 <X size={24} />
               </button>
-              
+
               <div className="mb-6">
                 <Skull size={64} className="mx-auto text-[var(--color-red)] mb-4" />
                 <h2 className="text-2xl font-bold">{selectedBoss.name}</h2>
@@ -401,7 +449,7 @@ export default function BossBattlesPage() {
                   <span>{selectedBoss.hp} / {selectedBoss.maxHp}</span>
                 </div>
                 <div className="h-6 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
-                  <motion.div 
+                  <motion.div
                     className={`h-full ${DIFFICULTY_BG[selectedBoss.difficulty]} rounded-full`}
                     animate={{ width: `${(selectedBoss.hp / selectedBoss.maxHp) * 100}%` }}
                   />

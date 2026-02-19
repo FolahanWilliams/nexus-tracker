@@ -3,7 +3,7 @@ import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
 
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
-  getItem: async (name: string): Promise<StorageValue<T> | null> => {
+  getItem: async (_name: string): Promise<StorageValue<T> | null> => {
     if (typeof window === 'undefined') return null;
     try {
       const data = await hybridStorage.load();
@@ -28,13 +28,13 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
     }
   },
 
-  removeItem: async (name: string): Promise<void> => {
+  removeItem: async (_name: string): Promise<void> => {
     if (typeof window === 'undefined') return;
     try {
       await hybridStorage.clear();
     } catch (error) {
       console.error('Storage removeItem error:', error);
-      localStorage.removeItem(name);
+      localStorage.removeItem(_name);
     }
   },
 });

@@ -1,20 +1,21 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { createIndexedDBStorage } from '@/lib/zustandStorage';
+// import { createSupabaseStorage } from '@/lib/supabaseStorage';
 import {
-  validateTaskTitle,
-  validateCharacterName,
-  validateMotto,
-  validateStrengths,
-  validateShopItemName,
-  validateGoalTitle,
-  validateGoalDescription,
-  validateHabitName,
-  validateTimelineEventName,
-  validateTimelineSubject,
-  validateCost,
-  validateAmount,
-  ValidationError,
+    validateTaskTitle,
+    validateCharacterName,
+    validateMotto,
+    validateStrengths,
+    validateShopItemName,
+    validateGoalTitle,
+    validateGoalDescription,
+    validateHabitName,
+    validateTimelineEventName,
+    validateTimelineSubject,
+    validateCost,
+    validateAmount,
+    ValidationError,
 } from '@/lib/validation';
 
 export type TaskCategory = 'Study' | 'Health' | 'Creative' | 'Work' | 'Social' | 'Personal' | 'Other';
@@ -234,7 +235,7 @@ export interface GameState {
     characterMotto: string;
     characterStrengths: string;
     title: Title;
-    
+
     // Timeline
     timelineEvents: TimelineEvent[];
 
@@ -411,11 +412,11 @@ export function levelFromXP(xp: number): number {
 
 // Class passive bonuses applied on top of base rewards
 export const CLASS_BONUSES: Record<NonNullable<CharacterClass>, { xpMultiplier: number; goldMultiplier: number; bossMultiplier: number; dropBonus: number; description: string }> = {
-    Scholar:    { xpMultiplier: 1.20, goldMultiplier: 1.00, bossMultiplier: 1.00, dropBonus: 0.00, description: '+20% XP from all quests' },
+    Scholar: { xpMultiplier: 1.20, goldMultiplier: 1.00, bossMultiplier: 1.00, dropBonus: 0.00, description: '+20% XP from all quests' },
     Strategist: { xpMultiplier: 1.10, goldMultiplier: 1.10, bossMultiplier: 1.15, dropBonus: 0.00, description: '+10% XP & Gold, +15% boss damage' },
-    Warrior:    { xpMultiplier: 1.00, goldMultiplier: 1.00, bossMultiplier: 1.30, dropBonus: 0.05, description: '+30% boss damage, +5% item drop chance' },
-    Merchant:   { xpMultiplier: 1.00, goldMultiplier: 1.25, bossMultiplier: 1.00, dropBonus: 0.05, description: '+25% Gold from all quests, +5% item drop chance' },
-    Creator:    { xpMultiplier: 1.15, goldMultiplier: 1.15, bossMultiplier: 1.00, dropBonus: 0.10, description: '+15% XP & Gold, +10% item drop chance' },
+    Warrior: { xpMultiplier: 1.00, goldMultiplier: 1.00, bossMultiplier: 1.30, dropBonus: 0.05, description: '+30% boss damage, +5% item drop chance' },
+    Merchant: { xpMultiplier: 1.00, goldMultiplier: 1.25, bossMultiplier: 1.00, dropBonus: 0.05, description: '+25% Gold from all quests, +5% item drop chance' },
+    Creator: { xpMultiplier: 1.15, goldMultiplier: 1.15, bossMultiplier: 1.00, dropBonus: 0.10, description: '+15% XP & Gold, +10% item drop chance' },
 };
 
 const DAILY_QUEST_TEMPLATES = [
@@ -492,27 +493,27 @@ const CRAFTING_RECIPES: CraftingRecipe[] = [
 
 const ACHIEVEMENTS = [
     // Original 10
-    { id: 'FIRST_BLOOD',    name: 'First Blood',     description: 'Complete your first quest',           icon: '⚔️',  condition: (state: GameState) => state.totalQuestsCompleted >= 1 },
-    { id: 'LEVEL_5',        name: 'High Roller',      description: 'Reach Level 5',                       icon: '⭐',  condition: (state: GameState) => state.level >= 5 },
-    { id: 'QUEST_MASTER',   name: 'Quest Master',     description: 'Complete 10 quests',                  icon: '📜',  condition: (state: GameState) => state.totalQuestsCompleted >= 10 },
-    { id: 'BOSS_SLAYER',    name: 'Boss Slayer',      description: 'Defeat a boss battle',                icon: '🐉',  condition: (state: GameState) => state.bossBattles.some(b => b.completed) },
-    { id: 'CRAFTSMAN',      name: 'Craftsman',        description: 'Craft your first item',               icon: '🔨',  condition: (state: GameState) => state.inventory.some(i => i.name.includes('Blade') || i.name.includes('Shield') || i.name.includes('Potion')) },
-    { id: 'STREAK_7',       name: 'Week Warrior',     description: 'Maintain a 7-day streak',             icon: '🔥',  condition: (state: GameState) => state.streak >= 7 },
-    { id: 'TITLE_MASTER',   name: 'Titled',           description: 'Obtain the Master title',             icon: '🎖️',  condition: (state: GameState) => state.title === 'Master' },
-    { id: 'AUCTIONEER',     name: 'Auctioneer',       description: 'List an item in the auction house',   icon: '🏛️',  condition: (state: GameState) => state.auctionListings.length > 0 },
-    { id: 'DAILY_COMPLETE', name: 'Daily Grind',      description: 'Complete all daily quests in a day',  icon: '✅',  condition: (state: GameState) => state.dailyQuests.length > 0 && state.dailyQuests.every(q => q.completed) },
-    { id: 'LOGIN_30',       name: 'Dedicated',        description: 'Login 30 days in a row',              icon: '📅',  condition: (state: GameState) => state.loginStreak >= 30 },
+    { id: 'FIRST_BLOOD', name: 'First Blood', description: 'Complete your first quest', icon: '⚔️', condition: (state: GameState) => state.totalQuestsCompleted >= 1 },
+    { id: 'LEVEL_5', name: 'High Roller', description: 'Reach Level 5', icon: '⭐', condition: (state: GameState) => state.level >= 5 },
+    { id: 'QUEST_MASTER', name: 'Quest Master', description: 'Complete 10 quests', icon: '📜', condition: (state: GameState) => state.totalQuestsCompleted >= 10 },
+    { id: 'BOSS_SLAYER', name: 'Boss Slayer', description: 'Defeat a boss battle', icon: '🐉', condition: (state: GameState) => state.bossBattles.some(b => b.completed) },
+    { id: 'CRAFTSMAN', name: 'Craftsman', description: 'Craft your first item', icon: '🔨', condition: (state: GameState) => state.inventory.some(i => i.name.includes('Blade') || i.name.includes('Shield') || i.name.includes('Potion')) },
+    { id: 'STREAK_7', name: 'Week Warrior', description: 'Maintain a 7-day streak', icon: '🔥', condition: (state: GameState) => state.streak >= 7 },
+    { id: 'TITLE_MASTER', name: 'Titled', description: 'Obtain the Master title', icon: '🎖️', condition: (state: GameState) => state.title === 'Master' },
+    { id: 'AUCTIONEER', name: 'Auctioneer', description: 'List an item in the auction house', icon: '🏛️', condition: (state: GameState) => state.auctionListings.length > 0 },
+    { id: 'DAILY_COMPLETE', name: 'Daily Grind', description: 'Complete all daily quests in a day', icon: '✅', condition: (state: GameState) => state.dailyQuests.length > 0 && state.dailyQuests.every(q => q.completed) },
+    { id: 'LOGIN_30', name: 'Dedicated', description: 'Login 30 days in a row', icon: '📅', condition: (state: GameState) => state.loginStreak >= 30 },
     // New 10
-    { id: 'QUEST_CENTURION',name: 'Centurion',        description: 'Complete 100 quests',                 icon: '💯',  condition: (state: GameState) => state.totalQuestsCompleted >= 100 },
-    { id: 'STREAK_30',      name: 'Streak Legend',    description: 'Maintain a 30-day streak',            icon: '👑',  condition: (state: GameState) => state.streak >= 30 },
-    { id: 'HABIT_HERO',     name: 'Habit Hero',       description: 'Complete a habit 7 days in a row',    icon: '🏆',  condition: (state: GameState) => state.habits.some(h => h.streak >= 7) },
-    { id: 'GOAL_GETTER',    name: 'Goal Getter',      description: 'Complete your first goal',            icon: '🎯',  condition: (state: GameState) => state.goals.some(g => g.completed) },
-    { id: 'HABIT_BUILDER',  name: 'Habit Builder',    description: 'Create 5 habits',                     icon: '🌱',  condition: (state: GameState) => state.habits.length >= 5 },
-    { id: 'EPIC_SLAYER',    name: 'Epic Slayer',      description: 'Complete 10 Epic difficulty quests',  icon: '⚡',  condition: (state: GameState) => state.tasks.filter(t => t.completed && t.difficulty === 'Epic').length >= 10 },
-    { id: 'LEVEL_20',       name: 'Veteran',          description: 'Reach Level 20',                      icon: '💎',  condition: (state: GameState) => state.level >= 20 },
-    { id: 'SCHOLAR_ELITE',  name: 'Scholar Elite',    description: 'Complete 25 Study quests',            icon: '📚',  condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Study').length >= 25 },
-    { id: 'HEALTH_WARRIOR', name: 'Health Warrior',   description: 'Complete 25 Health quests',           icon: '💪',  condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Health').length >= 25 },
-    { id: 'REFLECTOR',      name: 'Self Reflector',   description: 'Submit 7 evening reflections',        icon: '🌙',  condition: (state: GameState) => state.reflectionNotes.length >= 7 },
+    { id: 'QUEST_CENTURION', name: 'Centurion', description: 'Complete 100 quests', icon: '💯', condition: (state: GameState) => state.totalQuestsCompleted >= 100 },
+    { id: 'STREAK_30', name: 'Streak Legend', description: 'Maintain a 30-day streak', icon: '👑', condition: (state: GameState) => state.streak >= 30 },
+    { id: 'HABIT_HERO', name: 'Habit Hero', description: 'Complete a habit 7 days in a row', icon: '🏆', condition: (state: GameState) => state.habits.some(h => h.streak >= 7) },
+    { id: 'GOAL_GETTER', name: 'Goal Getter', description: 'Complete your first goal', icon: '🎯', condition: (state: GameState) => state.goals.some(g => g.completed) },
+    { id: 'HABIT_BUILDER', name: 'Habit Builder', description: 'Create 5 habits', icon: '🌱', condition: (state: GameState) => state.habits.length >= 5 },
+    { id: 'EPIC_SLAYER', name: 'Epic Slayer', description: 'Complete 10 Epic difficulty quests', icon: '⚡', condition: (state: GameState) => state.tasks.filter(t => t.completed && t.difficulty === 'Epic').length >= 10 },
+    { id: 'LEVEL_20', name: 'Veteran', description: 'Reach Level 20', icon: '💎', condition: (state: GameState) => state.level >= 20 },
+    { id: 'SCHOLAR_ELITE', name: 'Scholar Elite', description: 'Complete 25 Study quests', icon: '📚', condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Study').length >= 25 },
+    { id: 'HEALTH_WARRIOR', name: 'Health Warrior', description: 'Complete 25 Health quests', icon: '💪', condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Health').length >= 25 },
+    { id: 'REFLECTOR', name: 'Self Reflector', description: 'Submit 7 evening reflections', icon: '🌙', condition: (state: GameState) => state.reflectionNotes.length >= 7 },
 ];
 
 const DAILY_REWARDS = [
@@ -669,11 +670,11 @@ export const useGameStore = create<GameState>()(
 
             // Character Actions
             setCharacterClass: (characterClass) => set({ characterClass }),
-            
+
             updateCharacterInfo: (info) => {
                 try {
                     const validatedInfo: Partial<Pick<GameState, 'characterName' | 'characterAge' | 'characterYearLevel' | 'characterMotto' | 'characterStrengths'>> = {};
-                    
+
                     if (info.characterName !== undefined) {
                         validatedInfo.characterName = validateCharacterName(info.characterName);
                     }
@@ -689,7 +690,7 @@ export const useGameStore = create<GameState>()(
                     if (info.characterStrengths !== undefined) {
                         validatedInfo.characterStrengths = validateStrengths(info.characterStrengths);
                     }
-                    
+
                     set((state) => ({ ...state, ...validatedInfo }));
                 } catch (error) {
                     if (error instanceof ValidationError) {
@@ -702,7 +703,7 @@ export const useGameStore = create<GameState>()(
             updateTitle: () => {
                 const state = get();
                 const titles: Title[] = ['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master', 'Grandmaster', 'Legend'];
-                
+
                 for (let i = titles.length - 1; i >= 0; i--) {
                     const t = titles[i];
                     const req = TITLE_REQUIREMENTS[t];
@@ -766,36 +767,36 @@ export const useGameStore = create<GameState>()(
                     const state = get();
                     let finalAmount = validatedAmount;
 
-                // Apply class XP bonus
-                if (state.characterClass) {
-                    finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].xpMultiplier);
-                }
-
-                state.activeBuffs.forEach(buff => {
-                    if (buff.type === 'xp' || buff.type === 'buff') {
-                        finalAmount = Math.floor(finalAmount * buff.value);
+                    // Apply class XP bonus
+                    if (state.characterClass) {
+                        finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].xpMultiplier);
                     }
-                });
 
-                // Lucky star chance for double XP
-                const luckySkill = state.skills.find(s => s.id === 'lucky-star');
-                if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
-                    finalAmount *= 2;
-                }
+                    state.activeBuffs.forEach(buff => {
+                        if (buff.type === 'xp' || buff.type === 'buff') {
+                            finalAmount = Math.floor(finalAmount * buff.value);
+                        }
+                    });
 
-                set((state) => {
-                    const newXP = Math.max(0, state.xp + finalAmount);
-                    const newLevel = levelFromXP(newXP);
-                    const hasLeveledUp = newLevel > state.level;
+                    // Lucky star chance for double XP
+                    const luckySkill = state.skills.find(s => s.id === 'lucky-star');
+                    if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
+                        finalAmount *= 2;
+                    }
 
-                    return {
-                        xp: newXP,
-                        level: newLevel,
-                        showLevelUp: hasLeveledUp || state.showLevelUp
-                    };
-                });
-                get().checkAchievements();
-                get().updateTitle();
+                    set((state) => {
+                        const newXP = Math.max(0, state.xp + finalAmount);
+                        const newLevel = levelFromXP(newXP);
+                        const hasLeveledUp = newLevel > state.level;
+
+                        return {
+                            xp: newXP,
+                            level: newLevel,
+                            showLevelUp: hasLeveledUp || state.showLevelUp
+                        };
+                    });
+                    get().checkAchievements();
+                    get().updateTitle();
                 } catch (error) {
                     if (error instanceof ValidationError) {
                         console.error('Validation error:', error.message);
@@ -823,13 +824,13 @@ export const useGameStore = create<GameState>()(
                             finalAmount = Math.floor(finalAmount * buff.value);
                         }
                     });
-                    
+
                     // Lucky star chance for double gold
                     const luckySkill = state.skills.find(s => s.id === 'lucky-star');
                     if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
                         finalAmount *= 2;
                     }
-                    
+
                     set((state) => ({ gold: state.gold + finalAmount }));
                 } catch (error) {
                     if (error instanceof ValidationError) {
@@ -893,19 +894,19 @@ export const useGameStore = create<GameState>()(
             claimDailyReward: () => {
                 const state = get();
                 const today = new Date().toISOString().split('T')[0];
-                
+
                 if (state.lastDailyRewardClaim === today) return;
-                
+
                 const nextDay = (state.loginStreak % 7) + 1;
                 const reward = DAILY_REWARDS[nextDay - 1];
-                
+
                 set((state) => ({
                     gold: state.gold + reward.gold,
                     gems: state.gems + reward.gems,
                     lastDailyRewardClaim: today,
                     loginStreak: state.loginStreak + 1
                 }));
-                
+
                 get().unlockAchievement('LOGIN_30');
             },
 
@@ -913,11 +914,11 @@ export const useGameStore = create<GameState>()(
                 const today = new Date();
                 const tomorrow = new Date(today);
                 tomorrow.setDate(tomorrow.getDate() + 1);
-                
+
                 const selected = [...DAILY_QUEST_TEMPLATES]
                     .sort(() => Math.random() - 0.5)
                     .slice(0, 3);
-                
+
                 const dailyQuests: DailyQuest[] = selected.map((template, index) => ({
                     id: `daily-${today.toDateString()}-${index}`,
                     title: template.title,
@@ -930,21 +931,21 @@ export const useGameStore = create<GameState>()(
                     isExpired: false,
                     isDaily: true
                 }));
-                
+
                 set({ dailyQuests });
             },
 
             checkDailyQuests: () => {
                 const state = get();
                 const now = new Date();
-                
+
                 const updated = state.dailyQuests.map(q => ({
                     ...q,
                     isExpired: new Date(q.expiresAt) < now
                 }));
-                
+
                 const hasExpired = updated.some(q => q.isExpired && !q.completed);
-                
+
                 if (hasExpired || updated.length === 0) {
                     get().generateDailyQuests();
                 } else {
@@ -968,7 +969,7 @@ export const useGameStore = create<GameState>()(
                 const state = get();
                 const boss = state.bossBattles.find(b => b.id === bossId);
                 if (!boss || boss.completed || boss.failed) return;
-                
+
                 // Apply class boss multiplier
                 if (state.characterClass) {
                     damage = Math.floor(damage * CLASS_BONUSES[state.characterClass].bossMultiplier);
@@ -979,9 +980,9 @@ export const useGameStore = create<GameState>()(
                 if (bossSlayerSkill && bossSlayerSkill.currentLevel > 0) {
                     damage = Math.floor(damage * (1 + bossSlayerSkill.currentLevel * 0.05 * bossSlayerSkill.currentLevel));
                 }
-                
+
                 const newHp = boss.hp - damage;
-                
+
                 if (newHp <= 0) {
                     set((state) => ({
                         bossBattles: state.bossBattles.map(b =>
@@ -1016,29 +1017,29 @@ export const useGameStore = create<GameState>()(
                 const state = get();
                 const recipe = state.craftingRecipes.find(r => r.id === recipeId);
                 if (!recipe) return false;
-                
+
                 // Check if player has required items
                 for (const input of recipe.inputs) {
-                    const hasItem = state.inventory.find(i => 
-                        i.name.toLowerCase().includes(input.itemId.replace('-', ' ')) || 
+                    const hasItem = state.inventory.find(i =>
+                        i.name.toLowerCase().includes(input.itemId.replace('-', ' ')) ||
                         i.id === input.itemId
                     );
                     if (!hasItem || hasItem.quantity < input.quantity) {
                         return false;
                     }
                 }
-                
+
                 // Remove input items
                 for (const input of recipe.inputs) {
-                    const item = state.inventory.find(i => 
-                        i.name.toLowerCase().includes(input.itemId.replace('-', ' ')) || 
+                    const item = state.inventory.find(i =>
+                        i.name.toLowerCase().includes(input.itemId.replace('-', ' ')) ||
                         i.id === input.itemId
                     );
                     if (item) {
                         get().removeItem(item.id, input.quantity);
                     }
                 }
-                
+
                 // Add output item
                 get().addItem(recipe.output);
                 get().unlockAchievement('CRAFTSMAN');
@@ -1050,7 +1051,7 @@ export const useGameStore = create<GameState>()(
                 const state = get();
                 const item = state.inventory.find(i => i.id === itemId);
                 if (!item) return;
-                
+
                 const listing: AuctionListing = {
                     id: crypto.randomUUID(),
                     item: { ...item },
@@ -1058,7 +1059,7 @@ export const useGameStore = create<GameState>()(
                     sellerId: 'player',
                     listedAt: new Date().toISOString()
                 };
-                
+
                 get().removeItem(itemId, item.quantity);
                 set((state) => ({ auctionListings: [...state.auctionListings, listing] }));
             },
@@ -1067,13 +1068,13 @@ export const useGameStore = create<GameState>()(
                 const state = get();
                 const listing = state.auctionListings.find(l => l.id === listingId);
                 if (!listing || state.gold < listing.price) return;
-                
+
                 set((state) => ({
                     gold: state.gold - listing.price,
                     inventory: [...state.inventory, { ...listing.item, id: crypto.randomUUID() }],
                     auctionListings: state.auctionListings.filter(l => l.id !== listingId)
                 }));
-                
+
                 if (listing.sellerId !== 'player') {
                     state.unlockAchievement('AUCTIONEER');
                 }
@@ -1083,7 +1084,7 @@ export const useGameStore = create<GameState>()(
                 const state = get();
                 const listing = state.auctionListings.find(l => l.id === listingId);
                 if (!listing || listing.sellerId !== 'player') return;
-                
+
                 set((state) => ({
                     auctionListings: state.auctionListings.filter(l => l.id !== listingId),
                     inventory: [...state.inventory, { ...listing.item, id: crypto.randomUUID() }]
@@ -1094,7 +1095,7 @@ export const useGameStore = create<GameState>()(
             addBuff: (type, value, durationMinutes) => {
                 const expiresAt = new Date();
                 expiresAt.setMinutes(expiresAt.getMinutes() + durationMinutes);
-                
+
                 set((state) => ({
                     activeBuffs: [...state.activeBuffs, { type, value, expiresAt: expiresAt.toISOString() }]
                 }));
@@ -1217,7 +1218,7 @@ export const useGameStore = create<GameState>()(
                         state.addGold(goldReward);
                         state.checkStreak();
                         set((s) => ({ totalQuestsCompleted: s.totalQuestsCompleted + 1 }));
-                        
+
                         // Difficulty-scaled item drop chance + class bonus
                         const classDropBonus = state.characterClass ? CLASS_BONUSES[state.characterClass].dropBonus : 0;
                         const dropChance = ({ Easy: 0.10, Medium: 0.15, Hard: 0.25, Epic: 0.40 }[task.difficulty] ?? 0.15) + classDropBonus;
@@ -1233,8 +1234,8 @@ export const useGameStore = create<GameState>()(
                             const availableDrops = task.difficulty === 'Epic'
                                 ? dropItems
                                 : task.difficulty === 'Hard'
-                                ? dropItems.slice(0, 4)
-                                : dropItems.slice(0, 3);
+                                    ? dropItems.slice(0, 4)
+                                    : dropItems.slice(0, 3);
                             const randomItem = availableDrops[Math.floor(Math.random() * availableDrops.length)];
                             const newItem: InventoryItem = {
                                 ...randomItem,
@@ -1242,8 +1243,8 @@ export const useGameStore = create<GameState>()(
                                 quantity: 1,
                                 stats: randomItem.rarity === 'Uncommon' ? { xpBonus: 10 }
                                     : randomItem.rarity === 'Rare' ? { xpBonus: 25, goldBonus: 10 }
-                                    : randomItem.rarity === 'Epic' ? { xpBonus: 50, goldBonus: 25 }
-                                    : undefined
+                                        : randomItem.rarity === 'Epic' ? { xpBonus: 50, goldBonus: 25 }
+                                            : undefined
                             };
                             set((s) => ({ inventory: [...s.inventory, newItem], lastDroppedItem: `${randomItem.icon} ${randomItem.name}` }));
                         }
@@ -1304,19 +1305,19 @@ export const useGameStore = create<GameState>()(
                 set((state) => {
                     const item = state.inventory.find(i => i.id === id);
                     if (!item) return state;
-                    
+
                     if (item.quantity <= quantity) {
                         return {
                             inventory: state.inventory.filter(i => i.id !== id),
                             equippedItems: {
                                 ...state.equippedItems,
-                                [item.type]: state.equippedItems[item.type as keyof typeof state.equippedItems]?.id === id 
-                                    ? undefined 
+                                [item.type]: state.equippedItems[item.type as keyof typeof state.equippedItems]?.id === id
+                                    ? undefined
                                     : state.equippedItems[item.type as keyof typeof state.equippedItems]
                             }
                         };
                     }
-                    
+
                     return {
                         inventory: state.inventory.map(i =>
                             i.id === id ? { ...i, quantity: i.quantity - quantity } : i
@@ -1329,11 +1330,11 @@ export const useGameStore = create<GameState>()(
                 set((state) => {
                     const item = state.inventory.find(i => i.id === id);
                     if (!item) return state;
-                    
+
                     return {
                         inventory: state.inventory.map(i =>
                             i.id === id ? { ...i, equipped: true } :
-                            i.type === item.type ? { ...i, equipped: false } : i
+                                i.type === item.type ? { ...i, equipped: false } : i
                         ),
                         equippedItems: {
                             ...state.equippedItems,
@@ -1359,10 +1360,10 @@ export const useGameStore = create<GameState>()(
                 const state = get();
                 const item = state.inventory.find(i => i.id === id);
                 if (!item || !item.usable) return;
-                
+
                 if (item.consumableEffect) {
                     const { type, value, duration } = item.consumableEffect;
-                    
+
                     if (type === 'xp') {
                         state.addXP(value);
                     } else if (type === 'gold') {
@@ -1373,14 +1374,14 @@ export const useGameStore = create<GameState>()(
                         state.addBuff('buff', value, duration);
                     }
                 }
-                
+
                 if (item.stats?.xpBonus) {
                     state.addXP(item.stats.xpBonus);
                 }
                 if (item.stats?.goldBonus) {
                     state.addGold(item.stats.goldBonus);
                 }
-                
+
                 state.removeItem(id, 1);
                 get().unlockAchievement('CRAFTSMAN');
             },
@@ -1390,10 +1391,10 @@ export const useGameStore = create<GameState>()(
                 set((state) => {
                     const skill = state.skills.find(s => s.id === skillId);
                     if (!skill || !skill.unlocked || skill.currentLevel >= skill.maxLevel) return state;
-                    
+
                     const cost = skill.cost * (skill.currentLevel + 1);
                     if (state.xp < cost) return state;
-                    
+
                     return {
                         xp: state.xp - cost,
                         skills: state.skills.map(s =>
@@ -1424,13 +1425,13 @@ export const useGameStore = create<GameState>()(
                 set((state) => {
                     const skill = state.skills.find(s => s.id === skillId);
                     if (!skill || skill.unlocked) return state;
-                    
+
                     const prereqsMet = skill.prerequisites.every(prereqId =>
                         state.skills.find(s => s.id === prereqId)?.unlocked
                     );
-                    
+
                     if (!prereqsMet) return state;
-                    
+
                     return {
                         skills: state.skills.map(s =>
                             s.id === skillId ? { ...s, unlocked: true } : s
@@ -1442,7 +1443,7 @@ export const useGameStore = create<GameState>()(
             getSkillMultiplier: (type) => {
                 const state = get();
                 let multiplier = 1;
-                
+
                 state.skills.forEach(skill => {
                     if (skill.currentLevel > 0) {
                         if (type === 'xp' && skill.effects.xpMultiplier) {
@@ -1453,14 +1454,14 @@ export const useGameStore = create<GameState>()(
                         }
                     }
                 });
-                
+
                 // Apply active buffs
                 state.activeBuffs.forEach(buff => {
                     if (buff.type === type || buff.type === 'buff') {
                         multiplier *= buff.value;
                     }
                 });
-                
+
                 return multiplier;
             },
 
@@ -1550,7 +1551,7 @@ export const useGameStore = create<GameState>()(
                         .filter(m => m.trim())
                         .map(m => m.slice(0, 150)) // Limit milestone length
                         .slice(0, 20); // Limit number of milestones
-                    
+
                     const newGoal: Goal = {
                         id: crypto.randomUUID(),
                         title: validatedTitle,
@@ -1657,26 +1658,26 @@ export const useGameStore = create<GameState>()(
                 set((state) => {
                     const chain = state.questChains.find(c => c.id === chainId);
                     if (!chain || chain.completed) return state;
-                    
+
                     const nextStep = chain.currentStep + 1;
                     const isComplete = nextStep >= chain.steps.length;
-                    
+
                     if (isComplete) {
                         const newState = {
                             questChains: state.questChains.map(c =>
                                 c.id === chainId ? { ...c, completed: true, currentStep: nextStep } : c
                             )
                         };
-                        
+
                         get().addXP(chain.reward.xp);
                         get().addGold(chain.reward.gold);
                         if (chain.reward.item) {
                             get().addItem(chain.reward.item);
                         }
-                        
+
                         return newState;
                     }
-                    
+
                     return {
                         questChains: state.questChains.map(c =>
                             c.id === chainId ? { ...c, currentStep: nextStep } : c
@@ -1689,13 +1690,13 @@ export const useGameStore = create<GameState>()(
                 set((state) => ({
                     questChains: state.questChains.map(chain => {
                         if (chain.id !== chainId) return chain;
-                        
+
                         const updatedSteps = chain.steps.map(step =>
                             step.id === stepId ? { ...step, completed: true } : step
                         );
-                        
+
                         const allComplete = updatedSteps.every(s => s.completed);
-                        
+
                         return {
                             ...chain,
                             steps: updatedSteps,
@@ -1703,7 +1704,7 @@ export const useGameStore = create<GameState>()(
                         };
                     })
                 }));
-                
+
                 get().advanceQuestChain(chainId);
             },
 
