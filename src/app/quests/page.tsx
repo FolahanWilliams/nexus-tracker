@@ -1,6 +1,6 @@
 'use client';
 
-import { useGameStore, TaskCategory } from '@/store/useGameStore';
+import { useGameStore, TaskCategory, TaskDuration } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { ValidationError } from '@/lib/validation';
@@ -13,7 +13,10 @@ import {
   Sparkles,
   ChevronLeft,
   Zap,
-  Coins
+  Coins,
+  ChevronDown,
+  Clock,
+  Terminal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,10 +42,18 @@ export default function QuestsPage() {
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | 'Epic'>('Medium');
   const [category, setCategory] = useState<TaskCategory>('Other');
   const [recurring, setRecurring] = useState<'none' | 'daily' | 'weekly'>('none');
+  const [duration, setDuration] = useState<TaskDuration>('1-hour');
   const [filterCategory, setFilterCategory] = useState<TaskCategory | 'All'>('All');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
   const [isAutoTagging, setIsAutoTagging] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [aiPreview, setAiPreview] = useState<{ cleanTitle: string; difficulty: string; category: string; duration: string; recurring: string; xpReward: number } | null>(null);
+
+  // NL Command State
+  const [nlCommand, setNlCommand] = useState('');
+  const [isCommandProcessing, setIsCommandProcessing] = useState(false);
+  const [commandResult, setCommandResult] = useState<string | null>(null);
 
   const CATEGORIES: TaskCategory[] = ['Study', 'Health', 'Creative', 'Work', 'Social', 'Personal', 'Other'];
   const CATEGORY_COLORS: Record<TaskCategory, string> = {
@@ -84,9 +95,11 @@ export default function QuestsPage() {
     setTitleError('');
 
     try {
-      await addTask(title, difficulty, undefined, category, recurring);
+      await addTask(title, difficulty, undefined, category, recurring, duration);
       addToast('Quest added!', 'success');
       setTitle('');
+      setAiPreview(null);
+      setShowAdvanced(false);
     } catch (error) {
       if (error instanceof ValidationError) {
         setTitleError(error.message);
@@ -144,11 +157,12 @@ export default function QuestsPage() {
 
   const handleAutoTag = async () => {
     if (!title.trim()) {
-      addToast('Enter a quest title first to auto-tag.', 'error');
+      addToast('Enter a quest description first.', 'error');
       return;
     }
 
     setIsAutoTagging(true);
+    setAiPreview(null);
     try {
       const response = await fetch('/api/auto-tag', {
         method: 'POST',
@@ -163,15 +177,76 @@ export default function QuestsPage() {
         return;
       }
 
+      // Apply all AI-suggested values
+      if (data.cleanTitle) setTitle(data.cleanTitle);
       setDifficulty(data.difficulty);
       setCategory(data.category);
-      addToast('Task auto-tagged successfully! ✨', 'success');
+      setDuration(data.duration || '1-hour');
+      setRecurring(data.recurring || 'none');
+
+      // Show preview
+      setAiPreview(data);
+      addToast('Quest classified by AI! Review and create. ✨', 'success');
     } catch (error) {
       console.error('Failed to auto-tag:', error);
       addToast('Network error. Check your connection.', 'error');
     } finally {
       setIsAutoTagging(false);
     }
+  };
+
+  const handleNLCommand = async () => {
+    if (!nlCommand.trim()) return;
+    setIsCommandProcessing(true);
+    setCommandResult(null);
+    try {
+      const response = await fetch('/api/quest-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: nlCommand, tasks })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      if (data.action === 'delete' && data.taskId) {
+        deleteTask(data.taskId);
+        addToast(data.message || 'Quest deleted.', 'success');
+      } else if (data.action === 'complete' && data.taskId) {
+        toggleTask(data.taskId);
+        addToast(data.message || 'Quest completed!', 'success');
+      } else if (data.action === 'edit' && data.taskId && data.changes) {
+        const existingTask = tasks.find(t => t.id === data.taskId);
+        if (existingTask) {
+          deleteTask(data.taskId);
+          addTask(
+            data.changes.title || existingTask.title,
+            data.changes.difficulty || existingTask.difficulty,
+            existingTask.xpReward,
+            data.changes.category || existingTask.category,
+            data.changes.recurring || existingTask.recurring
+          );
+          addToast(data.message || 'Quest updated.', 'success');
+        }
+      } else {
+        setCommandResult(data.message || 'Could not interpret that command.');
+      }
+      setNlCommand('');
+    } catch (error) {
+      console.error('NL Command error:', error);
+      addToast('Failed to process command.', 'error');
+    } finally {
+      setIsCommandProcessing(false);
+    }
+  };
+
+  const DURATION_LABELS: Record<string, string> = {
+    'quick': '⚡ Quick',
+    '1-hour': '🕐 1 Hour',
+    'half-day': '🌤️ Half Day',
+    'full-day': '☀️ Full Day',
+    'multi-day': '📆 Multi-Day',
+    'week': '📅 1 Week',
+    'month': '🗓️ 1 Month',
   };
 
   const difficultyColors = {
@@ -251,41 +326,29 @@ export default function QuestsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <h2 className="text-lg font-bold mb-4">Create New Quest</h2>
+          <h2 className="text-lg font-bold mb-1">Create New Quest</h2>
+          <p className="text-sm text-[var(--color-text-muted)] mb-4">Describe what you want to do — AI handles the rest.</p>
 
           <form onSubmit={handleAddTask} className="space-y-4" noValidate>
             <div>
-              <label htmlFor="quest-title" className="sr-only">Quest title</label>
-              <div className="flex gap-2">
-                <input
-                  id="quest-title"
-                  type="text"
-                  value={title}
-                  onChange={(e) => {
-                    setTitle(e.target.value);
-                    if (titleError) setTitleError('');
-                  }}
-                  placeholder="e.g., Practice Spanish for 30 minutes"
-                  className={`input-field flex-1 ${titleError ? 'border-red-500 focus:border-red-500' : ''}`}
-                  aria-label="Quest title"
-                  aria-invalid={!!titleError}
-                  aria-describedby={titleError ? 'title-error' : undefined}
-                  maxLength={200}
-                  disabled={isSubmitting || isAutoTagging}
-                />
-                <motion.button
-                  type="button"
-                  onClick={handleAutoTag}
-                  disabled={!title.trim() || isAutoTagging || isSubmitting}
-                  className="px-4 py-2 bg-[var(--color-bg-dark)] border border-[var(--color-purple)] text-[var(--color-purple)] rounded font-bold transition-colors hover:bg-[var(--color-purple)] hover:text-white disabled:opacity-50 flex items-center gap-1"
-                  whileHover={{ scale: (isAutoTagging || !title.trim()) ? 1 : 1.05 }}
-                  whileTap={{ scale: (isAutoTagging || !title.trim()) ? 1 : 0.95 }}
-                  title="Use AI to automatically classify this task"
-                >
-                  {isAutoTagging ? <span className="animate-spin">✨</span> : <Sparkles size={16} />}
-                  <span className="hidden sm:inline">Auto-Tag</span>
-                </motion.button>
-              </div>
+              <label htmlFor="quest-title" className="sr-only">Quest description</label>
+              <textarea
+                id="quest-title"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (titleError) setTitleError('');
+                  if (aiPreview) setAiPreview(null);
+                }}
+                placeholder='e.g., "Reach out to 3 leads this week to sell my website service to local businesses"'
+                className={`input-field w-full min-h-[60px] resize-none text-sm ${titleError ? 'border-red-500 focus:border-red-500' : ''}`}
+                aria-label="Quest description"
+                aria-invalid={!!titleError}
+                aria-describedby={titleError ? 'title-error' : undefined}
+                maxLength={500}
+                disabled={isSubmitting || isAutoTagging}
+                rows={2}
+              />
               {titleError && (
                 <p id="title-error" className="mt-1 text-sm text-red-500" role="alert">
                   {titleError}
@@ -293,95 +356,183 @@ export default function QuestsPage() {
               )}
             </div>
 
-            {/* Difficulty */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Difficulty</p>
-              <div className="grid grid-cols-4 gap-2">
-                {(['Easy', 'Medium', 'Hard', 'Epic'] as const).map((diff) => (
-                  <motion.button
-                    key={diff}
-                    type="button"
-                    onClick={() => setDifficulty(diff)}
-                    aria-pressed={difficulty === diff}
-                    className={`py-2.5 px-4 rounded font-semibold text-sm transition-all ${difficulty === diff
-                        ? 'bg-[var(--color-purple)] text-white border-2 border-[var(--color-purple)]'
-                        : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border-2 border-[var(--color-border)] hover:border-[var(--color-purple)]'
-                      }`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {diff}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            {/* Category */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Category</p>
-              <div className="flex flex-wrap gap-2">
-                {CATEGORIES.map((cat) => (
-                  <motion.button
-                    key={cat}
-                    type="button"
-                    onClick={() => setCategory(cat)}
-                    aria-pressed={category === cat}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border-2 ${category === cat
-                        ? 'border-[var(--color-purple)] ' + CATEGORY_COLORS[cat]
-                        : 'border-[var(--color-border)] bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
-                      }`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {cat}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            {/* Recurring */}
-            <div>
-              <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Repeat</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(['none', 'daily', 'weekly'] as const).map((r) => (
-                  <motion.button
-                    key={r}
-                    type="button"
-                    onClick={() => setRecurring(r)}
-                    aria-pressed={recurring === r}
-                    className={`py-2 rounded text-sm font-semibold transition-all ${recurring === r
-                        ? 'bg-[var(--color-purple)] text-white'
-                        : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-purple)]'
-                      }`}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                  >
-                    {r === 'none' ? 'Once' : r.charAt(0).toUpperCase() + r.slice(1)}
-                  </motion.button>
-                ))}
-              </div>
-            </div>
-
-            <motion.button
-              type="submit"
-              disabled={!title.trim() || isSubmitting}
-              className="rpg-button w-full !bg-[var(--color-purple)] !text-white hover:!bg-[var(--color-purple-light)] disabled:opacity-50 disabled:cursor-not-allowed"
-              whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
-              whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
-              aria-busy={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="animate-spin mr-2">⏳</span>
-                  Adding...
-                </>
-              ) : (
-                <>
-                  <Plus size={20} />
-                  Add Quest
-                </>
+            {/* AI Preview Card */}
+            <AnimatePresence>
+              {aiPreview && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-[var(--color-purple)]/10 border border-[var(--color-purple)]/30 rounded-lg p-4"
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles size={14} className="text-[var(--color-purple)]" />
+                    <span className="text-xs font-bold text-[var(--color-purple)] uppercase tracking-wide">AI Suggested</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className={`rpg-badge ${difficultyColors[difficulty]}`}>{difficulty}</span>
+                    <span className={`rpg-badge ${CATEGORY_COLORS[category]}`}>{category}</span>
+                    <span className="rpg-badge bg-[var(--color-blue)]/20 text-[var(--color-blue)]">
+                      {DURATION_LABELS[duration] || duration}
+                    </span>
+                    {recurring !== 'none' && (
+                      <span className="rpg-badge bg-[var(--color-purple)]/20 text-[var(--color-purple)]">
+                        🔁 {recurring}
+                      </span>
+                    )}
+                    <span className="rpg-badge bg-[var(--color-green)]/20 text-[var(--color-green)]">
+                      +{aiPreview.xpReward} XP
+                    </span>
+                  </div>
+                </motion.div>
               )}
-            </motion.button>
+            </AnimatePresence>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2">
+              <motion.button
+                type="button"
+                onClick={handleAutoTag}
+                disabled={!title.trim() || isAutoTagging || isSubmitting}
+                className="flex-1 rpg-button !bg-[var(--color-bg-dark)] border-2 !border-[var(--color-purple)] !text-[var(--color-purple)] hover:!bg-[var(--color-purple)] hover:!text-white disabled:opacity-50 font-bold"
+                whileHover={{ scale: (isAutoTagging || !title.trim()) ? 1 : 1.02 }}
+                whileTap={{ scale: (isAutoTagging || !title.trim()) ? 1 : 0.98 }}
+              >
+                {isAutoTagging ? (
+                  <><span className="animate-spin">✨</span> Classifying...</>
+                ) : (
+                  <><Sparkles size={18} /> Classify with AI</>
+                )}
+              </motion.button>
+              <motion.button
+                type="submit"
+                disabled={!title.trim() || isSubmitting}
+                className="flex-1 rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50 font-bold"
+                whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
+                whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
+                aria-busy={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <><span className="animate-spin mr-2">⏳</span> Adding...</>
+                ) : (
+                  <><Plus size={18} /> {aiPreview ? 'Create Quest' : 'Quick Add'}</>
+                )}
+              </motion.button>
+            </div>
+
+            {/* Advanced Toggle */}
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors w-full justify-center"
+            >
+              <ChevronDown size={14} className={`transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+              {showAdvanced ? 'Hide' : 'Show'} advanced options
+            </button>
+
+            {/* Advanced Form (collapsed by default) */}
+            <AnimatePresence>
+              {showAdvanced && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="space-y-4 overflow-hidden"
+                >
+                  {/* Difficulty */}
+                  <div>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Difficulty</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {(['Easy', 'Medium', 'Hard', 'Epic'] as const).map((diff) => (
+                        <motion.button
+                          key={diff}
+                          type="button"
+                          onClick={() => setDifficulty(diff)}
+                          aria-pressed={difficulty === diff}
+                          className={`py-2.5 px-4 rounded font-semibold text-sm transition-all ${difficulty === diff
+                            ? 'bg-[var(--color-purple)] text-white border-2 border-[var(--color-purple)]'
+                            : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border-2 border-[var(--color-border)] hover:border-[var(--color-purple)]'
+                            }`}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {diff}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Category */}
+                  <div>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Category</p>
+                    <div className="flex flex-wrap gap-2">
+                      {CATEGORIES.map((cat) => (
+                        <motion.button
+                          key={cat}
+                          type="button"
+                          onClick={() => setCategory(cat)}
+                          aria-pressed={category === cat}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border-2 ${category === cat
+                            ? 'border-[var(--color-purple)] ' + CATEGORY_COLORS[cat]
+                            : 'border-[var(--color-border)] bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
+                            }`}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {cat}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Duration */}
+                  <div>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Duration</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(['quick', '1-hour', 'half-day', 'full-day', 'multi-day', 'week', 'month'] as const).map((d) => (
+                        <motion.button
+                          key={d}
+                          type="button"
+                          onClick={() => setDuration(d)}
+                          aria-pressed={duration === d}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border-2 ${duration === d
+                            ? 'border-[var(--color-blue)] bg-[var(--color-blue)]/20 text-[var(--color-blue)]'
+                            : 'border-[var(--color-border)] bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] hover:border-[var(--color-blue)]'
+                            }`}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {DURATION_LABELS[d]}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Recurring */}
+                  <div>
+                    <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold uppercase tracking-wide">Repeat</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['none', 'daily', 'weekly'] as const).map((r) => (
+                        <motion.button
+                          key={r}
+                          type="button"
+                          onClick={() => setRecurring(r)}
+                          aria-pressed={recurring === r}
+                          className={`py-2 rounded text-sm font-semibold transition-all ${recurring === r
+                            ? 'bg-[var(--color-purple)] text-white'
+                            : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-purple)]'
+                            }`}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          {r === 'none' ? 'Once' : r.charAt(0).toUpperCase() + r.slice(1)}
+                        </motion.button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </form>
         </motion.div>
 
@@ -439,6 +590,52 @@ export default function QuestsPage() {
           </div>
         </motion.div>
 
+        {/* NL Command Bar */}
+        <motion.div
+          className="rpg-card mb-8 border-[var(--color-blue)]/30"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <Terminal size={16} className="text-[var(--color-blue)]" />
+            <span className="font-bold text-sm">Quest Command</span>
+            <span className="text-xs text-[var(--color-text-muted)]">— Edit quests with natural language</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={nlCommand}
+              onChange={(e) => { setNlCommand(e.target.value); setCommandResult(null); }}
+              placeholder='e.g., "Delete the running quest" or "Mark the email task as done"'
+              className="input-field flex-1 text-sm"
+              disabled={isCommandProcessing}
+              onKeyDown={(e) => e.key === 'Enter' && handleNLCommand()}
+            />
+            <motion.button
+              onClick={handleNLCommand}
+              disabled={!nlCommand.trim() || isCommandProcessing}
+              className="rpg-button !bg-[var(--color-blue)] !text-white text-sm py-2 px-4 whitespace-nowrap disabled:opacity-50"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {isCommandProcessing ? '✨ Processing...' : 'Run'}
+            </motion.button>
+          </div>
+          <AnimatePresence>
+            {commandResult && (
+              <motion.p
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="text-sm text-[var(--color-text-muted)] mt-2 italic"
+              >
+                {commandResult}
+              </motion.p>
+            )}
+          </AnimatePresence>
+        </motion.div>
+
         {/* Quest List */}
         <motion.div
           className="rpg-card"
@@ -459,8 +656,8 @@ export default function QuestsPage() {
                 onClick={() => setFilterCategory(cat)}
                 aria-pressed={filterCategory === cat}
                 className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${filterCategory === cat
-                    ? 'border-[var(--color-purple)] bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
-                    : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
+                  ? 'border-[var(--color-purple)] bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
                   }`}
               >
                 {cat}
@@ -521,8 +718,8 @@ export default function QuestsPage() {
                         }
                       }}
                       className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:ring-offset-2 ${task.completed
-                          ? 'bg-[var(--color-green)] text-white'
-                          : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)] border border-[var(--color-border)] hover:bg-[var(--color-green)] hover:text-white'
+                        ? 'bg-[var(--color-green)] text-white'
+                        : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)] border border-[var(--color-border)] hover:bg-[var(--color-green)] hover:text-white'
                         }`}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
@@ -550,6 +747,12 @@ export default function QuestsPage() {
                         <span className={`rpg-badge ${CATEGORY_COLORS[task.category ?? 'Other']}`}>
                           {task.category ?? 'Other'}
                         </span>
+                        {task.duration && (
+                          <span className="rpg-badge bg-[var(--color-blue)]/20 text-[var(--color-blue)]">
+                            <Clock size={10} className="inline mr-1" />
+                            {DURATION_LABELS[task.duration] || task.duration}
+                          </span>
+                        )}
                         {task.recurring && task.recurring !== 'none' && (
                           <span className="rpg-badge bg-[var(--color-purple)]/20 text-[var(--color-purple)]">
                             🔁 {task.recurring}

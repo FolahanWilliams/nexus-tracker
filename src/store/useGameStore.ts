@@ -20,6 +20,8 @@ import {
 
 export type TaskCategory = 'Study' | 'Health' | 'Creative' | 'Work' | 'Social' | 'Personal' | 'Other';
 
+export type TaskDuration = 'quick' | '1-hour' | 'half-day' | 'full-day' | 'multi-day' | 'week' | 'month';
+
 export interface Task {
     id: string;
     title: string;
@@ -30,6 +32,7 @@ export interface Task {
     completedAt?: string;
     isDaily?: boolean;
     recurring?: 'none' | 'daily' | 'weekly';
+    duration?: TaskDuration;
 }
 
 export interface DailyQuest extends Task {
@@ -248,6 +251,7 @@ export interface GameState {
     // UI State
     showLevelUp: boolean;
     achievements: string[];
+    dynamicAchievements: { name: string; description: string; icon: string; earnedAt: string }[];
     lastDroppedItem: string | null; // Name of last item dropped, for toast display
 
     // Daily intention & reflection
@@ -291,7 +295,7 @@ export interface GameState {
 
     // Task Actions
     addXP: (amount: number) => void;
-    addTask: (title: string, difficulty?: Task['difficulty'], xp?: number, category?: TaskCategory, recurring?: Task['recurring']) => void;
+    addTask: (title: string, difficulty?: Task['difficulty'], xp?: number, category?: TaskCategory, recurring?: Task['recurring'], duration?: TaskDuration) => void;
     toggleTask: (id: string) => void;
     deleteTask: (id: string) => void;
     resetProgress: () => void;
@@ -299,6 +303,7 @@ export interface GameState {
     clearDroppedItem: () => void;
     unlockAchievement: (id: string) => void;
     checkAchievements: () => void;
+    addDynamicAchievement: (achievement: { name: string; description: string; icon: string }) => void;
 
     // Economy Actions
     addGold: (amount: number) => void;
@@ -555,6 +560,7 @@ export const useGameStore = create<GameState>()(
 
             showLevelUp: false,
             achievements: [],
+            dynamicAchievements: [],
             lastDroppedItem: null,
 
             // Daily intention & reflection
@@ -1113,6 +1119,15 @@ export const useGameStore = create<GameState>()(
                 });
             },
 
+            addDynamicAchievement: (achievement) => {
+                set((state) => ({
+                    dynamicAchievements: [
+                        { ...achievement, earnedAt: new Date().toISOString() },
+                        ...state.dynamicAchievements
+                    ]
+                }));
+            },
+
             checkAchievements: () => {
                 const state = get();
                 ACHIEVEMENTS.forEach((achievement) => {
@@ -1122,7 +1137,7 @@ export const useGameStore = create<GameState>()(
                 });
             },
 
-            addTask: (title, difficulty = 'Medium', customXP, category = 'Other', recurring = 'none', isDaily = false) => {
+            addTask: (title, difficulty = 'Medium', customXP, category = 'Other', recurring = 'none', duration) => {
                 try {
                     const validatedTitle = validateTaskTitle(title);
                     const xpReward = customXP || DIFFICULTY_XP[difficulty];
@@ -1134,7 +1149,7 @@ export const useGameStore = create<GameState>()(
                         difficulty,
                         category,
                         recurring,
-                        isDaily
+                        duration
                     };
                     set((state) => ({ tasks: [...state.tasks, newTask] }));
                 } catch (error) {
@@ -1669,6 +1684,7 @@ export const useGameStore = create<GameState>()(
                     focusSessionsTotal: 0,
                     focusMinutesTotal: 0,
                     achievements: [],
+                    dynamicAchievements: [],
                     title: 'Novice',
                     habits: [],
                     goals: [],

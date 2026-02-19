@@ -6,6 +6,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, TrendingUp, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
+import WeeklyPlanner from '@/components/WeeklyPlanner';
 
 const DAILY_REWARDS = [
   { day: 1, gold: 50, gems: 5 },
@@ -337,6 +338,11 @@ export default function HomePage() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Weekly Strategy Planner */}
+          <div className="mb-4">
+            <WeeklyPlanner />
+          </div>
 
           {/* Quick Actions Row */}
           <motion.div

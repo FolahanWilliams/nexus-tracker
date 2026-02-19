@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Lock, Share2, Trophy } from 'lucide-react';
+import { ChevronLeft, Lock, Share2, Trophy, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 
@@ -41,7 +41,7 @@ const RARITY_COLORS: Record<string, string> = {
 };
 
 export default function AchievementsPage() {
-  const { level, xp, achievements, totalQuestsCompleted, streak, title, loginStreak, gold, gems } = useGameStore();
+  const { level, xp, achievements, dynamicAchievements, totalQuestsCompleted, streak, title, loginStreak, gold, gems } = useGameStore();
   const { addToast } = useToastStore();
   const [filter, setFilter] = useState<'all' | 'unlocked' | 'locked'>('all');
 
@@ -159,8 +159,8 @@ export default function AchievementsPage() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={`px-4 py-2 rounded text-sm font-medium transition-colors ${filter === f
-                    ? 'bg-[var(--color-purple)] text-white'
-                    : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]'
+                  ? 'bg-[var(--color-purple)] text-white'
+                  : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-hover)]'
                   }`}
               >
                 {f === 'all' ? '🏅 All' : f === 'unlocked' ? '✅ Unlocked' : '🔒 Locked'}
@@ -211,8 +211,8 @@ export default function AchievementsPage() {
                 <button
                   onClick={() => handleShare(achievement)}
                   className={`w-full rpg-button text-sm ${isUnlocked
-                      ? '!bg-[var(--color-blue)] !text-white'
-                      : '!bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
+                    ? '!bg-[var(--color-blue)] !text-white'
+                    : '!bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
                     }`}
                 >
                   <Share2 size={14} />
@@ -222,6 +222,37 @@ export default function AchievementsPage() {
             );
           })}
         </div>
+
+        {/* AI Discovered Achievements */}
+        {dynamicAchievements.length > 0 && (
+          <div className="mt-8">
+            <div className="flex items-center gap-2 mb-4">
+              <Sparkles size={18} className="text-[var(--color-purple)]" />
+              <h3 className="font-bold text-lg">AI Discovered</h3>
+              <span className="text-xs rpg-badge bg-[var(--color-purple)]/20 text-[var(--color-purple)]">{dynamicAchievements.length}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {dynamicAchievements.map((da, i) => (
+                <motion.div
+                  key={`dynamic-${i}`}
+                  className="rpg-card !border-[var(--color-purple)]/50 !bg-gradient-to-br from-[var(--color-purple)]/10 to-transparent"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                >
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="text-2xl">{da.icon}</span>
+                    <div>
+                      <h4 className="font-bold text-sm">{da.name}</h4>
+                      <p className="text-xs text-[var(--color-text-muted)]">{new Date(da.earnedAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-[var(--color-text-secondary)]">{da.description}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {filteredAchievements.length === 0 && (
           <div className="text-center py-12">
