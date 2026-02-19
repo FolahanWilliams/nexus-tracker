@@ -3,9 +3,9 @@
 import { useGameStore, QuestChain, QuestStep } from '@/store/useGameStore';
 import { useState } from 'react';
 import { useToastStore } from '@/components/ToastContainer';
-import { 
-  Map, 
-  Check, 
+import {
+  Map,
+  Check,
   ChevronLeft,
   Plus,
   Lock,
@@ -15,7 +15,8 @@ import {
   Zap,
   Star,
   Coins,
-  Package
+  Package,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -32,15 +33,19 @@ export default function QuestChainsPage() {
   const { addToast } = useToastStore();
   const [selectedChain, setSelectedChain] = useState<QuestChain | null>(null);
   const [showAddChain, setShowAddChain] = useState(false);
-  
+
   // New chain form
   const [newChainName, setNewChainName] = useState('');
   const [newChainDesc, setNewChainDesc] = useState('');
   const [newChainDifficulty, setNewChainDifficulty] = useState<QuestChain['difficulty']>('Easy');
   const [newChainItem, setNewChainItem] = useState('');
-  const [steps, setSteps] = useState<{title: string; description: string}[]>([
+  const [steps, setSteps] = useState<{ title: string; description: string }[]>([
     { title: '', description: '' }
   ]);
+
+  // AI Generation State
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatePrompt, setGeneratePrompt] = useState('');
 
   const ITEM_REWARDS = [
     { id: '', name: 'No Item' },
@@ -63,6 +68,40 @@ export default function QuestChainsPage() {
 
   const handleRemoveStep = (index: number) => {
     setSteps(steps.filter((_, i) => i !== index));
+  };
+
+  const handleGenerateChain = async () => {
+    if (!generatePrompt.trim()) return;
+    setIsGenerating(true);
+    try {
+      const response = await fetch('/api/generate-chain', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: generatePrompt })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+
+      setNewChainName(data.name || '');
+      setNewChainDesc(data.description || '');
+      setNewChainDifficulty(data.difficulty || 'Medium');
+      setNewChainItem('');
+
+      if (data.steps && Array.isArray(data.steps)) {
+        setSteps(data.steps.map((s: { title: string; description: string }) => ({
+          title: s.title || '',
+          description: s.description || ''
+        })));
+      }
+
+      addToast('AI Quest Chain generated! Review and create.', 'success');
+      setGeneratePrompt('');
+    } catch (error) {
+      console.error('Failed to generate chain:', error);
+      addToast('Failed to generate chain. Try again.', 'error');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const handleCreateChain = () => {
@@ -115,15 +154,15 @@ export default function QuestChainsPage() {
   const handleStepComplete = (chain: QuestChain, step: QuestStep) => {
     const stepIndex = chain.steps.findIndex(s => s.id === step.id);
     const isLastStep = stepIndex === chain.steps.length - 1;
-    
+
     completeQuestStep(chain.id, step.id);
-    
+
     if (isLastStep) {
       addToast(`Quest chain "${chain.name}" completed! +${chain.reward.xp} XP, +${chain.reward.gold} Gold`, 'success');
     } else {
       addToast(`Step completed! Next: ${chain.steps[stepIndex + 1].title}`, 'success');
     }
-    
+
     // Refresh selected chain
     const updatedChain = questChains.find(c => c.id === chain.id);
     if (updatedChain) {
@@ -135,7 +174,7 @@ export default function QuestChainsPage() {
   const completedChains = questChains.filter(c => c.completed);
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen pb-20"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -164,7 +203,7 @@ export default function QuestChainsPage() {
 
       <div className="max-w-5xl mx-auto px-4 py-6">
         {/* Stats */}
-        <motion.div 
+        <motion.div
           className="grid grid-cols-3 gap-4 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -228,7 +267,7 @@ export default function QuestChainsPage() {
                 {/* Progress Bar */}
                 <div className="mt-4">
                   <div className="h-2 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className="h-full bg-[var(--color-purple)] rounded-full"
                       style={{ width: `${(chain.currentStep / chain.steps.length) * 100}%` }}
                     />
@@ -240,13 +279,12 @@ export default function QuestChainsPage() {
                   {chain.steps.map((step, i) => (
                     <div
                       key={step.id}
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${
-                        step.completed 
-                          ? 'bg-[var(--color-green)] text-white' 
-                          : i === chain.currentStep 
-                            ? 'bg-[var(--color-purple)] text-white ring-2 ring-[var(--color-purple)] ring-offset-2 ring-offset-[var(--color-bg-card)]'
-                            : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
-                      }`}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs ${step.completed
+                        ? 'bg-[var(--color-green)] text-white'
+                        : i === chain.currentStep
+                          ? 'bg-[var(--color-purple)] text-white ring-2 ring-[var(--color-purple)] ring-offset-2 ring-offset-[var(--color-bg-card)]'
+                          : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
+                        }`}
                     >
                       {step.completed ? <Check size={14} /> : i + 1}
                     </div>
@@ -334,22 +372,20 @@ export default function QuestChainsPage() {
                     return (
                       <div
                         key={step.id}
-                        className={`p-4 rounded-lg border-2 ${
-                          isCompleted 
-                            ? 'border-[var(--color-green)] bg-[var(--color-green)]/10' 
-                            : isCurrent
-                              ? 'border-[var(--color-purple)]'
-                              : 'border-[var(--color-border)] opacity-50'
-                        }`}
+                        className={`p-4 rounded-lg border-2 ${isCompleted
+                          ? 'border-[var(--color-green)] bg-[var(--color-green)]/10'
+                          : isCurrent
+                            ? 'border-[var(--color-purple)]'
+                            : 'border-[var(--color-border)] opacity-50'
+                          }`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            isCompleted 
-                              ? 'bg-[var(--color-green)]' 
-                              : isCurrent 
-                                ? 'bg-[var(--color-purple)]' 
-                                : 'bg-[var(--color-bg-dark)]'
-                          }`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isCompleted
+                            ? 'bg-[var(--color-green)]'
+                            : isCurrent
+                              ? 'bg-[var(--color-purple)]'
+                              : 'bg-[var(--color-bg-dark)]'
+                            }`}>
                             {isCompleted ? (
                               <Check size={16} className="text-white" />
                             ) : isLocked ? (
@@ -361,7 +397,7 @@ export default function QuestChainsPage() {
                           <div className="flex-1">
                             <h4 className="font-bold">{step.title}</h4>
                             <p className="text-sm text-[var(--color-text-secondary)]">{step.description}</p>
-                            
+
                             {isCurrent && (
                               <button
                                 onClick={() => handleStepComplete(selectedChain, step)}
@@ -416,6 +452,32 @@ export default function QuestChainsPage() {
               </div>
 
               <div className="p-6 space-y-4">
+                {/* AI Generator Section */}
+                <div className="bg-[var(--color-purple)]/10 border border-[var(--color-purple)] rounded-lg p-4 mb-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles size={16} className="text-[var(--color-purple)]" />
+                    <span className="font-bold text-sm text-[var(--color-purple)]">Generate with AI</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={generatePrompt}
+                      onChange={(e) => setGeneratePrompt(e.target.value)}
+                      placeholder="e.g., Learn Spanish basics..."
+                      className="input-field flex-1 text-sm bg-[var(--color-bg-dark)] border-[var(--color-purple)]/30"
+                      disabled={isGenerating}
+                      onKeyDown={(e) => e.key === 'Enter' && handleGenerateChain()}
+                    />
+                    <button
+                      onClick={handleGenerateChain}
+                      disabled={isGenerating || !generatePrompt.trim()}
+                      className="rpg-button !bg-[var(--color-purple)] !text-white text-sm py-2 px-4 whitespace-nowrap disabled:opacity-50"
+                    >
+                      {isGenerating ? <span className="animate-spin">✨</span> : 'Generate'}
+                    </button>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm text-[var(--color-text-secondary)] mb-2">Chain Name</label>
                   <input
@@ -475,7 +537,7 @@ export default function QuestChainsPage() {
                       Add Step
                     </button>
                   </div>
-                  
+
                   <div className="space-y-3">
                     {steps.map((step, index) => (
                       <div key={index} className="p-3 bg-[var(--color-bg-dark)] rounded-lg">

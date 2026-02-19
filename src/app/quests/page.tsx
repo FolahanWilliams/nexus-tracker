@@ -6,10 +6,10 @@ import { triggerXPFloat } from '@/components/XPFloat';
 import { ValidationError } from '@/lib/validation';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { 
-  Plus, 
-  Check, 
-  Trash2, 
+import {
+  Plus,
+  Check,
+  Trash2,
   Sparkles,
   ChevronLeft,
   Zap,
@@ -42,6 +42,7 @@ export default function QuestsPage() {
   const [filterCategory, setFilterCategory] = useState<TaskCategory | 'All'>('All');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
+  const [isAutoTagging, setIsAutoTagging] = useState(false);
 
   const CATEGORIES: TaskCategory[] = ['Study', 'Health', 'Creative', 'Work', 'Social', 'Personal', 'Other'];
   const CATEGORY_COLORS: Record<TaskCategory, string> = {
@@ -57,7 +58,7 @@ export default function QuestsPage() {
   // Calculate total multipliers from skills and equipment
   const xpMultiplier = getSkillMultiplier('xp');
   const goldMultiplier = getSkillMultiplier('gold');
-  
+
   // Add equipment bonuses
   const getEquipmentBonus = (type: 'xpBonus' | 'goldBonus') => {
     let bonus = 0;
@@ -78,10 +79,10 @@ export default function QuestsPage() {
       setTitleError('Quest title cannot be empty');
       return;
     }
-    
+
     setIsSubmitting(true);
     setTitleError('');
-    
+
     try {
       await addTask(title, difficulty, undefined, category, recurring);
       addToast('Quest added!', 'success');
@@ -104,7 +105,7 @@ export default function QuestsPage() {
 
   const handleGenerateQuests = async () => {
     if (!generatePrompt.trim()) return;
-    
+
     setIsGenerating(true);
     try {
       const response = await fetch('/api/generate-quest', {
@@ -141,6 +142,38 @@ export default function QuestsPage() {
     }
   };
 
+  const handleAutoTag = async () => {
+    if (!title.trim()) {
+      addToast('Enter a quest title first to auto-tag.', 'error');
+      return;
+    }
+
+    setIsAutoTagging(true);
+    try {
+      const response = await fetch('/api/auto-tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        addToast('Failed to auto-tag. Please try again.', 'error');
+        return;
+      }
+
+      setDifficulty(data.difficulty);
+      setCategory(data.category);
+      addToast('Task auto-tagged successfully! ✨', 'success');
+    } catch (error) {
+      console.error('Failed to auto-tag:', error);
+      addToast('Network error. Check your connection.', 'error');
+    } finally {
+      setIsAutoTagging(false);
+    }
+  };
+
   const difficultyColors = {
     Easy: 'bg-[var(--color-badge-green)]/20 text-[var(--color-badge-green)]',
     Medium: 'bg-[var(--color-badge-blue)]/20 text-[var(--color-badge-blue)]',
@@ -149,7 +182,7 @@ export default function QuestsPage() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen pb-12"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -164,7 +197,7 @@ export default function QuestsPage() {
             </Link>
             <h1 className="text-xl font-bold">Quests</h1>
           </div>
-          <motion.div 
+          <motion.div
             className="flex items-center gap-2"
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
@@ -178,7 +211,7 @@ export default function QuestsPage() {
 
       {/* Active Bonuses Bar */}
       {(xpMultiplier > 1 || goldMultiplier > 1 || getEquipmentBonus('xpBonus') > 0 || getEquipmentBonus('goldBonus') > 0) && (
-        <motion.div 
+        <motion.div
           className="bg-[var(--color-bg-card)] border-b border-[var(--color-border)]"
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -212,7 +245,7 @@ export default function QuestsPage() {
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Add Quest Form */}
-        <motion.div 
+        <motion.div
           className="rpg-card mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -223,22 +256,36 @@ export default function QuestsPage() {
           <form onSubmit={handleAddTask} className="space-y-4" noValidate>
             <div>
               <label htmlFor="quest-title" className="sr-only">Quest title</label>
-              <input
-                id="quest-title"
-                type="text"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  if (titleError) setTitleError('');
-                }}
-                placeholder="e.g., Practice Spanish for 30 minutes"
-                className={`input-field ${titleError ? 'border-red-500 focus:border-red-500' : ''}`}
-                aria-label="Quest title"
-                aria-invalid={!!titleError}
-                aria-describedby={titleError ? 'title-error' : undefined}
-                maxLength={200}
-                disabled={isSubmitting}
-              />
+              <div className="flex gap-2">
+                <input
+                  id="quest-title"
+                  type="text"
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (titleError) setTitleError('');
+                  }}
+                  placeholder="e.g., Practice Spanish for 30 minutes"
+                  className={`input-field flex-1 ${titleError ? 'border-red-500 focus:border-red-500' : ''}`}
+                  aria-label="Quest title"
+                  aria-invalid={!!titleError}
+                  aria-describedby={titleError ? 'title-error' : undefined}
+                  maxLength={200}
+                  disabled={isSubmitting || isAutoTagging}
+                />
+                <motion.button
+                  type="button"
+                  onClick={handleAutoTag}
+                  disabled={!title.trim() || isAutoTagging || isSubmitting}
+                  className="px-4 py-2 bg-[var(--color-bg-dark)] border border-[var(--color-purple)] text-[var(--color-purple)] rounded font-bold transition-colors hover:bg-[var(--color-purple)] hover:text-white disabled:opacity-50 flex items-center gap-1"
+                  whileHover={{ scale: (isAutoTagging || !title.trim()) ? 1 : 1.05 }}
+                  whileTap={{ scale: (isAutoTagging || !title.trim()) ? 1 : 0.95 }}
+                  title="Use AI to automatically classify this task"
+                >
+                  {isAutoTagging ? <span className="animate-spin">✨</span> : <Sparkles size={16} />}
+                  <span className="hidden sm:inline">Auto-Tag</span>
+                </motion.button>
+              </div>
               {titleError && (
                 <p id="title-error" className="mt-1 text-sm text-red-500" role="alert">
                   {titleError}
@@ -256,11 +303,10 @@ export default function QuestsPage() {
                     type="button"
                     onClick={() => setDifficulty(diff)}
                     aria-pressed={difficulty === diff}
-                    className={`py-2.5 px-4 rounded font-semibold text-sm transition-all ${
-                      difficulty === diff
+                    className={`py-2.5 px-4 rounded font-semibold text-sm transition-all ${difficulty === diff
                         ? 'bg-[var(--color-purple)] text-white border-2 border-[var(--color-purple)]'
                         : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border-2 border-[var(--color-border)] hover:border-[var(--color-purple)]'
-                    }`}
+                      }`}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -280,11 +326,10 @@ export default function QuestsPage() {
                     type="button"
                     onClick={() => setCategory(cat)}
                     aria-pressed={category === cat}
-                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border-2 ${
-                      category === cat
+                    className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border-2 ${category === cat
                         ? 'border-[var(--color-purple)] ' + CATEGORY_COLORS[cat]
                         : 'border-[var(--color-border)] bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
-                    }`}
+                      }`}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -304,11 +349,10 @@ export default function QuestsPage() {
                     type="button"
                     onClick={() => setRecurring(r)}
                     aria-pressed={recurring === r}
-                    className={`py-2 rounded text-sm font-semibold transition-all ${
-                      recurring === r
+                    className={`py-2 rounded text-sm font-semibold transition-all ${recurring === r
                         ? 'bg-[var(--color-purple)] text-white'
                         : 'bg-[var(--color-bg-dark)] text-[var(--color-text-secondary)] border border-[var(--color-border)] hover:border-[var(--color-purple)]'
-                    }`}
+                      }`}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                   >
@@ -317,7 +361,7 @@ export default function QuestsPage() {
                 ))}
               </div>
             </div>
-            
+
             <motion.button
               type="submit"
               disabled={!title.trim() || isSubmitting}
@@ -342,14 +386,14 @@ export default function QuestsPage() {
         </motion.div>
 
         {/* AI Quest Generator */}
-        <motion.div 
+        <motion.div
           className="rpg-card mb-8 border-[var(--color-purple)]"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
           <div className="flex items-center gap-4 mb-4">
-            <motion.div 
+            <motion.div
               className="w-12 h-12 bg-[var(--color-purple)] rounded-lg flex items-center justify-center"
               animate={{ rotate: [0, 5, 0, -5, 0] }}
               transition={{ repeat: Infinity, duration: 3 }}
@@ -374,7 +418,7 @@ export default function QuestsPage() {
               maxLength={500}
               disabled={isGenerating}
             />
-            <motion.button 
+            <motion.button
               onClick={handleGenerateQuests}
               disabled={isGenerating || !generatePrompt.trim()}
               className="rpg-button w-full !bg-[var(--color-purple)] !text-white hover:!bg-[var(--color-purple-light)] disabled:opacity-50"
@@ -396,7 +440,7 @@ export default function QuestsPage() {
         </motion.div>
 
         {/* Quest List */}
-        <motion.div 
+        <motion.div
           className="rpg-card"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -414,11 +458,10 @@ export default function QuestsPage() {
                 key={cat}
                 onClick={() => setFilterCategory(cat)}
                 aria-pressed={filterCategory === cat}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${
-                  filterCategory === cat
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-all border ${filterCategory === cat
                     ? 'border-[var(--color-purple)] bg-[var(--color-purple)]/20 text-[var(--color-purple)]'
                     : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]'
-                }`}
+                  }`}
               >
                 {cat}
               </button>
@@ -440,9 +483,8 @@ export default function QuestsPage() {
                 {filteredTasks.map((task, index) => (
                   <motion.div
                     key={task.id}
-                    className={`flex items-center gap-4 p-4 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded transition-all hover:border-[var(--color-purple)] ${
-                      task.completed ? 'opacity-60' : ''
-                    }`}
+                    className={`flex items-center gap-4 p-4 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded transition-all hover:border-[var(--color-purple)] ${task.completed ? 'opacity-60' : ''
+                      }`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 20 }}
@@ -478,11 +520,10 @@ export default function QuestsPage() {
                           addToast('Quest uncompleted', 'info');
                         }
                       }}
-                      className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:ring-offset-2 ${
-                        task.completed
+                      className={`w-10 h-10 rounded flex items-center justify-center flex-shrink-0 transition-all focus:outline-none focus:ring-2 focus:ring-[var(--color-green)] focus:ring-offset-2 ${task.completed
                           ? 'bg-[var(--color-green)] text-white'
                           : 'bg-[var(--color-bg-card)] text-[var(--color-text-muted)] border border-[var(--color-border)] hover:bg-[var(--color-green)] hover:text-white'
-                      }`}
+                        }`}
                       whileHover={{ scale: 1.1 }}
                       whileTap={{ scale: 0.9 }}
                       aria-label={task.completed ? `Mark "${task.title}" as incomplete` : `Complete "${task.title}"`}
