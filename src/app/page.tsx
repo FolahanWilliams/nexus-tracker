@@ -7,6 +7,8 @@ import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, Trend
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
+import { useAuth } from '@/components/AuthProvider';
+import LoginScreen from '@/components/LoginScreen';
 
 const DAILY_REWARDS = [
   { day: 1, gold: 50, gems: 5 },
@@ -67,6 +69,24 @@ const menuItems = [
 ];
 
 export default function HomePage() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--color-bg-primary)] flex items-center justify-center">
+        <div className="text-4xl animate-pulse">✨</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  return <DashboardContent />;
+}
+
+function DashboardContent() {
   const {
     level, xp, gold, gems, streak, title,
     characterName, characterClass,

@@ -1,18 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import { Nunito } from 'next/font/google';
 import './globals.css';
-import LevelUpModal from '@/components/LevelUpModal';
-import SoundManager from '@/components/SoundManager';
-import ConfettiManager from '@/components/ConfettiManager';
-import ToastContainer from '@/components/ToastContainer';
-import Onboarding from '@/components/Onboarding';
-import XPFloat from '@/components/XPFloat';
-import StreakCelebration from '@/components/StreakCelebration';
-import DailyIntention from '@/components/DailyIntention';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import SkipLink from '@/components/SkipLink';
+import ClientProviders from '@/components/ClientProviders';
 
-const nunito = Nunito({ 
+const nunito = Nunito({
   subsets: ['latin'],
   weight: ['400', '600', '700', '800', '900'],
 });
@@ -48,16 +41,10 @@ export default function RootLayout({
         <ErrorBoundary>
           <SkipLink />
           <main id="main-content" className="min-h-screen">
-            {children}
+            <ClientProviders>
+              {children}
+            </ClientProviders>
           </main>
-          <Onboarding />
-          <LevelUpModal />
-          <SoundManager />
-          <ConfettiManager />
-          <ToastContainer />
-          <XPFloat />
-          <StreakCelebration />
-          <DailyIntention />
         </ErrorBoundary>
       </body>
     </html>

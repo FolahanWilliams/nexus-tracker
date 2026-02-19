@@ -20,8 +20,10 @@ import {
   Repeat2,
   Timer,
   Flag,
-  Calendar
+  Calendar,
+  LogOut
 } from 'lucide-react';
+import { useAuth } from '@/components/AuthProvider';
 
 const navItems = [
   { href: '/', label: 'Overview', icon: LayoutDashboard },
@@ -88,19 +90,40 @@ export default function Navigation() {
           <span className="text-[var(--accent-blue)] font-mono">{title}</span>
         </div>
 
-        <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--bg-hover)] border border-[var(--border)]">
-          <div className="w-8 h-8 rounded bg-[var(--bg-card)] flex items-center justify-center">
-            <User size={14} className="text-[var(--text-secondary)]" />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs font-bold text-white">{characterName}</p>
-            <div className="flex items-center gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse" />
-              <p className="text-[10px] text-[var(--text-secondary)]">ONLINE</p>
-            </div>
-          </div>
-        </div>
+        <UserSection characterName={characterName} />
       </div>
     </nav>
+  );
+}
+
+function UserSection({ characterName }: { characterName: string }) {
+  const { user, signOut } = useAuth();
+
+  return (
+    <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--bg-hover)] border border-[var(--border)]">
+      {user?.photoURL ? (
+        <img src={user.photoURL} alt="" className="w-8 h-8 rounded" referrerPolicy="no-referrer" />
+      ) : (
+        <div className="w-8 h-8 rounded bg-[var(--bg-card)] flex items-center justify-center">
+          <User size={14} className="text-[var(--text-secondary)]" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-bold text-white truncate">{user?.displayName || characterName}</p>
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse" />
+          <p className="text-[10px] text-[var(--text-secondary)]">ONLINE</p>
+        </div>
+      </div>
+      {user && (
+        <button
+          onClick={signOut}
+          className="p-1.5 rounded hover:bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-red-400 transition-colors"
+          title="Sign out"
+        >
+          <LogOut size={14} />
+        </button>
+      )}
+    </div>
   );
 }
