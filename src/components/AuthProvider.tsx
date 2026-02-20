@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { getAuthInstance, googleProvider } from '@/lib/firebase';
+import { useToastStore } from '@/components/ToastContainer';
 
 interface AuthContext {
     user: User | null;
@@ -39,8 +40,15 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const auth = getAuthInstance();
             await signInWithPopup(auth, googleProvider);
-        } catch (error) {
+        } catch (error: any) {
             console.error('Sign-in error:', error);
+            const message = error?.message || 'Failed to sign in. Please try again.';
+            useToastStore.getState().addToast(
+                error?.code === 'auth/unauthorized-domain'
+                    ? 'Unauthorized domain! Add this URL to Firebase Auth Authorized Domains.'
+                    : message,
+                'error'
+            );
         }
     };
 
