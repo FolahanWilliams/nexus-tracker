@@ -1219,7 +1219,9 @@ export const useGameStore = create<GameState>()(
                         focusSessionsTotal: safeInt(parsed.focusSessionsTotal, 0),
                         focusMinutesTotal: safeInt(parsed.focusMinutesTotal, 0),
                         achievements: safeAchievements,
-                        title: safeStr(parsed.title, 'Novice'),
+                        title: ((['Novice','Apprentice','Journeyman','Expert','Master','Grandmaster','Legend'] as const).includes(parsed.title as Title)
+                            ? parsed.title
+                            : 'Novice') as Title,
                         settings: parsed.settings && typeof parsed.settings === 'object'
                             ? parsed.settings
                             : { soundEnabled: true, theme: 'dark', musicEnabled: true, sfxVolume: 0.5, musicVolume: 0.3 },
