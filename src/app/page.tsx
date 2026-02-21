@@ -90,7 +90,7 @@ function DashboardContent() {
   const {
     level, xp, gold, gems, streak, title,
     characterName, characterClass,
-    dailyQuests, checkDailyQuests, generateDailyQuests,
+    dailyQuests, checkDailyQuests, generateDailyQuests, toggleDailyQuest,
     claimDailyReward, lastDailyRewardClaim, loginStreak,
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
     tasks, habits, goals, reflectionNotes, todayEnergyRating
@@ -416,14 +416,26 @@ function DashboardContent() {
               </div>
               <div className="space-y-1.5">
                 {dailyQuests.slice(0, 3).map(quest => (
-                  <div key={quest.id} className="flex items-center gap-2 text-sm">
+                  <button
+                    key={quest.id}
+                    onClick={() => {
+                      if (!quest.isExpired) {
+                        toggleDailyQuest(quest.id);
+                        if (!quest.completed) {
+                          addToast(`+${quest.xpReward} XP earned!`, 'success');
+                        }
+                      }
+                    }}
+                    disabled={quest.isExpired}
+                    className={`w-full flex items-center gap-2 text-sm text-left rounded px-1 py-0.5 transition-colors ${quest.isExpired ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[var(--color-bg-dark)] cursor-pointer'}`}
+                  >
                     <span className={quest.completed ? 'text-[var(--color-green)]' : 'text-[var(--color-text-muted)]'}>
                       {quest.completed ? '✓' : '○'}
                     </span>
                     <span className={`truncate text-xs ${quest.completed ? 'line-through text-[var(--color-text-muted)]' : ''}`}>
                       {quest.title}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
               <Link href="/quests" className="text-xs text-[var(--color-purple)] mt-2 block">
