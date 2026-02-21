@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useGameStore, xpForLevel } from '@/store/useGameStore';
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, TrendingUp, ChevronRight } from 'lucide-react';
+import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
@@ -50,23 +50,6 @@ function getProductivityScore(params: {
   return Math.min(score, 100);
 }
 
-const menuItems = [
-  { href: '/quests', emoji: '📦', label: 'Quests' },
-  { href: '/habits', emoji: '🔁', label: 'Habits' },
-  { href: '/focus', emoji: '⏱️', label: 'Focus Timer' },
-  { href: '/goals', emoji: '🎯', label: 'Goals' },
-  { href: '/chains', emoji: '🗺️', label: 'Quest Chains' },
-  { href: '/bosses', emoji: '⚔️', label: 'Boss Battles' },
-  { href: '/character', emoji: '🧙', label: 'Character' },
-  { href: '/inventory', emoji: '🎒', label: 'Inventory' },
-  { href: '/skills', emoji: '🧠', label: 'Skill Tree' },
-  { href: '/crafting', emoji: '🔨', label: 'Crafting' },
-  { href: '/shop', emoji: '💎', label: 'Shop' },
-  { href: '/analytics', emoji: '📊', label: 'Analytics' },
-  { href: '/achievements', emoji: '🏆', label: 'Achievements' },
-  { href: '/timeline', emoji: '📅', label: 'Timeline' },
-  { href: '/settings', emoji: '⚙️', label: 'Settings' },
-];
 
 export default function HomePage() {
   const { user, loading } = useAuth();
@@ -534,28 +517,6 @@ function DashboardContent() {
             </div>
           </motion.div>
 
-          {/* Full Menu Grid */}
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            {menuItems.map((item, index) => (
-              <motion.div
-                key={item.href}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35 + index * 0.03 }}
-              >
-                <Link
-                  href={item.href}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] hover:border-[var(--color-purple)]/50 hover:bg-[var(--color-bg-hover)] transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{item.emoji}</span>
-                    <span className="font-semibold text-sm">{item.label}</span>
-                  </div>
-                  <ChevronRight size={16} className="text-[var(--color-text-muted)]" />
-                </Link>
-              </motion.div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
