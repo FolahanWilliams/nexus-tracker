@@ -6,19 +6,18 @@ import { useState } from 'react';
 import {
   Home,
   Target,
-  ShoppingBag,
   BarChart3,
-  Trophy,
   Sword,
   Sparkles,
   Settings,
   X,
-  Hammer,
   MoreHorizontal,
   Repeat2,
   Timer,
   Flag,
-  Calendar
+  Map,
+  User,
+  BookOpen,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -26,17 +25,16 @@ const mainNavItems = [
   { href: '/quests', label: 'Quests', icon: Target },
   { href: '/habits', label: 'Habits', icon: Repeat2 },
   { href: '/focus', label: 'Focus', icon: Timer },
-  { href: '/shop', label: 'Shop', icon: ShoppingBag },
+  { href: '/reflection', label: 'Check-In', icon: BookOpen },
 ];
 
 const secondaryNavItems = [
   { href: '/goals', label: 'Goals', icon: Flag },
+  { href: '/chains', label: 'Chains', icon: Map },
   { href: '/bosses', label: 'Boss', icon: Sword },
+  { href: '/character', label: 'Character', icon: User },
   { href: '/inventory', label: 'Items', icon: Sparkles },
-  { href: '/crafting', label: 'Craft', icon: Hammer },
-  { href: '/achievements', label: 'Trophies', icon: Trophy },
-  { href: '/timeline', label: 'Timeline', icon: Calendar },
-  { href: '/analytics', label: 'Stats', icon: BarChart3 },
+  { href: '/analytics', label: 'Progress', icon: BarChart3 },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 

@@ -17,6 +17,7 @@ import {
   Repeat2,
   Timer,
   Flag,
+  BookOpen,
   LogOut
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
@@ -30,6 +31,7 @@ const navGroups = [
       { href: '/habits', label: 'Habits', icon: Repeat2 },
       { href: '/focus', label: 'Focus Timer', icon: Timer },
       { href: '/goals', label: 'Goals', icon: Flag },
+      { href: '/reflection', label: 'Check-In', icon: BookOpen },
     ],
   },
   {
