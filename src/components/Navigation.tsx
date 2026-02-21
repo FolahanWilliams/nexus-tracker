@@ -25,22 +25,43 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 
-const navItems = [
-  { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/quests', label: 'Quests', icon: Target },
-  { href: '/habits', label: 'Habits', icon: Repeat2 },
-  { href: '/focus', label: 'Focus Timer', icon: Timer },
-  { href: '/goals', label: 'Goals', icon: Flag },
-  { href: '/chains', label: 'Quest Chains', icon: Map },
-  { href: '/bosses', label: 'Boss Battles', icon: Sword },
-  { href: '/shop', label: 'Shop', icon: ShoppingBag },
-  { href: '/inventory', label: 'Inventory', icon: Sparkles },
-  { href: '/skills', label: 'Skills', icon: Activity },
-  { href: '/crafting', label: 'Crafting', icon: Hammer },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/achievements', label: 'Achievements', icon: Trophy },
-  { href: '/timeline', label: 'Timeline', icon: Calendar },
-  { href: '/settings', label: 'Settings', icon: Settings },
+const navGroups = [
+  {
+    label: 'DAILY',
+    items: [
+      { href: '/', label: 'Overview', icon: LayoutDashboard },
+      { href: '/quests', label: 'Quests', icon: Target },
+      { href: '/habits', label: 'Habits', icon: Repeat2 },
+      { href: '/focus', label: 'Focus Timer', icon: Timer },
+      { href: '/goals', label: 'Goals', icon: Flag },
+    ],
+  },
+  {
+    label: 'ADVENTURE',
+    items: [
+      { href: '/chains', label: 'Quest Chains', icon: Map },
+      { href: '/bosses', label: 'Boss Battles', icon: Sword },
+    ],
+  },
+  {
+    label: 'CHARACTER',
+    items: [
+      { href: '/character', label: 'Character', icon: User },
+      { href: '/skills', label: 'Skills', icon: Activity },
+      { href: '/inventory', label: 'Inventory', icon: Sparkles },
+      { href: '/crafting', label: 'Crafting', icon: Hammer },
+      { href: '/shop', label: 'Shop', icon: ShoppingBag },
+    ],
+  },
+  {
+    label: 'RECORDS',
+    items: [
+      { href: '/analytics', label: 'Analytics', icon: BarChart3 },
+      { href: '/achievements', label: 'Achievements', icon: Trophy },
+      { href: '/timeline', label: 'Timeline', icon: Calendar },
+      { href: '/settings', label: 'Settings', icon: Settings },
+    ],
+  },
 ];
 
 export default function Navigation() {
@@ -61,25 +82,33 @@ export default function Navigation() {
       </div>
 
       {/* Navigation Links */}
-      <div className="flex-1 py-4 flex flex-col gap-1 px-2 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = pathname === item.href;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-all ${isActive
-                ? 'bg-[var(--bg-hover)] text-white border-l-2 border-[var(--accent-green)]'
-                : 'text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)]'
-                }`}
-            >
-              <Icon size={16} />
-              <span className="font-medium">{item.label}</span>
-            </Link>
-          );
-        })}
+      <div className="flex-1 py-3 flex flex-col px-2 overflow-y-auto">
+        {navGroups.map((group) => (
+          <div key={group.label} className="mb-4">
+            <p className="px-3 mb-1 text-[10px] font-bold tracking-widest text-[var(--text-secondary)] opacity-60 uppercase">
+              {group.label}
+            </p>
+            <div className="flex flex-col gap-0.5">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-all ${isActive
+                      ? 'bg-[var(--bg-hover)] text-white border-l-2 border-[var(--accent-green)]'
+                      : 'text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)]'
+                      }`}
+                  >
+                    <Icon size={16} />
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* System Status / User */}
