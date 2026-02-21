@@ -754,21 +754,23 @@ export const useGameStore = create<GameState>()(
                     const state = get();
                     let finalAmount = validatedAmount;
 
-                    // Apply class XP bonus
-                    if (state.characterClass) {
-                        finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].xpMultiplier);
-                    }
-
-                    state.activeBuffs.forEach(buff => {
-                        if (buff.type === 'xp' || buff.type === 'buff') {
-                            finalAmount = Math.floor(finalAmount * buff.value);
+                    // Apply class XP bonus and buffs only when gaining XP (not penalising uncomplete)
+                    if (finalAmount > 0) {
+                        if (state.characterClass) {
+                            finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].xpMultiplier);
                         }
-                    });
 
-                    // Lucky star chance for double XP
-                    const luckySkill = state.skills.find(s => s.id === 'lucky-star');
-                    if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
-                        finalAmount *= 2;
+                        state.activeBuffs.forEach(buff => {
+                            if (buff.type === 'xp' || buff.type === 'buff') {
+                                finalAmount = Math.floor(finalAmount * buff.value);
+                            }
+                        });
+
+                        // Lucky star chance for double XP (rewards only, not penalties)
+                        const luckySkill = state.skills.find(s => s.id === 'lucky-star');
+                        if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05)) {
+                            finalAmount *= 2;
+                        }
                     }
 
                     set((state) => {
@@ -976,12 +978,13 @@ export const useGameStore = create<GameState>()(
                             b.id === bossId ? { ...b, hp: 0, completed: true } : b
                         )
                     }));
-                    state.addXP(boss.xpReward);
-                    state.addGold(boss.goldReward);
+                    // Use get() so rewards are applied to the post-set() store state
+                    get().addXP(boss.xpReward);
+                    get().addGold(boss.goldReward);
                     if (boss.itemReward) {
-                        state.addItem(boss.itemReward);
+                        get().addItem(boss.itemReward);
                     }
-                    state.unlockAchievement('BOSS_SLAYER');
+                    get().unlockAchievement('BOSS_SLAYER');
                 } else {
                     set((state) => ({
                         bossBattles: state.bossBattles.map(b =>
@@ -1082,29 +1085,36 @@ export const useGameStore = create<GameState>()(
             importSaveData: (data) => {
                 try {
                     const parsed = JSON.parse(data);
+                    const safeInt = (val: unknown, fallback: number) =>
+                        typeof val === 'number' && isFinite(val) ? Math.max(0, Math.floor(val)) : fallback;
+                    const safeArr = (val: unknown) => Array.isArray(val) ? val : [];
+                    const safeStr = (val: unknown, fallback: string) =>
+                        typeof val === 'string' ? val : fallback;
                     set({
-                        xp: parsed.xp || 0,
-                        level: parsed.level || 1,
-                        gold: parsed.gold || 0,
-                        gems: parsed.gems || 0,
-                        tasks: parsed.tasks || [],
-                        dailyQuests: parsed.dailyQuests || [],
-                        inventory: parsed.inventory || [],
-                        skills: parsed.skills || [],
-                        questChains: parsed.questChains || [],
-                        streak: parsed.streak || 0,
-                        totalQuestsCompleted: parsed.totalQuestsCompleted || 0,
-                        loginStreak: parsed.loginStreak || 0,
-                        focusSessionsTotal: parsed.focusSessionsTotal || 0,
-                        focusMinutesTotal: parsed.focusMinutesTotal || 0,
-                        achievements: parsed.achievements || [],
-                        title: parsed.title || 'Novice',
-                        settings: parsed.settings || { soundEnabled: true, theme: 'dark', musicEnabled: true, sfxVolume: 0.5, musicVolume: 0.3 },
+                        xp: safeInt(parsed.xp, 0),
+                        level: Math.max(1, safeInt(parsed.level, 1)),
+                        gold: safeInt(parsed.gold, 0),
+                        gems: safeInt(parsed.gems, 0),
+                        tasks: safeArr(parsed.tasks),
+                        dailyQuests: safeArr(parsed.dailyQuests),
+                        inventory: safeArr(parsed.inventory),
+                        skills: safeArr(parsed.skills),
+                        questChains: safeArr(parsed.questChains),
+                        streak: safeInt(parsed.streak, 0),
+                        totalQuestsCompleted: safeInt(parsed.totalQuestsCompleted, 0),
+                        loginStreak: safeInt(parsed.loginStreak, 0),
+                        focusSessionsTotal: safeInt(parsed.focusSessionsTotal, 0),
+                        focusMinutesTotal: safeInt(parsed.focusMinutesTotal, 0),
+                        achievements: safeArr(parsed.achievements),
+                        title: safeStr(parsed.title, 'Novice'),
+                        settings: parsed.settings && typeof parsed.settings === 'object'
+                            ? parsed.settings
+                            : { soundEnabled: true, theme: 'dark', musicEnabled: true, sfxVolume: 0.5, musicVolume: 0.3 },
                         characterClass: parsed.characterClass || null,
-                        characterName: parsed.characterName || 'Your Name',
-                        characterMotto: parsed.characterMotto || 'Comfort is the enemy',
-                        characterStrengths: parsed.characterStrengths || 'Disciplined, Organised, Creative',
-                        timelineEvents: parsed.timelineEvents || [],
+                        characterName: safeStr(parsed.characterName, 'Your Name'),
+                        characterMotto: safeStr(parsed.characterMotto, 'Comfort is the enemy'),
+                        characterStrengths: safeStr(parsed.characterStrengths, 'Disciplined, Organised, Creative'),
+                        timelineEvents: safeArr(parsed.timelineEvents),
                     });
                     return true;
                 } catch {
@@ -1204,6 +1214,7 @@ export const useGameStore = create<GameState>()(
                     } else {
                         state.addXP(-task.xpReward);
                         state.addGold(-Math.floor(task.xpReward / 2));
+                        set((s) => ({ totalQuestsCompleted: Math.max(0, s.totalQuestsCompleted - 1) }));
                     }
 
                     const now = new Date().toISOString();

@@ -3,7 +3,7 @@ export const ValidationRules = {
   taskTitle: {
     maxLength: 200,
     minLength: 1,
-    pattern: /^[\w\s\-_!@#$%^&*()+=\[\]{}|;':",./<>?]*$/,
+    pattern: /^[\w\s\-_!@#$%^&*()+=\[\]{}|;':",.'?]*$/,
   },
   characterName: {
     maxLength: 50,
