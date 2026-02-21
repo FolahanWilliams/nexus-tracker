@@ -931,7 +931,9 @@ export const useGameStore = create<GameState>()(
             toggleDailyQuest: (questId) => {
                 const state = get();
                 const quest = state.dailyQuests.find(q => q.id === questId);
-                if (!quest || quest.isExpired) return;
+                // Check expiresAt directly rather than the stale isExpired flag, which is
+                // only updated when checkDailyQuests() is called.
+                if (!quest || new Date(quest.expiresAt) < new Date()) return;
 
                 if (!quest.completed) {
                     // Completing: award XP and gold, then check achievements
@@ -1039,22 +1041,33 @@ export const useGameStore = create<GameState>()(
                 const recipe = state.craftingRecipes.find(r => r.id === recipeId);
                 if (!recipe) return false;
 
+                // Normalize an itemId ("gold-coin", "dragon-scale") → "gold coin"
+                // Use a global replace so multi-hyphen ids are fully converted.
+                const normalizeId = (id: string) => id.replace(/-/g, ' ');
+
+                // Match by exact id first, then by exact (case-insensitive) name.
+                // Substring matching (.includes) was previously used, which risks
+                // consuming the wrong item when the inventory has similarly-named entries
+                // (e.g. "Mithril" matching "Mithril Dust").
+                const findItem = (itemId: string) => state.inventory.find(i =>
+                    i.id === itemId ||
+                    i.name.toLowerCase() === normalizeId(itemId)
+                );
+
                 // Check if player has required items
                 for (const input of recipe.inputs) {
-                    const hasItem = state.inventory.find(i =>
-                        i.name.toLowerCase().includes(input.itemId.replace('-', ' ')) ||
-                        i.id === input.itemId
-                    );
+                    const hasItem = findItem(input.itemId);
                     if (!hasItem || hasItem.quantity < input.quantity) {
                         return false;
                     }
                 }
 
-                // Remove input items
+                // Remove input items (re-query current state in case a prior removeItem
+                // already mutated the inventory for duplicate-ingredient recipes)
                 for (const input of recipe.inputs) {
-                    const item = state.inventory.find(i =>
-                        i.name.toLowerCase().includes(input.itemId.replace('-', ' ')) ||
-                        i.id === input.itemId
+                    const item = get().inventory.find(i =>
+                        i.id === input.itemId ||
+                        i.name.toLowerCase() === normalizeId(input.itemId)
                     );
                     if (item) {
                         get().removeItem(item.id, input.quantity);
@@ -1075,7 +1088,14 @@ export const useGameStore = create<GameState>()(
                 expiresAt.setMinutes(expiresAt.getMinutes() + durationMinutes);
 
                 set((state) => ({
-                    activeBuffs: [...state.activeBuffs, { type, value, expiresAt: expiresAt.toISOString() }]
+                    // Remove any existing buff of the same type before adding the new one
+                    // so the same buff cannot be stacked infinitely (e.g. buying 2x XP
+                    // twice would otherwise compound to 4x XP).  Re-purchasing simply
+                    // refreshes the duration.
+                    activeBuffs: [
+                        ...state.activeBuffs.filter(b => b.type !== type),
+                        { type, value, expiresAt: expiresAt.toISOString() }
+                    ]
                 }));
             },
 
@@ -1121,22 +1141,77 @@ export const useGameStore = create<GameState>()(
                     const safeArr = (val: unknown) => Array.isArray(val) ? val : [];
                     const safeStr = (val: unknown, fallback: string) =>
                         typeof val === 'string' ? val : fallback;
+
+                    // Validate each nested array's elements so that a crafted save file
+                    // cannot inject objects with wrong types that crash later access.
+                    const isObj = (v: unknown): v is Record<string, unknown> =>
+                        typeof v === 'object' && v !== null && !Array.isArray(v);
+
+                    const safeTasks = safeArr(parsed.tasks).filter((t: unknown) =>
+                        isObj(t) &&
+                        typeof t.id === 'string' &&
+                        typeof t.title === 'string' &&
+                        typeof t.completed === 'boolean' &&
+                        typeof t.xpReward === 'number'
+                    );
+
+                    const safeDailyQuests = safeArr(parsed.dailyQuests).filter((q: unknown) =>
+                        isObj(q) &&
+                        typeof q.id === 'string' &&
+                        typeof q.title === 'string' &&
+                        typeof q.completed === 'boolean'
+                    );
+
+                    const safeInventory = safeArr(parsed.inventory).filter((i: unknown) =>
+                        isObj(i) &&
+                        typeof i.id === 'string' &&
+                        typeof i.name === 'string' &&
+                        typeof i.quantity === 'number' && (i.quantity as number) >= 0
+                    );
+
+                    const safeSkills = safeArr(parsed.skills).filter((s: unknown) =>
+                        isObj(s) &&
+                        typeof s.id === 'string' &&
+                        typeof s.currentLevel === 'number' &&
+                        typeof s.maxLevel === 'number' &&
+                        // Prevent importing a skill above its own maxLevel
+                        (s.currentLevel as number) <= (s.maxLevel as number)
+                    );
+
+                    const safeQuestChains = safeArr(parsed.questChains).filter((c: unknown) =>
+                        isObj(c) &&
+                        typeof c.id === 'string' &&
+                        typeof c.name === 'string' &&
+                        typeof c.completed === 'boolean' &&
+                        Array.isArray(c.steps)
+                    );
+
+                    const safeAchievements = safeArr(parsed.achievements).filter(
+                        (a: unknown) => typeof a === 'string'
+                    );
+
+                    const safeTimelineEvents = safeArr(parsed.timelineEvents).filter((e: unknown) =>
+                        isObj(e) &&
+                        typeof e.id === 'string' &&
+                        typeof e.title === 'string'
+                    );
+
                     set({
                         xp: safeInt(parsed.xp, 0),
                         level: Math.max(1, safeInt(parsed.level, 1)),
                         gold: safeInt(parsed.gold, 0),
                         gems: safeInt(parsed.gems, 0),
-                        tasks: safeArr(parsed.tasks),
-                        dailyQuests: safeArr(parsed.dailyQuests),
-                        inventory: safeArr(parsed.inventory),
-                        skills: safeArr(parsed.skills),
-                        questChains: safeArr(parsed.questChains),
+                        tasks: safeTasks,
+                        dailyQuests: safeDailyQuests,
+                        inventory: safeInventory,
+                        skills: safeSkills,
+                        questChains: safeQuestChains,
                         streak: safeInt(parsed.streak, 0),
                         totalQuestsCompleted: safeInt(parsed.totalQuestsCompleted, 0),
                         loginStreak: safeInt(parsed.loginStreak, 0),
                         focusSessionsTotal: safeInt(parsed.focusSessionsTotal, 0),
                         focusMinutesTotal: safeInt(parsed.focusMinutesTotal, 0),
-                        achievements: safeArr(parsed.achievements),
+                        achievements: safeAchievements,
                         title: safeStr(parsed.title, 'Novice'),
                         settings: parsed.settings && typeof parsed.settings === 'object'
                             ? parsed.settings
@@ -1145,7 +1220,7 @@ export const useGameStore = create<GameState>()(
                         characterName: safeStr(parsed.characterName, 'Your Name'),
                         characterMotto: safeStr(parsed.characterMotto, 'Comfort is the enemy'),
                         characterStrengths: safeStr(parsed.characterStrengths, 'Disciplined, Organised, Creative'),
-                        timelineEvents: safeArr(parsed.timelineEvents),
+                        timelineEvents: safeTimelineEvents,
                     });
                     return true;
                 } catch {
@@ -1619,22 +1694,33 @@ export const useGameStore = create<GameState>()(
 
             // Intention & Reflection Actions
             setDailyIntention: (intention, energyRating) => {
+                if (typeof intention !== 'string' || !intention.trim()) return;
+                // energyRating is displayed in charts as a 1-5 scale; clamp to that range.
+                const safeRating = Math.min(5, Math.max(1, Math.round(energyRating)));
+                // Truncate intention to prevent runaway storage growth.
+                const safeIntention = intention.trim().slice(0, 500);
                 const today = new Date().toISOString().split('T')[0];
-                set({ todayIntention: intention, todayEnergyRating: energyRating, lastIntentionDate: today });
+                set({ todayIntention: safeIntention, todayEnergyRating: safeRating, lastIntentionDate: today });
                 // Small XP reward for setting intention
                 get().addXP(10);
             },
 
             addReflectionNote: (note, stars, xpBonus) => {
+                if (typeof note !== 'string' || !note.trim()) return;
+                // stars is shown as a 1-5 rating; clamp to valid range.
+                const safeStars = Math.min(5, Math.max(1, Math.round(stars)));
+                // xpBonus comes from reflection quality UI (max reasonable value is 100).
+                const safeBonus = Math.min(100, Math.max(0, Math.floor(xpBonus)));
+                const safeNote = note.trim().slice(0, 2000);
                 const today = new Date().toISOString().split('T')[0];
                 set((state) => ({
                     lastReflectionDate: today,
                     reflectionNotes: [
-                        { date: today, note, stars },
+                        { date: today, note: safeNote, stars: safeStars },
                         ...state.reflectionNotes.slice(0, 29) // keep last 30
                     ]
                 }));
-                if (xpBonus > 0) get().addXP(xpBonus);
+                if (safeBonus > 0) get().addXP(safeBonus);
             },
 
             // RPG Actions - Quest Chains
