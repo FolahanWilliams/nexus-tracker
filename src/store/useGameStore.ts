@@ -317,6 +317,7 @@ export interface GameState {
     claimDailyReward: () => void;
     checkDailyQuests: () => void;
     generateDailyQuests: () => void;
+    toggleDailyQuest: (questId: string) => void;
 
     // Boss Battle Actions
     startBossBattle: (boss: Omit<BossBattle, 'id' | 'startsAt' | 'completed' | 'failed'>) => void;
@@ -787,10 +788,10 @@ export const useGameStore = create<GameState>()(
                     get().checkAchievements();
                     get().updateTitle();
                 } catch (error) {
-                    if (error instanceof ValidationError) {
-                        console.error('Validation error:', error.message);
-                    }
-                    throw error;
+                    // ValidationErrors from addXP are non-fatal (e.g. amount too large).
+                    // Log and return rather than re-throwing so callers (toggleTask,
+                    // completeHabit, etc.) that have no surrounding try/catch don't crash.
+                    console.error('addXP error:', error instanceof ValidationError ? error.message : error);
                 }
             },
 
@@ -808,24 +809,27 @@ export const useGameStore = create<GameState>()(
                         finalAmount = Math.floor(finalAmount * CLASS_BONUSES[state.characterClass].goldMultiplier);
                     }
 
-                    state.activeBuffs.forEach(buff => {
-                        if (buff.type === 'gold' || buff.type === 'buff') {
-                            finalAmount = Math.floor(finalAmount * buff.value);
+                    // Buffs and lucky star bonuses only apply when gaining gold,
+                    // not when deducting a penalty (e.g. uncompleting a task).
+                    if (finalAmount > 0) {
+                        state.activeBuffs.forEach(buff => {
+                            if (buff.type === 'gold' || buff.type === 'buff') {
+                                finalAmount = Math.floor(finalAmount * buff.value);
+                            }
+                        });
+
+                        // Lucky star chance for double gold (rewards only, not penalties)
+                        const luckySkill = state.skills.find(s => s.id === 'lucky-star');
+                        if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05)) {
+                            finalAmount *= 2;
                         }
-                    });
-
-                    // Lucky star chance for double gold
-                    const luckySkill = state.skills.find(s => s.id === 'lucky-star');
-                    if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05 * luckySkill.currentLevel)) {
-                        finalAmount *= 2;
                     }
 
-                    set((state) => ({ gold: state.gold + finalAmount }));
+                    set((state) => ({ gold: Math.max(0, state.gold + finalAmount) }));
                 } catch (error) {
-                    if (error instanceof ValidationError) {
-                        console.error('Validation error:', error.message);
-                    }
-                    throw error;
+                    // Same as addXP: swallow ValidationErrors so callers without
+                    // try/catch (toggleTask, completeHabit, etc.) don't crash.
+                    console.error('addGold error:', error instanceof ValidationError ? error.message : error);
                 }
             },
 
@@ -922,6 +926,33 @@ export const useGameStore = create<GameState>()(
                 }));
 
                 set({ dailyQuests });
+            },
+
+            toggleDailyQuest: (questId) => {
+                const state = get();
+                const quest = state.dailyQuests.find(q => q.id === questId);
+                if (!quest || quest.isExpired) return;
+
+                if (!quest.completed) {
+                    // Completing: award XP and gold, then check achievements
+                    get().addXP(quest.xpReward);
+                    get().addGold(Math.floor(quest.xpReward / 2));
+                    set((s) => ({
+                        dailyQuests: s.dailyQuests.map(q =>
+                            q.id === questId ? { ...q, completed: true } : q
+                        )
+                    }));
+                    get().checkAchievements();
+                } else {
+                    // Uncompleting: reverse XP and gold
+                    get().addXP(-quest.xpReward);
+                    get().addGold(-Math.floor(quest.xpReward / 2));
+                    set((s) => ({
+                        dailyQuests: s.dailyQuests.map(q =>
+                            q.id === questId ? { ...q, completed: false } : q
+                        )
+                    }));
+                }
             },
 
             checkDailyQuests: () => {
@@ -1430,9 +1461,15 @@ export const useGameStore = create<GameState>()(
             },
 
             buyGoldBuff: (type, durationMinutes, goldCost) => {
-                const state = get();
-                if (state.gold < goldCost) return false;
-                set((s) => ({ gold: s.gold - goldCost }));
+                // Perform the affordability check and deduction inside a single set()
+                // so there is no window between reading gold and writing it.
+                let purchased = false;
+                set((state) => {
+                    if (state.gold < goldCost) return state;
+                    purchased = true;
+                    return { gold: state.gold - goldCost };
+                });
+                if (!purchased) return false;
                 get().addBuff(type, 1.5, durationMinutes);
                 return true;
             },
@@ -1619,6 +1656,11 @@ export const useGameStore = create<GameState>()(
             },
 
             advanceQuestChain: (chainId) => {
+                // Capture the reward outside the set() callback so we can apply it after
+                // the state update settles. Calling get() inside set() is unsafe because
+                // the pending state hasn't been committed yet when get() would fire.
+                let pendingReward: QuestChain['reward'] | null = null;
+
                 set((state) => {
                     const chain = state.questChains.find(c => c.id === chainId);
                     if (!chain || chain.completed) return state;
@@ -1627,19 +1669,12 @@ export const useGameStore = create<GameState>()(
                     const isComplete = nextStep >= chain.steps.length;
 
                     if (isComplete) {
-                        const newState = {
+                        pendingReward = chain.reward;
+                        return {
                             questChains: state.questChains.map(c =>
                                 c.id === chainId ? { ...c, completed: true, currentStep: nextStep } : c
                             )
                         };
-
-                        get().addXP(chain.reward.xp);
-                        get().addGold(chain.reward.gold);
-                        if (chain.reward.item) {
-                            get().addItem(chain.reward.item);
-                        }
-
-                        return newState;
                     }
 
                     return {
@@ -1648,23 +1683,32 @@ export const useGameStore = create<GameState>()(
                         )
                     };
                 });
+
+                // Apply rewards after set() has committed so every subsequent get() sees
+                // the chain already marked completed (prevents any chance of double-reward).
+                if (pendingReward) {
+                    const reward = pendingReward as QuestChain['reward'];
+                    get().addXP(reward.xp);
+                    get().addGold(reward.gold);
+                    if (reward.item) {
+                        get().addItem(reward.item);
+                    }
+                }
             },
 
             completeQuestStep: (chainId, stepId) => {
+                // Only mark the individual step as done here.
+                // Do NOT set chain.completed — advanceQuestChain owns that decision
+                // and will grant rewards. Setting it here would cause advanceQuestChain
+                // to find chain.completed === true and return early, skipping rewards.
                 set((state) => ({
                     questChains: state.questChains.map(chain => {
                         if (chain.id !== chainId) return chain;
-
-                        const updatedSteps = chain.steps.map(step =>
-                            step.id === stepId ? { ...step, completed: true } : step
-                        );
-
-                        const allComplete = updatedSteps.every(s => s.completed);
-
                         return {
                             ...chain,
-                            steps: updatedSteps,
-                            completed: allComplete
+                            steps: chain.steps.map(step =>
+                                step.id === stepId ? { ...step, completed: true } : step
+                            )
                         };
                     })
                 }));
@@ -1673,9 +1717,10 @@ export const useGameStore = create<GameState>()(
             },
 
             addFocusSession: (minutesCompleted: number) => {
+                const safeMins = Math.max(0, Math.floor(minutesCompleted));
                 set((state) => ({
                     focusSessionsTotal: state.focusSessionsTotal + 1,
-                    focusMinutesTotal: state.focusMinutesTotal + minutesCompleted,
+                    focusMinutesTotal: state.focusMinutesTotal + safeMins,
                 }));
             },
 
