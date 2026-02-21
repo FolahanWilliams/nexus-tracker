@@ -473,12 +473,15 @@ export default function BossBattlesPage() {
                 <p className="text-lg font-bold text-[var(--color-red)]">{playerDamage} Damage</p>
               </div>
 
-              {/* Attack Button */}
+              {/* Attack Button — disabled once the boss is already defeated or failed
+                  so the button can't fire no-op store calls while the modal is still
+                  open (e.g. when the boss timer expires mid-fight). */}
               <motion.button
                 onClick={handleAttack}
-                className="w-full rpg-button !bg-[var(--color-red)] !text-white !py-4 text-lg"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
+                disabled={!selectedBoss || selectedBoss.completed || selectedBoss.failed}
+                className="w-full rpg-button !bg-[var(--color-red)] !text-white !py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                whileHover={selectedBoss && !selectedBoss.completed && !selectedBoss.failed ? { scale: 1.05 } : {}}
+                whileTap={selectedBoss && !selectedBoss.completed && !selectedBoss.failed ? { scale: 0.95 } : {}}
               >
                 <Sword size={24} className="inline mr-2" />
                 ATTACK!

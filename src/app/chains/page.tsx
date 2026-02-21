@@ -163,8 +163,10 @@ export default function QuestChainsPage() {
       addToast(`Step completed! Next: ${chain.steps[stepIndex + 1].title}`, 'success');
     }
 
-    // Refresh selected chain
-    const updatedChain = questChains.find(c => c.id === chain.id);
+    // Read fresh state directly from the store rather than from the component's
+    // stale questChains closure (which won't reflect the just-committed update
+    // until the next React render).
+    const updatedChain = useGameStore.getState().questChains.find(c => c.id === chain.id);
     if (updatedChain) {
       setSelectedChain(updatedChain);
     }
