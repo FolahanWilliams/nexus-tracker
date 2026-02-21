@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+
+// Module-level map: one active reset-timer per recurring task.
+// Using a Map outside the store avoids serialisation and keeps timer handles
+// away from persisted state.  The timer reference lets us cancel a previous
+// timer before creating a new one, preventing multiple accumulated timeouts
+// from resetting a task more than once per cycle.
+const recurringTaskTimers = new Map<string, ReturnType<typeof setTimeout>>();
 import { createIndexedDBStorage } from '@/lib/zustandStorage';
 // import { createSupabaseStorage } from '@/lib/supabaseStorage';
 import {
@@ -1338,12 +1345,26 @@ export const useGameStore = create<GameState>()(
                         )
                     }));
 
-                    // Reset recurring tasks after a delay
+                    // Reset recurring tasks after a delay.
+                    // We cancel any previously pending timer for this task before starting
+                    // a new one so that toggling the task multiple times doesn't accumulate
+                    // timers that later fire and reset the task on every cycle.
+                    // We also capture `completedAt` now and verify it in the callback:
+                    // if the user completed the task again between now and when the timer
+                    // fires, the completedAt timestamp will differ and we skip the reset.
                     if (!task.completed && task.recurring && task.recurring !== 'none') {
                         const delay = task.recurring === 'daily' ? 86400000 : 604800000; // 24h or 7d
-                        setTimeout(() => {
+                        const completedAt = now; // captured from the set() above
+
+                        const existing = recurringTaskTimers.get(id);
+                        if (existing !== undefined) clearTimeout(existing);
+
+                        const handle = setTimeout(() => {
+                            recurringTaskTimers.delete(id);
                             const current = get().tasks.find(t => t.id === id);
-                            if (current?.completed) {
+                            // Only reset if still completed AND this is the same completion
+                            // cycle we originally scheduled for (completedAt matches).
+                            if (current?.completed && current.completedAt === completedAt) {
                                 set((state) => ({
                                     tasks: state.tasks.map((t) =>
                                         t.id === id ? { ...t, completed: false, completedAt: undefined } : t
@@ -1351,6 +1372,8 @@ export const useGameStore = create<GameState>()(
                                 }));
                             }
                         }, delay);
+
+                        recurringTaskTimers.set(id, handle);
                     }
 
                     get().checkAchievements();
