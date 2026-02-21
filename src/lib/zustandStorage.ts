@@ -42,17 +42,21 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
 
   setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
     if (typeof window === 'undefined') return;
+    // Serialize once for local storage.
     const serialized = JSON.stringify(value);
     try {
       // Always save locally first (fast)
       await hybridStorage.save(serialized);
 
-      // Debounced Firestore sync if authenticated
+      // Debounced Firestore sync if authenticated.
+      // Pass `value` (the plain object) — saveToFirestore calls JSON.stringify
+      // internally, so passing `serialized` (already a JSON string) would cause
+      // double-encoding and corrupt the Firestore document.
       const user = getCurrentUser();
       if (user) {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-          saveToFirestore(user.uid, serialized);
+          saveToFirestore(user.uid, value);
         }, DEBOUNCE_MS);
       }
     } catch (error) {
