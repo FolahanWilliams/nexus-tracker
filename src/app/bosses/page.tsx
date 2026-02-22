@@ -162,6 +162,7 @@ export default function BossBattlesPage() {
         setSelectedBoss(null);
         setBattleTimer(0);
       } else {
+        setSelectedBoss(updatedBoss);
         addToast(`Dealt ${playerDamage} damage! ${updatedBoss.hp} HP remaining.`, 'info');
       }
     }

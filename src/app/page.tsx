@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useGameStore, xpForLevel } from '@/store/useGameStore';
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight } from 'lucide-react';
+import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight, Sword, User, Backpack, BarChart3, Settings, Map, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
@@ -52,17 +52,17 @@ function getProductivityScore(params: {
 
 
 const menuItems = [
-  { href: '/quests',     emoji: '📦', label: 'Quests' },
-  { href: '/habits',     emoji: '🔁', label: 'Habits' },
-  { href: '/focus',      emoji: '⏱️', label: 'Focus Timer' },
-  { href: '/goals',      emoji: '🎯', label: 'Goals' },
-  { href: '/reflection', emoji: '🌙', label: 'Daily Check-In' },
-  { href: '/chains',     emoji: '🗺️', label: 'Quest Chains' },
-  { href: '/bosses',     emoji: '⚔️', label: 'Boss Battles' },
-  { href: '/character',  emoji: '🧙', label: 'Character & Skills' },
-  { href: '/inventory',  emoji: '🎒', label: 'Items & Shop' },
-  { href: '/analytics',  emoji: '📊', label: 'Progress & Records' },
-  { href: '/settings',   emoji: '⚙️', label: 'Settings' },
+  { href: '/quests',     icon: Target,    label: 'Quests',             color: 'var(--color-green)' },
+  { href: '/habits',     icon: Repeat2,   label: 'Habits',             color: 'var(--color-purple)' },
+  { href: '/focus',      icon: Timer,     label: 'Focus Timer',        color: 'var(--color-blue)' },
+  { href: '/goals',      icon: Flag,      label: 'Goals',              color: 'var(--color-orange)' },
+  { href: '/reflection', icon: BookOpen,  label: 'Daily Check-In',     color: 'var(--color-yellow)' },
+  { href: '/chains',     icon: Map,       label: 'Quest Chains',       color: 'var(--color-blue)' },
+  { href: '/bosses',     icon: Sword,     label: 'Boss Battles',       color: 'var(--color-red)' },
+  { href: '/character',  icon: User,      label: 'Character & Skills', color: 'var(--color-purple-light)' },
+  { href: '/inventory',  icon: Backpack,  label: 'Items & Shop',       color: 'var(--color-yellow)' },
+  { href: '/analytics',  icon: BarChart3, label: 'Progress & Records', color: 'var(--color-green)' },
+  { href: '/settings',   icon: Settings,  label: 'Settings',           color: 'var(--color-text-muted)' },
 ];
 
 export default function HomePage() {
@@ -179,8 +179,8 @@ function DashboardContent() {
       addToast('Daily reward already claimed! Come back tomorrow.', 'info');
       return;
     }
-    claimDailyReward();
     const reward = DAILY_REWARDS[loginStreak % 7];
+    claimDailyReward();
     addToast(`Daily reward claimed! +${reward.gold} Gold, +${reward.gems} Gems`, 'success');
   };
 
@@ -212,60 +212,99 @@ function DashboardContent() {
   };
 
   const scoreColor = productivityScore >= 80 ? 'var(--color-green)' : productivityScore >= 50 ? 'var(--color-yellow)' : 'var(--color-orange)';
+  const scoreGlow = productivityScore >= 80 ? 'rgba(74, 222, 128, 0.3)' : productivityScore >= 50 ? 'rgba(251, 191, 36, 0.3)' : 'rgba(251, 146, 60, 0.3)';
+
+  const stagger = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.06 } },
+  };
+  const fadeUp = {
+    hidden: { opacity: 0, y: 16 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] } },
+  };
 
   return (
     <div className="min-h-screen flex flex-col pb-20">
       {/* Hero Banner */}
       <motion.div
-        className="relative w-full h-36 overflow-hidden"
+        className="relative w-full h-44 overflow-hidden"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.6 }}
       >
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-purple)]/40 to-[var(--color-blue)]/40" />
-        <div className="absolute inset-0 flex items-end px-4 py-4">
-          <div>
-            <p className="text-xs text-[var(--color-text-muted)] uppercase tracking-widest mb-1">War Room</p>
-            <h1 className="text-lg font-bold leading-tight">{getGreeting(characterName, streak)}</h1>
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--color-purple)]/30 via-[var(--color-blue)]/20 to-[var(--color-bg-dark)] animate-gradient" style={{ backgroundSize: '200% 200%' }} />
+        {/* Decorative orbs */}
+        <div className="absolute top-4 right-8 w-32 h-32 rounded-full bg-[var(--color-purple)]/10 blur-3xl" />
+        <div className="absolute bottom-0 left-4 w-24 h-24 rounded-full bg-[var(--color-blue)]/10 blur-2xl" />
+        <div className="absolute inset-0 flex items-end px-4 py-5">
+          <div className="max-w-3xl mx-auto w-full">
+            <motion.p
+              className="text-[10px] text-[var(--color-purple-light)] uppercase tracking-[0.2em] font-bold mb-1.5"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              War Room
+            </motion.p>
+            <motion.h1
+              className="text-lg font-bold leading-tight"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+            >
+              {getGreeting(characterName, streak)}
+            </motion.h1>
           </div>
         </div>
       </motion.div>
 
-      <div className="flex-1 -mt-4 relative z-10">
+      <motion.div
+        className="flex-1 -mt-6 relative z-10"
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+      >
         <div className="max-w-3xl mx-auto px-4">
 
           {/* Stats Card */}
           <motion.div
-            className="rpg-card mb-4"
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
+            className="rpg-card mb-4 shimmer glow-purple"
+            variants={fadeUp}
           >
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 bg-gradient-to-br from-[var(--color-purple)] to-[var(--color-blue)] rounded-full flex items-center justify-center text-2xl font-bold">
-                  {level}
-                </div>
+                <motion.div
+                  className="relative w-14 h-14"
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  transition={{ type: 'spring', stiffness: 300 }}
+                >
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-[var(--color-purple)] to-[var(--color-blue)] opacity-40 blur-md" />
+                  <div className="relative w-full h-full bg-gradient-to-br from-[var(--color-purple)] to-[var(--color-blue)] rounded-full flex items-center justify-center text-2xl font-black ring-2 ring-[var(--color-purple)]/30 ring-offset-2 ring-offset-[var(--color-bg-card)]">
+                    {level}
+                  </div>
+                </motion.div>
                 <div>
                   <p className="font-bold text-lg leading-tight">{title}</p>
                   <p className="text-xs text-[var(--color-text-muted)]">{characterClass ?? 'No Class'}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="text-center">
-                  <p className="text-lg font-bold text-[var(--color-yellow)]">{gold}</p>
-                  <p className="text-[10px] text-[var(--color-text-muted)]">Gold</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-[var(--color-blue)]">{gems}</p>
-                  <p className="text-[10px] text-[var(--color-text-muted)]">Gems</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-lg font-bold text-[var(--color-orange)]">
-                    {streak} 🔥
-                    {lastFreezedDate === today && <span className="text-[10px] ml-1 align-super text-[var(--color-blue)]">❄️</span>}
+              <div className="flex items-center gap-3">
+                {[
+                  { value: gold, label: 'Gold', color: 'var(--color-yellow)', bg: 'rgba(251, 191, 36, 0.1)' },
+                  { value: gems, label: 'Gems', color: 'var(--color-blue)', bg: 'rgba(96, 165, 250, 0.1)' },
+                ].map(stat => (
+                  <div key={stat.label} className="text-center px-2.5 py-1.5 rounded-lg" style={{ background: stat.bg }}>
+                    <p className="text-base font-bold" style={{ color: stat.color }}>{stat.value}</p>
+                    <p className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: stat.color, opacity: 0.7 }}>{stat.label}</p>
+                  </div>
+                ))}
+                <div className="text-center px-2.5 py-1.5 rounded-lg" style={{ background: 'rgba(251, 146, 60, 0.1)' }}>
+                  <p className="text-base font-bold text-[var(--color-orange)]">
+                    {streak}
+                    {lastFreezedDate === today && <span className="text-[9px] ml-0.5 align-super text-[var(--color-blue)]">ICE</span>}
                   </p>
-                  <p className="text-[10px] text-[var(--color-text-muted)]">
-                    Streak{streakFreezes > 0 ? ` · ❄️×${streakFreezes}` : ''}
+                  <p className="text-[9px] font-semibold uppercase tracking-wider text-[var(--color-orange)]" style={{ opacity: 0.7 }}>
+                    Streak{streakFreezes > 0 ? ` +${streakFreezes}` : ''}
                   </p>
                 </div>
               </div>
@@ -273,86 +312,83 @@ function DashboardContent() {
 
             {/* XP Bar */}
             <div>
-              <div className="flex justify-between text-xs mb-1 text-[var(--color-text-muted)]">
-                <span>XP to Level {level + 1}</span>
-                <span>{xp.toLocaleString()} / {xpToNext.toLocaleString()}</span>
+              <div className="flex justify-between text-xs mb-1.5 text-[var(--color-text-muted)]">
+                <span className="font-semibold">Level {level + 1}</span>
+                <span className="font-mono text-[11px]">{xp.toLocaleString()} / {xpToNext.toLocaleString()} XP</span>
               </div>
-              <div className="h-2.5 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+              <div className="h-3 bg-[var(--color-bg-dark)] rounded-full overflow-hidden relative">
                 <motion.div
-                  className="h-full bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)] rounded-full"
+                  className="h-full bg-gradient-to-r from-[var(--color-purple)] via-[var(--color-blue)] to-[var(--color-purple)] rounded-full relative"
+                  style={{ backgroundSize: '200% 100%' }}
                   initial={{ width: 0 }}
-                  animate={{ width: `${Math.min(xpProgress, 100)}%` }}
-                  transition={{ duration: 1, ease: 'easeOut' }}
+                  animate={{ width: `${Math.min(xpProgress, 100)}%`, backgroundPosition: ['0% 0%', '100% 0%'] }}
+                  transition={{ width: { duration: 1.2, ease: 'easeOut' }, backgroundPosition: { duration: 3, repeat: Infinity, repeatType: 'reverse' } }}
                 />
+                {/* Shimmer overlay */}
+                <div className="absolute inset-0 rounded-full overflow-hidden">
+                  <div className="shimmer w-full h-full" />
+                </div>
               </div>
             </div>
           </motion.div>
 
           {/* Productivity Score + Today's Summary */}
-          <motion.div
-            className="grid grid-cols-2 gap-4 mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-          >
+          <motion.div className="grid grid-cols-2 gap-3 mb-4" variants={fadeUp}>
             {/* Productivity Score */}
-            <div className="rpg-card flex flex-col items-center justify-center py-4">
-              <div className="relative w-20 h-20 mb-2">
-                <svg viewBox="0 0 80 80" className="-rotate-90 w-full h-full">
-                  <circle cx="40" cy="40" r="34" fill="none" stroke="var(--color-border)" strokeWidth="6" />
+            <div className="rpg-card flex flex-col items-center justify-center py-5">
+              <div className="relative w-24 h-24 mb-3">
+                {/* Background glow */}
+                <div className="absolute inset-2 rounded-full blur-lg" style={{ background: scoreGlow }} />
+                <svg viewBox="0 0 80 80" className="-rotate-90 w-full h-full relative z-10">
+                  <circle cx="40" cy="40" r="34" fill="none" stroke="var(--color-border)" strokeWidth="5" opacity="0.3" />
                   <motion.circle
                     cx="40" cy="40" r="34"
                     fill="none"
                     stroke={scoreColor}
-                    strokeWidth="6"
+                    strokeWidth="5"
                     strokeLinecap="round"
                     strokeDasharray={2 * Math.PI * 34}
                     initial={{ strokeDashoffset: 2 * Math.PI * 34 }}
                     animate={{ strokeDashoffset: 2 * Math.PI * 34 * (1 - productivityScore / 100) }}
-                    transition={{ duration: 1, ease: 'easeOut' }}
+                    transition={{ duration: 1.2, ease: 'easeOut', delay: 0.3 }}
+                    style={{ filter: `drop-shadow(0 0 6px ${scoreGlow})` }}
                   />
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <p className="text-xl font-bold" style={{ color: scoreColor }}>{productivityScore}</p>
+                <div className="absolute inset-0 flex items-center justify-center z-10">
+                  <motion.p
+                    className="text-2xl font-black"
+                    style={{ color: scoreColor }}
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.6, type: 'spring', stiffness: 200 }}
+                  >
+                    {productivityScore}
+                  </motion.p>
                 </div>
               </div>
-              <p className="text-xs text-[var(--color-text-muted)] font-semibold">Productivity Score</p>
-              <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">
-                {productivityScore >= 80 ? 'Legendary!' : productivityScore >= 50 ? 'Keep going!' : 'Just getting started'}
+              <p className="text-xs text-[var(--color-text-secondary)] font-bold">Productivity</p>
+              <p className="text-[10px] font-semibold mt-0.5" style={{ color: scoreColor }}>
+                {productivityScore >= 80 ? 'Legendary!' : productivityScore >= 50 ? 'Keep pushing!' : 'Just warming up'}
               </p>
             </div>
 
             {/* Today's Activity */}
-            <div className="rpg-card space-y-3">
-              <p className="text-xs font-bold text-[var(--color-text-muted)] uppercase tracking-wide">Today</p>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm">
-                  <Target size={14} className="text-[var(--color-green)]" />
-                  <span>Quests</span>
+            <div className="rpg-card space-y-2.5">
+              <p className="text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-[0.15em]">Today&apos;s Progress</p>
+              {[
+                { icon: Target, label: 'Quests', value: tasksCompletedToday, color: 'var(--color-green)', bg: 'rgba(74, 222, 128, 0.1)' },
+                { icon: Repeat2, label: 'Habits', value: `${habitsCompletedToday}/${habits.length}`, color: 'var(--color-purple)', bg: 'rgba(167, 139, 250, 0.1)' },
+                { icon: Flag, label: 'Goals', value: `${activeGoals.length} active`, color: 'var(--color-orange)', bg: 'rgba(251, 146, 60, 0.1)' },
+                { icon: Trophy, label: 'Total', value: totalQuestsCompleted, color: 'var(--color-yellow)', bg: 'rgba(251, 191, 36, 0.1)' },
+              ].map(({ icon: Icon, label, value, color, bg }) => (
+                <div key={label} className="flex items-center justify-between rounded-lg px-2.5 py-1.5" style={{ background: bg }}>
+                  <div className="flex items-center gap-2 text-sm">
+                    <Icon size={13} style={{ color }} />
+                    <span className="text-xs font-medium text-[var(--color-text-secondary)]">{label}</span>
+                  </div>
+                  <span className="font-bold text-sm" style={{ color }}>{value}</span>
                 </div>
-                <span className="font-bold text-[var(--color-green)]">{tasksCompletedToday}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm">
-                  <Repeat2 size={14} className="text-[var(--color-purple)]" />
-                  <span>Habits</span>
-                </div>
-                <span className="font-bold text-[var(--color-purple)]">{habitsCompletedToday}/{habits.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm">
-                  <Flag size={14} className="text-[var(--color-orange)]" />
-                  <span>Goals</span>
-                </div>
-                <span className="font-bold text-[var(--color-orange)]">{activeGoals.length} active</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm">
-                  <Trophy size={14} className="text-[var(--color-yellow)]" />
-                  <span>Total</span>
-                </div>
-                <span className="font-bold text-[var(--color-yellow)]">{totalQuestsCompleted}</span>
-              </div>
+              ))}
             </div>
           </motion.div>
 
@@ -360,19 +396,21 @@ function DashboardContent() {
           <AnimatePresence>
             {aiCoachMessage && (
               <motion.div
-                className="rpg-card mb-4 !bg-gradient-to-r from-[var(--color-blue)]/10 to-[var(--color-purple)]/10 !border-[var(--color-blue)]/30"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
+                className="rpg-card mb-4 !border-[var(--color-blue)]/30 relative overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.08), rgba(167, 139, 250, 0.08))' }}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
               >
-                <div className="flex gap-3 items-start">
-                  <div className="text-2xl mt-1">🦉</div>
-                  <div>
-                    <p className="text-xs font-bold text-[var(--color-blue)] uppercase tracking-wide mb-1">Hoot says:</p>
-                    <p className="text-sm italic text-[var(--color-text-secondary)]">&quot;{aiCoachMessage}&quot;</p>
+                <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-[var(--color-blue)]/5 blur-2xl" />
+                <div className="flex gap-3 items-start relative">
+                  <div className="text-2xl mt-0.5 w-9 h-9 flex items-center justify-center rounded-full bg-[var(--color-blue)]/10">🦉</div>
+                  <div className="flex-1">
+                    <p className="text-[10px] font-bold text-[var(--color-blue)] uppercase tracking-[0.15em] mb-1">Hoot says</p>
+                    <p className="text-sm italic text-[var(--color-text-secondary)] leading-relaxed">&quot;{aiCoachMessage}&quot;</p>
                     {trendInsight && (
-                      <p className="text-xs text-[var(--color-yellow)] mt-2 flex items-center gap-1">
-                        📊 <span className="italic">{trendInsight}</span>
+                      <p className="text-xs text-[var(--color-yellow)] mt-2 flex items-center gap-1.5 bg-[var(--color-yellow)]/5 rounded px-2 py-1 w-fit">
+                        <BarChart3 size={11} /> <span className="italic">{trendInsight}</span>
                       </p>
                     )}
                   </div>
@@ -382,30 +420,28 @@ function DashboardContent() {
           </AnimatePresence>
 
           {/* Weekly Strategy Planner */}
-          <div className="mb-4">
+          <motion.div className="mb-4" variants={fadeUp}>
             <WeeklyPlanner />
-          </div>
+          </motion.div>
 
           {/* Quick Actions Row */}
-          <motion.div
-            className="grid grid-cols-4 gap-2 mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.15 }}
-          >
+          <motion.div className="grid grid-cols-4 gap-2.5 mb-4" variants={fadeUp}>
             {[
-              { href: '/quests', icon: Target, label: 'Quests', color: 'var(--color-green)' },
-              { href: '/habits', icon: Repeat2, label: 'Habits', color: 'var(--color-purple)' },
-              { href: '/focus', icon: Timer, label: 'Focus', color: 'var(--color-blue)' },
-              { href: '/goals', icon: Flag, label: 'Goals', color: 'var(--color-orange)' },
-            ].map(({ href, icon: Icon, label, color }) => (
+              { href: '/quests', icon: Target, label: 'Quests', color: '#4ade80', bg: 'rgba(74, 222, 128, 0.1)', glow: 'rgba(74, 222, 128, 0.15)' },
+              { href: '/habits', icon: Repeat2, label: 'Habits', color: '#a78bfa', bg: 'rgba(167, 139, 250, 0.1)', glow: 'rgba(167, 139, 250, 0.15)' },
+              { href: '/focus', icon: Timer, label: 'Focus', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.1)', glow: 'rgba(96, 165, 250, 0.15)' },
+              { href: '/goals', icon: Flag, label: 'Goals', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.1)', glow: 'rgba(251, 146, 60, 0.15)' },
+            ].map(({ href, icon: Icon, label, color, bg, glow }) => (
               <Link key={href} href={href}>
                 <motion.div
-                  className="rpg-card !p-3 flex flex-col items-center gap-1.5 cursor-pointer"
-                  whileHover={{ scale: 1.05, y: -2 }}
+                  className="rpg-card !p-3.5 flex flex-col items-center gap-2 cursor-pointer !border-transparent"
+                  whileHover={{ scale: 1.06, y: -3, boxShadow: `0 8px 24px ${glow}` }}
                   whileTap={{ scale: 0.95 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                 >
-                  <Icon size={22} style={{ color }} />
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: bg }}>
+                    <Icon size={20} style={{ color }} />
+                  </div>
                   <p className="text-[10px] font-bold text-[var(--color-text-muted)]">{label}</p>
                 </motion.div>
               </Link>
@@ -414,36 +450,33 @@ function DashboardContent() {
 
           {/* Habit Streak Strip */}
           {habits.length > 0 && (
-            <motion.div
-              className="mb-4"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.18 }}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-[var(--color-text-muted)] tracking-widest uppercase">Today&apos;s Habits</p>
-                <Link href="/habits" className="text-xs text-[var(--color-purple)]">View all →</Link>
+            <motion.div className="mb-4" variants={fadeUp}>
+              <div className="flex items-center justify-between mb-2.5">
+                <p className="text-[10px] font-bold text-[var(--color-text-muted)] tracking-[0.15em] uppercase">Today&apos;s Habits</p>
+                <Link href="/habits" className="text-[11px] font-semibold text-[var(--color-purple)] hover:text-[var(--color-purple-light)] transition-colors">View all</Link>
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {habits.map(habit => {
                   const doneToday = habit.completedDates.includes(today);
                   return (
-                    <button
+                    <motion.button
                       key={habit.id}
-                      onClick={() => { if (!doneToday) { completeHabit(habit.id); addToast(`${habit.name} completed! 🔥`, 'success'); } }}
+                      onClick={() => { if (!doneToday) { completeHabit(habit.id); addToast(`${habit.name} completed!`, 'success'); } }}
                       disabled={doneToday}
-                      className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-lg border transition-all ${
+                      className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border transition-all ${
                         doneToday
-                          ? 'border-[var(--color-green)] bg-[var(--color-green)]/10'
-                          : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/50 bg-[var(--color-bg-card)]'
+                          ? 'border-[var(--color-green)]/40 bg-[var(--color-green)]/10'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/40 bg-[var(--color-bg-card)]'
                       }`}
+                      whileHover={!doneToday ? { scale: 1.04, y: -2 } : {}}
+                      whileTap={!doneToday ? { scale: 0.96 } : {}}
                     >
                       <span className="text-lg">{habit.icon}</span>
-                      <span className="text-xs font-semibold max-w-[64px] truncate">{habit.name}</span>
-                      <span className={`text-xs font-bold ${doneToday ? 'text-[var(--color-green)]' : 'text-[var(--color-text-muted)]'}`}>
-                        {doneToday ? '✓' : habit.streak > 0 ? `🔥 ${habit.streak}` : '○'}
+                      <span className="text-[11px] font-semibold max-w-[64px] truncate">{habit.name}</span>
+                      <span className={`text-[10px] font-bold ${doneToday ? 'text-[var(--color-green)]' : 'text-[var(--color-text-muted)]'}`}>
+                        {doneToday ? '✓ Done' : habit.streak > 0 ? `${habit.streak}d streak` : 'Tap'}
                       </span>
-                    </button>
+                    </motion.button>
                   );
                 })}
               </div>
@@ -451,20 +484,17 @@ function DashboardContent() {
           )}
 
           {/* Daily Quests + Daily Reward Row */}
-          <motion.div
-            className="grid grid-cols-2 gap-4 mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
+          <motion.div className="grid grid-cols-2 gap-3 mb-4" variants={fadeUp}>
             {/* Daily Quests */}
             <div className="rpg-card">
               <div className="flex items-center gap-2 mb-3">
-                <Target className="text-[var(--color-green)]" size={18} />
+                <div className="w-6 h-6 rounded-md bg-[var(--color-green)]/10 flex items-center justify-center">
+                  <Target className="text-[var(--color-green)]" size={14} />
+                </div>
                 <h3 className="font-bold text-sm">Daily Quests</h3>
-                <span className="text-xs text-[var(--color-text-muted)]">({completedDailyQuests}/{dailyQuests.length})</span>
+                <span className="ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--color-green)]/10 text-[var(--color-green)]">{completedDailyQuests}/{dailyQuests.length}</span>
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 {dailyQuests.slice(0, 3).map(quest => (
                   <button
                     key={quest.id}
@@ -477,52 +507,61 @@ function DashboardContent() {
                       }
                     }}
                     disabled={quest.isExpired}
-                    className={`w-full flex items-center gap-2 text-sm text-left rounded px-1 py-0.5 transition-colors ${quest.isExpired ? 'opacity-40 cursor-not-allowed' : 'hover:bg-[var(--color-bg-dark)] cursor-pointer'}`}
+                    className={`w-full flex items-center gap-2 text-sm text-left rounded-lg px-2 py-1.5 transition-all ${quest.isExpired ? 'opacity-30 cursor-not-allowed' : 'hover:bg-[var(--color-bg-dark)] cursor-pointer'}`}
                   >
-                    <span className={quest.completed ? 'text-[var(--color-green)]' : 'text-[var(--color-text-muted)]'}>
-                      {quest.completed ? '✓' : '○'}
+                    <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center text-[10px] transition-all ${quest.completed ? 'border-[var(--color-green)] bg-[var(--color-green)] text-white' : 'border-[var(--color-border)]'}`}>
+                      {quest.completed && '✓'}
                     </span>
-                    <span className={`truncate text-xs ${quest.completed ? 'line-through text-[var(--color-text-muted)]' : ''}`}>
+                    <span className={`truncate text-xs ${quest.completed ? 'line-through text-[var(--color-text-muted)]' : 'text-[var(--color-text-secondary)]'}`}>
                       {quest.title}
                     </span>
                   </button>
                 ))}
               </div>
-              <Link href="/quests" className="text-xs text-[var(--color-purple)] mt-2 block">
-                View all →
+              <Link href="/quests" className="text-[11px] font-semibold text-[var(--color-purple)] mt-2.5 block hover:text-[var(--color-purple-light)] transition-colors">
+                View all quests
               </Link>
             </div>
 
             {/* Daily Login */}
             <div className="rpg-card">
               <div className="flex items-center gap-2 mb-3">
-                <Gift className="text-[var(--color-yellow)]" size={18} />
+                <div className="w-6 h-6 rounded-md bg-[var(--color-yellow)]/10 flex items-center justify-center">
+                  <Gift className="text-[var(--color-yellow)]" size={14} />
+                </div>
                 <h3 className="font-bold text-sm">Daily Login</h3>
               </div>
               {canClaimDaily ? (
                 <motion.button
                   onClick={handleClaimDailyReward}
-                  className="w-full rpg-button !bg-[var(--color-yellow)] !text-black !py-2 text-sm"
-                  whileHover={{ scale: 1.03 }}
+                  className="w-full py-2.5 rounded-xl font-bold text-sm text-black bg-gradient-to-r from-[var(--color-yellow)] to-[#f59e0b] flex items-center justify-center gap-2"
+                  whileHover={{ scale: 1.03, boxShadow: '0 4px 20px rgba(251, 191, 36, 0.3)' }}
                   whileTap={{ scale: 0.97 }}
                 >
-                  <Gift size={14} /> Claim!
+                  <Gift size={15} /> Claim Reward!
                 </motion.button>
               ) : (
-                <p className="text-xs text-[var(--color-text-muted)]">Come back tomorrow!</p>
+                <div className="text-center py-2">
+                  <p className="text-xs text-[var(--color-text-muted)]">Claimed today!</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-0.5">Come back tomorrow</p>
+                </div>
               )}
-              <div className="flex justify-center gap-1 mt-2">
-                {[1, 2, 3, 4, 5, 6, 7].map(day => (
-                  <div
-                    key={day}
-                    className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold ${day <= (loginStreak % 7) + 1
-                      ? 'bg-[var(--color-yellow)] text-black'
-                      : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'
-                      }`}
-                  >
-                    {day}
-                  </div>
-                ))}
+              <div className="flex justify-center gap-1.5 mt-3">
+                {[1, 2, 3, 4, 5, 6, 7].map(day => {
+                  const isFilled = day <= (loginStreak % 7) + 1;
+                  return (
+                    <div
+                      key={day}
+                      className={`w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold transition-all ${isFilled
+                        ? 'bg-gradient-to-br from-[var(--color-yellow)] to-[#f59e0b] text-black shadow-sm'
+                        : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] border border-[var(--color-border)]'
+                        }`}
+                      style={isFilled ? { boxShadow: '0 0 8px rgba(251, 191, 36, 0.2)' } : {}}
+                    >
+                      {day}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </motion.div>
@@ -531,10 +570,10 @@ function DashboardContent() {
           <AnimatePresence>
             {activeBuffs.length > 0 && (
               <motion.div
-                className="rpg-card mb-4 !border-[var(--color-green)]"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
+                className="rpg-card mb-4 !border-[var(--color-green)]/30 glow-green"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
               >
                 <h3 className="font-bold mb-2 flex items-center gap-2 text-sm">
                   <Flame className="text-[var(--color-green)]" size={16} />
@@ -542,8 +581,8 @@ function DashboardContent() {
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {activeBuffs.map((buff, i) => (
-                    <span key={i} className="text-xs px-2 py-1 bg-[var(--color-green)]/20 text-[var(--color-green)] rounded">
-                      {buff.type} x{buff.value} ({getRemainingMinutes(buff.expiresAt)}m left)
+                    <span key={i} className="text-xs px-3 py-1.5 bg-[var(--color-green)]/10 text-[var(--color-green)] rounded-lg font-semibold border border-[var(--color-green)]/20">
+                      {buff.type} x{buff.value} ({getRemainingMinutes(buff.expiresAt)}m)
                     </span>
                   ))}
                 </div>
@@ -553,61 +592,73 @@ function DashboardContent() {
 
           {/* AI Plan Generator */}
           <motion.div
-            className="rpg-card mb-6 !bg-gradient-to-r from-[var(--color-purple)]/20 to-[var(--color-blue)]/20"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
+            className="rpg-card mb-5 !border-[var(--color-purple)]/20 relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(96, 165, 250, 0.08))' }}
+            variants={fadeUp}
           >
-            <div className="flex items-center justify-between">
+            <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-[var(--color-purple)]/10 blur-2xl" />
+            <div className="flex items-center justify-between relative">
               <div>
                 <h3 className="font-bold flex items-center gap-2">
-                  <Sparkles className="text-[var(--color-purple)]" size={18} />
+                  <div className="w-7 h-7 rounded-lg bg-[var(--color-purple)]/15 flex items-center justify-center">
+                    <Sparkles className="text-[var(--color-purple)]" size={15} />
+                  </div>
                   AI Quest Generator
                 </h3>
-                <p className="text-xs text-[var(--color-text-muted)] mt-0.5">
-                  Generate personalized quests with Gemini AI
+                <p className="text-xs text-[var(--color-text-muted)] mt-1 ml-9">
+                  Personalized quests powered by Gemini
                 </p>
               </div>
               <motion.button
                 onClick={handleGeneratePlan}
                 disabled={isGeneratingPlan}
-                className="rpg-button !bg-[var(--color-purple)] !text-white text-sm disabled:opacity-60"
-                whileHover={!isGeneratingPlan ? { scale: 1.05 } : {}}
+                className="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)] disabled:opacity-50 flex items-center gap-2"
+                whileHover={!isGeneratingPlan ? { scale: 1.05, boxShadow: '0 4px 20px rgba(167, 139, 250, 0.3)' } : {}}
                 whileTap={!isGeneratingPlan ? { scale: 0.95 } : {}}
               >
                 {isGeneratingPlan ? (
-                  <span className="flex items-center gap-1"><Zap size={14} className="animate-pulse" /> Generating...</span>
+                  <><Zap size={14} className="animate-spin" /> Generating...</>
                 ) : (
-                  <span className="flex items-center gap-1"><Zap size={14} /> Generate</span>
+                  <><Zap size={14} /> Generate</>
                 )}
               </motion.button>
             </div>
           </motion.div>
 
           {/* Full Menu Grid */}
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            {menuItems.map((item, index) => (
-              <motion.div
-                key={item.href}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35 + index * 0.04 }}
-              >
-                <Link
-                  href={item.href}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] hover:border-[var(--color-purple)]/50 hover:bg-[var(--color-bg-hover)] transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl">{item.emoji}</span>
-                    <span className="font-semibold text-sm">{item.label}</span>
-                  </div>
-                  <ChevronRight size={16} className="text-[var(--color-text-muted)]" />
-                </Link>
-              </motion.div>
-            ))}
-          </div>
+          <motion.div variants={fadeUp}>
+            <p className="text-[10px] font-bold text-[var(--color-text-muted)] tracking-[0.15em] uppercase mb-2.5">All Modules</p>
+            <div className="grid grid-cols-2 gap-2 mb-6">
+              {menuItems.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <motion.div
+                    key={item.href}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 + index * 0.03 }}
+                  >
+                    <Link href={item.href}>
+                      <motion.div
+                        className="flex items-center justify-between px-4 py-3 rounded-xl bg-[var(--color-bg-card)] border border-[var(--color-border)] transition-all group"
+                        whileHover={{ y: -2, borderColor: item.color, boxShadow: `0 4px 16px rgba(0,0,0,0.2)` }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center transition-colors" style={{ background: `color-mix(in srgb, ${item.color} 12%, transparent)` }}>
+                            <Icon size={16} style={{ color: item.color }} />
+                          </div>
+                          <span className="font-semibold text-sm text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-primary)] transition-colors">{item.label}</span>
+                        </div>
+                        <ChevronRight size={14} className="text-[var(--color-text-muted)] group-hover:translate-x-0.5 transition-transform" />
+                      </motion.div>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

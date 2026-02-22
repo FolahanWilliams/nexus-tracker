@@ -231,7 +231,8 @@ export default function QuestsPage() {
             data.changes.difficulty || existingTask.difficulty,
             existingTask.xpReward,
             data.changes.category || existingTask.category,
-            data.changes.recurring || existingTask.recurring
+            data.changes.recurring || existingTask.recurring,
+            data.changes.duration || existingTask.duration
           );
           addToast(data.message || 'Quest updated.', 'success');
         }
