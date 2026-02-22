@@ -7,7 +7,7 @@ import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, Chevr
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
-import AICoachWidget from '@/components/AICoachWidget';
+
 import { useAuth } from '@/components/AuthProvider';
 import LoginScreen from '@/components/LoginScreen';
 
@@ -357,10 +357,7 @@ function DashboardContent() {
             </div>
           </motion.div>
 
-          {/* AI Coach Widget — interactive, always accessible */}
-          <motion.div className="mb-4" variants={fadeUp}>
-            <AICoachWidget />
-          </motion.div>
+
 
           {/* Weekly Strategy Planner */}
           <motion.div className="mb-4" variants={fadeUp}>
@@ -407,8 +404,8 @@ function DashboardContent() {
                       onClick={() => { if (!doneToday) { completeHabit(habit.id); addToast(`${habit.name} completed!`, 'success'); } }}
                       disabled={doneToday}
                       className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border transition-all ${doneToday
-                          ? 'border-[var(--color-green)]/40 bg-[var(--color-green)]/10'
-                          : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/40 bg-[var(--color-bg-card)]'
+                        ? 'border-[var(--color-green)]/40 bg-[var(--color-green)]/10'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/40 bg-[var(--color-bg-card)]'
                         }`}
                       whileHover={!doneToday ? { scale: 1.04, y: -2 } : {}}
                       whileTap={!doneToday ? { scale: 0.96 } : {}}

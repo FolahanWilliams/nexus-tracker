@@ -12,6 +12,7 @@ import XPFloat from '@/components/XPFloat';
 import StreakCelebration from '@/components/StreakCelebration';
 import DailyIntention from '@/components/DailyIntention';
 import QuickAdd from '@/components/QuickAdd';
+import HootFAB from '@/components/HootFAB';
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
     return (
@@ -30,6 +31,7 @@ export default function ClientProviders({ children }: { children: React.ReactNod
             <StreakCelebration />
             <DailyIntention />
             <QuickAdd />
+            <HootFAB />
         </AuthProvider>
     );
 }
