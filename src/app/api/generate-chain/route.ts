@@ -1,8 +1,24 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+
+/**
+ * Extract JSON from a Gemini response that may contain markdown fences or prose.
+ */
+function extractJSON(text: string): unknown {
+    try { return JSON.parse(text); } catch { /* continue */ }
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) {
+        try { return JSON.parse(fenced[1].trim()); } catch { /* continue */ }
+    }
+    const braces = text.match(/\{[\s\S]*\}/);
+    if (braces) {
+        try { return JSON.parse(braces[0]); } catch { /* continue */ }
+    }
+    throw new Error('Could not extract JSON from response');
+}
 
 export async function POST(request: Request) {
     try {
@@ -35,13 +51,27 @@ export async function POST(request: Request) {
             });
         }
 
+        // Google Search Grounding lets the AI research the user's project topic
+        // to create steps that reference real tools, frameworks, and best practices.
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            generationConfig: { responseMimeType: "application/json" }
+            model: "gemini-2.0-flash",
+            tools: [{
+                googleSearchRetrieval: {
+                    dynamicRetrievalConfig: {
+                        mode: DynamicRetrievalMode.MODE_DYNAMIC,
+                        dynamicThreshold: 0.4, // Search fairly often for accurate step breakdowns
+                    },
+                },
+            }],
         });
 
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG.
 The user wants to accomplish a large project or goal. Your job is to break this goal down into a "Quest Chain" consisting of multiple logical steps, with optional branching paths to give the player meaningful choices.
+
+You have access to Google Search. Use it to:
+- Research the user's project topic for current best practices, tools, and resources
+- Make steps reference real, up-to-date techniques and tools
+- Ensure the chain is accurate and actionable based on current information
 
 Output ONLY a valid JSON object with the following properties:
 - name: String. A cool, RPG-styled name for this overall quest chain (e.g. "The Great Refactoring", "Path to Fluency").
@@ -74,12 +104,13 @@ Generate a quest chain for the following user goal:`;
         const response = result.response;
         const text = response.text();
 
-        const data = JSON.parse(text);
+        const data = extractJSON(text) as Record<string, unknown>;
 
         // Basic validation
         const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
-        if (!validDifficulties.includes(data.difficulty)) data.difficulty = 'Medium';
-        if (typeof data.reward?.xp !== 'number') data.reward = { xp: 100, gold: 50 };
+        if (!validDifficulties.includes(data.difficulty as string)) data.difficulty = 'Medium';
+        const reward = data.reward as { xp?: number; gold?: number } | undefined;
+        if (typeof reward?.xp !== 'number') data.reward = { xp: 100, gold: 50 };
 
         return NextResponse.json(data);
     } catch (error) {

@@ -1,8 +1,24 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+
+/**
+ * Extract JSON from a Gemini response that may contain markdown fences or prose.
+ */
+function extractJSON(text: string): unknown {
+    try { return JSON.parse(text); } catch { /* continue */ }
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) {
+        try { return JSON.parse(fenced[1].trim()); } catch { /* continue */ }
+    }
+    const braces = text.match(/\{[\s\S]*\}/);
+    if (braces) {
+        try { return JSON.parse(braces[0]); } catch { /* continue */ }
+    }
+    throw new Error('Could not extract JSON from response');
+}
 
 export async function POST(request: Request) {
     try {
@@ -20,9 +36,18 @@ export async function POST(request: Request) {
             });
         }
 
+        // Google Search Grounding lets the AI research the user's goal in real-time
+        // so quests reference accurate, current information (e.g., latest docs, tutorials).
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            generationConfig: { responseMimeType: "application/json" }
+            model: "gemini-2.0-flash",
+            tools: [{
+                googleSearchRetrieval: {
+                    dynamicRetrievalConfig: {
+                        mode: DynamicRetrievalMode.MODE_DYNAMIC,
+                        dynamicThreshold: 0.5,
+                    },
+                },
+            }],
         });
 
         // Build player context string if provided
@@ -36,6 +61,12 @@ Player Profile:
 Tailor the quests to suit a ${context.characterClass || 'general'} player at level ${context.level || 1}.` : '';
 
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG. Break down the user's goal into 1-2 executable "quests" (tasks).
+
+You have access to Google Search. Use it to:
+- Research the user's goal topic for current, accurate information
+- Make quests reference real tools, resources, or techniques that exist today
+- If relevant, include a brief tip or link in the quest title or description
+
 For each quest, output a JSON object with:
 - title: Actionable, specific task name (written like a real RPG quest objective)
 - xp: Experience points (10=Easy, 25=Medium, 50=Hard, 100=Epic)
@@ -49,7 +80,7 @@ Output ONLY a valid JSON object with a "quests" array. No other text.`;
         const response = result.response;
         const text = response.text();
 
-        const data = JSON.parse(text);
+        const data = extractJSON(text);
 
         return NextResponse.json(data);
     } catch (error) {

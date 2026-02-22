@@ -1,7 +1,23 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+
+/**
+ * Extract JSON from a Gemini response that may contain markdown fences or prose.
+ */
+function extractJSON(text: string): unknown {
+    try { return JSON.parse(text); } catch { /* continue */ }
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) {
+        try { return JSON.parse(fenced[1].trim()); } catch { /* continue */ }
+    }
+    const braces = text.match(/\{[\s\S]*\}/);
+    if (braces) {
+        try { return JSON.parse(braces[0]); } catch { /* continue */ }
+    }
+    throw new Error('Could not extract JSON from response');
+}
 
 export async function POST(request: Request) {
     try {
@@ -21,13 +37,26 @@ export async function POST(request: Request) {
             });
         }
 
+        // Google Search Grounding lets the AI reference real-world events and trends
+        // to create culturally relevant, topical boss battles.
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            generationConfig: { responseMimeType: "application/json" }
+            model: "gemini-2.0-flash",
+            tools: [{
+                googleSearchRetrieval: {
+                    dynamicRetrievalConfig: {
+                        mode: DynamicRetrievalMode.MODE_DYNAMIC,
+                        dynamicThreshold: 0.6, // Higher threshold — only search when truly beneficial
+                    },
+                },
+            }],
         });
 
         const systemPrompt = `You are the Dungeon Master for QuestFlow RPG.
 Generate a Custom Boss Battle based on the player's recent struggles.
+
+You have access to Google Search. Use it to:
+- Reference current events, trending topics, or real-world challenges to make the boss feel timely and relevant
+- Create boss names and descriptions that feel connected to today's world (e.g., "The Algorithm Overlord" if they struggle with social media distractions)
 
 Context:
 - Player Level: ${playerContext?.level || 1}
@@ -52,7 +81,7 @@ Output ONLY a valid JSON object with:
 
         const result = await model.generateContent(systemPrompt);
         const text = result.response.text();
-        const data = JSON.parse(text);
+        const data = extractJSON(text) as Record<string, unknown>;
 
         return NextResponse.json({
             ...data,

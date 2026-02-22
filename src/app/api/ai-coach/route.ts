@@ -1,7 +1,26 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+
+/**
+ * Extract JSON from a Gemini response that may contain markdown fences or prose.
+ */
+function extractJSON(text: string): unknown {
+    // Try direct parse first
+    try { return JSON.parse(text); } catch { /* continue */ }
+    // Try extracting from ```json ... ``` fences
+    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenced) {
+        try { return JSON.parse(fenced[1].trim()); } catch { /* continue */ }
+    }
+    // Try extracting the first { ... } block
+    const braces = text.match(/\{[\s\S]*\}/);
+    if (braces) {
+        try { return JSON.parse(braces[0]); } catch { /* continue */ }
+    }
+    throw new Error('Could not extract JSON from response');
+}
 
 export async function POST(request: Request) {
     try {
@@ -16,9 +35,18 @@ export async function POST(request: Request) {
             });
         }
 
+        // Use Google Search Grounding so Hoot can cite real articles, studies,
+        // and current information when coaching the user.
         const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            generationConfig: { responseMimeType: "application/json" }
+            model: "gemini-2.0-flash",
+            tools: [{
+                googleSearchRetrieval: {
+                    dynamicRetrievalConfig: {
+                        mode: DynamicRetrievalMode.MODE_DYNAMIC,
+                        dynamicThreshold: 0.3, // Low threshold = search more often
+                    },
+                },
+            }],
         });
 
         // Build trend context from reflection history
@@ -30,6 +58,11 @@ export async function POST(request: Request) {
 
         const systemPrompt = `You are "Hoot", the encouraging and slightly sassy owl mascot of QuestFlow RPG.
 Your job is to read the user's daily reflection and provide a short, personalized coaching message.
+
+You have access to Google Search. Use it to:
+- Find relevant, up-to-date articles, tips, or studies that relate to the user's reflection
+- Provide one actionable resource link when relevant (e.g., a technique, article, or tool)
+- Ground your advice in real, current information — not generic platitudes
 
 Context:
 - Player: ${playerContext?.name || 'Adventurer'} (Level ${playerContext?.level || 1} ${playerContext?.characterClass || 'Novice'})
@@ -44,14 +77,15 @@ User's Reflection:
 ${trendContext}
 
 Output ONLY a valid JSON object with:
-- message: String. A short (2-3 sentences) encouraging coaching message acknowledging their reflection and energy.
+- message: String. A short (2-3 sentences) encouraging coaching message. If you found a useful resource via search, mention it naturally (e.g., "I found this great guide on...").
 - trendInsight: String or null. If you have enough reflection history (3+ entries) to spot a pattern, provide a single-sentence insight about their energy/productivity trends. Otherwise null.
+- sources: Array of objects or null. If you used Google Search, include up to 2 relevant sources: [{ "title": "...", "url": "..." }]. Otherwise null.
 
 Example trendInsight: "Your energy consistently dips on Thursdays — consider scheduling lighter tasks."`;
 
         const result = await model.generateContent(systemPrompt);
         const text = result.response.text();
-        const data = JSON.parse(text);
+        const data = extractJSON(text);
 
         return NextResponse.json(data);
     } catch (error) {
@@ -59,6 +93,7 @@ Example trendInsight: "Your energy consistently dips on Thursdays — consider s
         return NextResponse.json({
             message: "I couldn't process that right now, but I believe in you!",
             trendInsight: null,
+            sources: null,
             isMock: true,
             error: 'AI unavailable'
         });
