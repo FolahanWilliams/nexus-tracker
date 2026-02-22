@@ -247,7 +247,7 @@ const PAGE_CONTEXT: Record<string, string> = {
 
 export async function POST(request: Request) {
     try {
-        const { message, currentPage, context } = await request.json();
+        const { message, currentPage, context, grounding } = await request.json();
 
         if (!process.env.GOOGLE_API_KEY) {
             return NextResponse.json({
@@ -273,6 +273,7 @@ You are context-aware and can both CHAT and TAKE ACTIONS in the app.
 
 CURRENT PAGE: ${pageDescription}
 ${context ? `\nAPP STATE SNAPSHOT:\n${context}` : ''}
+${grounding ? `\nWEB SEARCH GROUNDING:\n${grounding}\n(Use the above information to provide a grounded, accurate response to the user's latest query.)` : ''}
 
 YOUR CAPABILITIES:
 1. **Chat & Advise**: Answer questions, give productivity tips, motivate the user. Use Google Search for real, current information.

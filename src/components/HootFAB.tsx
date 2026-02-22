@@ -449,6 +449,7 @@ export default function HootFAB() {
         try {
             const context = buildContext();
 
+            // ── Pass 1: Initial Action/Intent Detection ──────────────────────
             const res = await fetch('/api/hoot-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -459,12 +460,44 @@ export default function HootFAB() {
                 }),
             });
 
-            const data = await res.json();
+            let data = await res.json();
 
             // Execute any actions the AI requested
             let actionResults: string[] = [];
             if (data.actions && data.actions.length > 0) {
                 actionResults = await executeActions(data.actions);
+            }
+
+            // ── Detection: Did Hoot perform a web search? ───────────────────
+            const searchResult = actionResults.find(r => r.startsWith('🌐 Search Result:'));
+
+            if (searchResult) {
+                // ── Pass 2: Synthesis Loop ──────────────────────────────────
+                // Feed the search result back to Hoot for a final grounded summary
+                const synthesisRes = await fetch('/api/hoot-action', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: trimmed, // Keep original message as intent
+                        currentPage: pathname,
+                        context,
+                        grounding: searchResult, // Pass the search result as grounding
+                    }),
+                });
+
+                const synthesisData = await synthesisRes.json();
+
+                // Update data with synthesized response
+                data = {
+                    ...synthesisData,
+                    // Keep the original actions if they were successful, 
+                    // but we might want to hide the raw search result from Pass 1 
+                    // if Pass 2 is successful.
+                    actions: data.actions,
+                };
+
+                // Remove the raw search result from actionResults so it doesn't double-print
+                actionResults = actionResults.filter(r => !r.startsWith('🌐 Search Result:'));
             }
 
             setMessages(prev => [...prev, {
