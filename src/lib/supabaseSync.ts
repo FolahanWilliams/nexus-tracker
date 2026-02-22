@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 
 export async function saveToSupabase(uid: string, state: any): Promise<void> {
+    console.log('[supabaseSync] saveToSupabase called with uid:', uid, '| state keys:', state ? Object.keys(state) : null);
     try {
         // 1. Update Profile (HP, Gold, Level, etc.)
         const profile = {
@@ -21,7 +22,11 @@ export async function saveToSupabase(uid: string, state: any): Promise<void> {
             .from('profiles')
             .upsert(profile);
 
-        if (profileError) throw profileError;
+        if (profileError) {
+            console.error('[supabaseSync] Profile upsert error:', profileError);
+            throw profileError;
+        }
+        console.log('[supabaseSync] Profile upserted successfully');
 
         // 2. Sync Tasks (Atomic Upsert)
         if (state.tasks && state.tasks.length > 0) {
@@ -56,7 +61,8 @@ export async function saveToSupabase(uid: string, state: any): Promise<void> {
                     recurring: t.recurring,
                     duration: t.duration,
                 })));
-            if (taskError) console.error('Task sync error:', taskError);
+            if (taskError) console.error('[supabaseSync] Task sync error:', taskError);
+            else console.log('[supabaseSync] Tasks upserted:', state.tasks.length);
         }
 
         // 3. Sync Habits
@@ -72,7 +78,8 @@ export async function saveToSupabase(uid: string, state: any): Promise<void> {
                     streak: h.streak,
                     completed_dates: h.completedDates,
                 })));
-            if (habitError) console.error('Habit sync error:', habitError);
+            if (habitError) console.error('[supabaseSync] Habit sync error:', habitError);
+            else console.log('[supabaseSync] Habits upserted:', state.habits.length);
         }
 
         // 4. Sync Inventory
@@ -91,7 +98,8 @@ export async function saveToSupabase(uid: string, state: any): Promise<void> {
                     equipped: i.equipped,
                     stats: i.stats,
                 })));
-            if (invError) console.error('Inventory sync error:', invError);
+            if (invError) console.error('[supabaseSync] Inventory sync error:', invError);
+            else console.log('[supabaseSync] Inventory upserted:', state.inventory.length);
         }
 
     } catch (error) {

@@ -15,18 +15,15 @@ export function setRemoteUpdateFlag(value: boolean) {
   _isRemoteUpdate = value;
 }
 
-function getCurrentUser() {
+async function getUid(): Promise<string | null> {
   try {
-    // Note: session user might be stale, but it's enough to check if we should attempt cloud sync
-    return supabase.auth.getUser();
-  } catch {
+    const { data: { session } } = await supabase.auth.getSession();
+    const uid = session?.user?.id || null;
+    return uid;
+  } catch (e) {
+    console.error('[zustandStorage] getUid error:', e);
     return null;
   }
-}
-
-async function getUid() {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user?.id || null;
 }
 
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
@@ -35,10 +32,11 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
     try {
       // Try Supabase first if user is authenticated
       const uid = await getUid();
+      console.log('[zustandStorage] getItem: uid =', uid);
       if (uid) {
         const cloudData = await loadFromSupabase(uid);
+        console.log('[zustandStorage] getItem: cloudData keys =', cloudData ? Object.keys(cloudData) : null);
         if (cloudData) {
-          // Flatten if needed or pass as is (loadFromSupabase returns {state})
           const serialized = JSON.stringify(cloudData);
           await hybridStorage.save(serialized);
           return cloudData as StorageValue<T>;
@@ -50,14 +48,13 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       if (!data) return null;
       return JSON.parse(data) as StorageValue<T>;
     } catch (error) {
-      console.error('Storage getItem error:', error);
+      console.error('[zustandStorage] getItem error:', error);
       return null;
     }
   },
 
   setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
     if (typeof window === 'undefined') return;
-    // Serialize once for local storage.
     const serialized = JSON.stringify(value);
     try {
       // Always save locally first (fast)
@@ -65,14 +62,18 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
 
       // Debounced Supabase sync if authenticated.
       const uid = await getUid();
+      console.log('[zustandStorage] setItem: uid =', uid, '| isRemoteUpdate =', _isRemoteUpdate);
       if (uid && !_isRemoteUpdate) {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-          saveToSupabase(uid, value.state);
+          console.log('[zustandStorage] Firing saveToSupabase for uid:', uid);
+          saveToSupabase(uid, value.state)
+            .then(() => console.log('[zustandStorage] saveToSupabase SUCCESS'))
+            .catch((err) => console.error('[zustandStorage] saveToSupabase FAILED:', err));
         }, DEBOUNCE_MS);
       }
     } catch (error) {
-      console.error('Storage setItem error:', error);
+      console.error('[zustandStorage] setItem error:', error);
       localStorage.setItem(name, serialized);
     }
   },
