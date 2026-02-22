@@ -333,7 +333,7 @@ function CraftingTab() {
 
 // ─────────────────────────────────────────────
 function ShopTab() {
-  const { gold, gems, shopItems, addShopItem, deleteShopItem, buyReward, addGems, addBuff, buyGoldBuff } = useGameStore();
+  const { gold, gems, shopItems, addShopItem, deleteShopItem, buyReward, addGems, addBuff, buyGoldBuff, streakFreezes, buyStreakFreeze } = useGameStore();
   const { addToast } = useToastStore();
   const [newItemName, setNewItemName] = useState('');
   const [newItemCost, setNewItemCost] = useState(100);
@@ -384,6 +384,7 @@ function ShopTab() {
         {([
           { icon: Heart, label: 'Gem Pack', desc: 'Instantly gain 50 bonus gems', cost: 50, gradient: 'from-red-500 to-pink-500', onBuy: () => { addGems(50); addToast('+50 Gems added!', 'success'); } },
           { icon: Zap, label: 'XP Boost', desc: 'Double XP for 1 hour', cost: 100, gradient: 'from-yellow-400 to-orange-500', onBuy: () => { addBuff('xp', 2, 60); addToast('XP Boost active! 2x XP for 60 min', 'success'); } },
+          { icon: Flame, label: 'Streak Freeze', desc: `Protect your streak from breaking. You have ${streakFreezes} stored.`, cost: 10, gradient: 'from-cyan-500 to-blue-500', onBuy: () => { buyStreakFreeze(); addToast('Streak Freeze saved! Your streak is protected for one miss.', 'success'); } },
         ] as const).map((item, index) => {
           const Icon = item.icon;
           const canAfford = gems >= item.cost;

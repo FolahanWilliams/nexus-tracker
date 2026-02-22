@@ -1,6 +1,6 @@
 'use client';
 
-import { useGameStore, TimelineEvent } from '@/store/useGameStore';
+import { useGameStore, TimelineEvent, TaskCategory } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
@@ -47,6 +47,22 @@ const RARITY_COLORS: Record<string, string> = {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+const CAT_COLORS: Record<TaskCategory, string> = {
+  Study: '#8b5cf6', Health: '#4ade80', Work: '#60a5fa',
+  Creative: '#f472b6', Social: '#34d399', Personal: '#fbbf24', Other: '#94a3b8',
+};
+
+// Smooth SVG polyline from a set of (x,y) points
+function buildLinePath(points: { x: number; y: number }[]): string {
+  if (points.length < 2) return '';
+  return points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+}
+function buildAreaPath(points: { x: number; y: number }[], h: number): string {
+  if (points.length < 2) return '';
+  const line = buildLinePath(points);
+  return `${line} L${points[points.length - 1].x.toFixed(1)},${h} L${points[0].x.toFixed(1)},${h} Z`;
+}
+
 // ─────────────────────────────────────────────
 function StatsTab() {
   const { xp, level, streak, tasks, habits } = useGameStore();
@@ -89,6 +105,37 @@ function StatsTab() {
       return { day, index, height: Math.min(4 + count * 18, 100), count, isToday };
     });
   }, [tasks]);
+
+  // 30-day activity trend
+  const thirtyDayData = useMemo(() => {
+    const countByDate: Record<string, number> = {};
+    tasks.forEach(t => { if (t.completed && t.completedAt) { const d = t.completedAt.split('T')[0]; countByDate[d] = (countByDate[d] || 0) + 1; } });
+    habits.forEach(h => { h.completedDates.forEach(d => { countByDate[d] = (countByDate[d] || 0) + 1; }); });
+    const result = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      result.push({ dateStr, day: d.getDate(), month: d.getMonth(), count: countByDate[dateStr] || 0 });
+    }
+    return result;
+  }, [tasks, habits]);
+
+  const trendMax = Math.max(...thirtyDayData.map(d => d.count), 1);
+  const W = 560, H = 100, PAD_X = 4, PAD_Y = 8;
+  const trendPoints = thirtyDayData.map((d, i) => ({
+    x: PAD_X + (i / (thirtyDayData.length - 1)) * (W - PAD_X * 2),
+    y: H - PAD_Y - ((d.count / trendMax) * (H - PAD_Y * 2)),
+  }));
+
+  // Category distribution
+  const categoryData = useMemo(() => {
+    const cats: Partial<Record<TaskCategory, number>> = {};
+    tasks.filter(t => t.completed).forEach(t => {
+      cats[t.category] = (cats[t.category] || 0) + 1;
+    });
+    return (Object.entries(cats) as [TaskCategory, number][]).sort((a, b) => b[1] - a[1]);
+  }, [tasks]);
+  const catTotal = categoryData.reduce((s, [, v]) => s + v, 0);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
@@ -146,7 +193,91 @@ function StatsTab() {
         </div>
       </motion.div>
 
-      <motion.div className="rpg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1 }}>
+      {/* 30-Day Trend */}
+      <motion.div className="rpg-card mb-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.05 }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold">30-Day Activity Trend</h2>
+          <span className="text-xs text-[var(--color-text-muted)]">quests + habits per day</span>
+        </div>
+        <div className="w-full overflow-hidden">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full" preserveAspectRatio="none" style={{ height: 100 }}>
+            <defs>
+              <linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-purple)" stopOpacity="0.4" />
+                <stop offset="100%" stopColor="var(--color-purple)" stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            <path d={buildAreaPath(trendPoints, H)} fill="url(#trendGrad)" />
+            <path d={buildLinePath(trendPoints)} fill="none" stroke="var(--color-purple)" strokeWidth="2" strokeLinejoin="round" />
+            {trendPoints.map((p, i) => thirtyDayData[i].count > 0 && (
+              <circle key={i} cx={p.x} cy={p.y} r="2.5" fill="var(--color-purple)" />
+            ))}
+          </svg>
+        </div>
+        {/* X-axis labels — first & last, plus today */}
+        <div className="flex justify-between text-xs text-[var(--color-text-muted)] mt-1 px-1">
+          <span>{thirtyDayData[0]?.month !== undefined ? new Date(thirtyDayData[0].dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</span>
+          <span className="text-[var(--color-purple)] font-semibold">Today</span>
+        </div>
+      </motion.div>
+
+      {/* Category Breakdown */}
+      {categoryData.length > 0 && (
+        <motion.div className="rpg-card mb-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1 }}>
+          <h2 className="text-xl font-bold mb-5">Quests by Category</h2>
+          <div className="space-y-3">
+            {categoryData.map(([cat, count]) => {
+              const pct = catTotal > 0 ? (count / catTotal) * 100 : 0;
+              return (
+                <div key={cat}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-semibold" style={{ color: CAT_COLORS[cat] }}>{cat}</span>
+                    <span className="text-[var(--color-text-muted)]">{count} ({pct.toFixed(0)}%)</span>
+                  </div>
+                  <div className="h-2 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+                    <motion.div className="h-full rounded-full" style={{ backgroundColor: CAT_COLORS[cat] }}
+                      initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Habit Completion Rate */}
+      {habits.length > 0 && (
+        <motion.div className="rpg-card mb-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.15 }}>
+          <h2 className="text-xl font-bold mb-5">Habit Performance</h2>
+          <div className="space-y-4">
+            {habits.map(habit => {
+              const last30 = thirtyDayData.map(d => d.dateStr);
+              const doneInLast30 = habit.completedDates.filter(d => last30.includes(d)).length;
+              const rate = Math.round((doneInLast30 / 30) * 100);
+              return (
+                <div key={habit.id} className="flex items-center gap-3">
+                  <span className="text-xl w-7 flex-shrink-0">{habit.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="font-semibold truncate">{habit.name}</span>
+                      <span className="text-[var(--color-text-muted)] flex-shrink-0 ml-2">
+                        {doneInLast30}/30 days · 🔥{habit.streak}
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+                      <motion.div className="h-full rounded-full bg-[var(--color-green)]"
+                        initial={{ width: 0 }} animate={{ width: `${rate}%` }} transition={{ duration: 0.6 }} />
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-[var(--color-green)] w-9 text-right flex-shrink-0">{rate}%</span>
+                </div>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      <motion.div className="rpg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Activity Heatmap</h2>
           <span className="text-xs text-[var(--color-text-muted)]">{allActivityDates.length} total actions</span>

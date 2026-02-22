@@ -91,7 +91,7 @@ function DashboardContent() {
     claimDailyReward, lastDailyRewardClaim, loginStreak,
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
     tasks, habits, goals, reflectionNotes, todayEnergyRating,
-    completeHabit
+    completeHabit, streakFreezes, lastFreezedDate
   } = useGameStore();
   const { addToast } = useToastStore();
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -251,8 +251,13 @@ function DashboardContent() {
                   <p className="text-[10px] text-[var(--color-text-muted)]">Gems</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-[var(--color-orange)]">{streak} 🔥</p>
-                  <p className="text-[10px] text-[var(--color-text-muted)]">Streak</p>
+                  <p className="text-lg font-bold text-[var(--color-orange)]">
+                    {streak} 🔥
+                    {lastFreezedDate === today && <span className="text-[10px] ml-1 align-super text-[var(--color-blue)]">❄️</span>}
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    Streak{streakFreezes > 0 ? ` · ❄️×${streakFreezes}` : ''}
+                  </p>
                 </div>
               </div>
             </div>
