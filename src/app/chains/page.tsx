@@ -1,6 +1,6 @@
 'use client';
 
-import { useGameStore, QuestChain, QuestStep } from '@/store/useGameStore';
+import { useGameStore, QuestChain, QuestStep, StepBranch } from '@/store/useGameStore';
 import { useState } from 'react';
 import { useToastStore } from '@/components/ToastContainer';
 import {
@@ -29,7 +29,7 @@ const DIFFICULTY_COLORS = {
 };
 
 export default function QuestChainsPage() {
-  const { questChains, addQuestChain, completeQuestStep, tasks, addItem } = useGameStore();
+  const { questChains, addQuestChain, completeQuestStep, chooseBranch, tasks, addItem } = useGameStore();
   const { addToast } = useToastStore();
   const [selectedChain, setSelectedChain] = useState<QuestChain | null>(null);
   const [showAddChain, setShowAddChain] = useState(false);
@@ -39,9 +39,12 @@ export default function QuestChainsPage() {
   const [newChainDesc, setNewChainDesc] = useState('');
   const [newChainDifficulty, setNewChainDifficulty] = useState<QuestChain['difficulty']>('Easy');
   const [newChainItem, setNewChainItem] = useState('');
-  const [steps, setSteps] = useState<{ title: string; description: string }[]>([
-    { title: '', description: '' }
-  ]);
+  const [steps, setSteps] = useState<{
+    title: string;
+    description: string;
+    hasBranches: boolean;
+    branches: { label: string; description: string; xpBonus: number }[];
+  }[]>([{ title: '', description: '', hasBranches: false, branches: [{ label: '', description: '', xpBonus: 25 }, { label: '', description: '', xpBonus: 25 }] }]);
 
   // AI Generation State
   const [isGenerating, setIsGenerating] = useState(false);
@@ -57,12 +60,24 @@ export default function QuestChainsPage() {
   ];
 
   const handleAddStep = () => {
-    setSteps([...steps, { title: '', description: '' }]);
+    setSteps([...steps, { title: '', description: '', hasBranches: false, branches: [{ label: '', description: '', xpBonus: 25 }, { label: '', description: '', xpBonus: 25 }] }]);
   };
 
   const handleStepChange = (index: number, field: 'title' | 'description', value: string) => {
     const newSteps = [...steps];
     newSteps[index][field] = value;
+    setSteps(newSteps);
+  };
+
+  const handleToggleBranches = (stepIndex: number) => {
+    const newSteps = [...steps];
+    newSteps[stepIndex].hasBranches = !newSteps[stepIndex].hasBranches;
+    setSteps(newSteps);
+  };
+
+  const handleBranchChange = (stepIndex: number, branchIndex: number, field: 'label' | 'description' | 'xpBonus', value: string | number) => {
+    const newSteps = [...steps];
+    (newSteps[stepIndex].branches[branchIndex] as Record<string, string | number>)[field] = value;
     setSteps(newSteps);
   };
 
@@ -135,7 +150,14 @@ export default function QuestChainsPage() {
       name: newChainName,
       description: newChainDesc,
       difficulty: newChainDifficulty,
-      steps: steps as unknown as QuestStep[],
+      steps: steps.map(s => ({
+        ...s,
+        branches: s.hasBranches
+          ? s.branches
+              .filter(b => b.label.trim())
+              .map(b => ({ ...b, id: crypto.randomUUID(), xpBonus: Number(b.xpBonus) || 25 }))
+          : undefined,
+      })) as unknown as QuestStep[],
       reward: {
         xp: xpReward,
         gold: goldReward,
@@ -147,11 +169,14 @@ export default function QuestChainsPage() {
     setNewChainName('');
     setNewChainDesc('');
     setNewChainItem('');
-    setSteps([{ title: '', description: '' }]);
+    setSteps([{ title: '', description: '', hasBranches: false, branches: [{ label: '', description: '', xpBonus: 25 }, { label: '', description: '', xpBonus: 25 }] }]);
     setShowAddChain(false);
   };
 
   const handleStepComplete = (chain: QuestChain, step: QuestStep) => {
+    // Steps with branches must be completed via handleBranchChoice instead
+    if (step.branches && step.branches.length > 0) return;
+
     const stepIndex = chain.steps.findIndex(s => s.id === step.id);
     const isLastStep = stepIndex === chain.steps.length - 1;
 
@@ -163,13 +188,21 @@ export default function QuestChainsPage() {
       addToast(`Step completed! Next: ${chain.steps[stepIndex + 1].title}`, 'success');
     }
 
-    // Read fresh state directly from the store rather than from the component's
-    // stale questChains closure (which won't reflect the just-committed update
-    // until the next React render).
     const updatedChain = useGameStore.getState().questChains.find(c => c.id === chain.id);
-    if (updatedChain) {
-      setSelectedChain(updatedChain);
-    }
+    if (updatedChain) setSelectedChain(updatedChain);
+  };
+
+  const handleBranchChoice = (chain: QuestChain, step: QuestStep, branch: StepBranch) => {
+    const stepIndex = chain.steps.findIndex(s => s.id === step.id);
+    const isLastStep = stepIndex === chain.steps.length - 1;
+
+    chooseBranch(chain.id, step.id, branch.id);
+
+    if (branch.xpBonus > 0) addToast(`Chose "${branch.label}"! +${branch.xpBonus} XP bonus`, 'success');
+    if (isLastStep) addToast(`Quest chain "${chain.name}" completed! +${chain.reward.xp} XP, +${chain.reward.gold} Gold`, 'success');
+
+    const updatedChain = useGameStore.getState().questChains.find(c => c.id === chain.id);
+    if (updatedChain) setSelectedChain(updatedChain);
   };
 
   const activeChains = questChains.filter(c => !c.completed);
@@ -400,7 +433,7 @@ export default function QuestChainsPage() {
                             <h4 className="font-bold">{step.title}</h4>
                             <p className="text-sm text-[var(--color-text-secondary)]">{step.description}</p>
 
-                            {isCurrent && (
+                            {isCurrent && !step.branches?.length && (
                               <button
                                 onClick={() => handleStepComplete(selectedChain, step)}
                                 className="mt-3 rpg-button !bg-[var(--color-purple)] !text-white text-sm"
@@ -408,6 +441,27 @@ export default function QuestChainsPage() {
                                 <Check size={14} />
                                 Complete Step
                               </button>
+                            )}
+                            {isCurrent && step.branches && step.branches.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                <p className="text-xs font-bold text-[var(--color-text-muted)] tracking-wide uppercase">Choose your path:</p>
+                                {step.branches.map(branch => (
+                                  <button
+                                    key={branch.id}
+                                    onClick={() => handleBranchChoice(selectedChain, step, branch)}
+                                    className="w-full text-left p-3 rounded-lg border border-[var(--color-purple)]/40 hover:border-[var(--color-purple)] hover:bg-[var(--color-purple)]/10 transition-all"
+                                  >
+                                    <p className="font-bold text-sm">{branch.label}</p>
+                                    {branch.description && <p className="text-xs text-[var(--color-text-muted)] mt-0.5">{branch.description}</p>}
+                                    {branch.xpBonus > 0 && <p className="text-xs text-[var(--color-green)] mt-1">+{branch.xpBonus} XP bonus</p>}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            {isCompleted && step.chosenBranchId && step.branches && (
+                              <p className="mt-2 text-xs text-[var(--color-purple)] italic">
+                                Path taken: {step.branches.find(b => b.id === step.chosenBranchId)?.label}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -542,32 +596,37 @@ export default function QuestChainsPage() {
 
                   <div className="space-y-3">
                     {steps.map((step, index) => (
-                      <div key={index} className="p-3 bg-[var(--color-bg-dark)] rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
+                      <div key={index} className="p-3 bg-[var(--color-bg-dark)] rounded-lg space-y-2">
+                        <div className="flex items-center justify-between">
                           <span className="text-sm font-bold">Step {index + 1}</span>
                           {steps.length > 1 && (
-                            <button
-                              onClick={() => handleRemoveStep(index)}
-                              className="text-[var(--color-red)] text-xs"
-                            >
-                              Remove
-                            </button>
+                            <button onClick={() => handleRemoveStep(index)} className="text-[var(--color-red)] text-xs">Remove</button>
                           )}
                         </div>
-                        <input
-                          type="text"
-                          value={step.title}
-                          onChange={(e) => handleStepChange(index, 'title', e.target.value)}
-                          className="input-field mb-2"
-                          placeholder="Step title"
-                        />
-                        <input
-                          type="text"
-                          value={step.description}
-                          onChange={(e) => handleStepChange(index, 'description', e.target.value)}
-                          className="input-field"
-                          placeholder="Step description"
-                        />
+                        <input type="text" value={step.title} onChange={(e) => handleStepChange(index, 'title', e.target.value)} className="input-field" placeholder="Step title" />
+                        <input type="text" value={step.description} onChange={(e) => handleStepChange(index, 'description', e.target.value)} className="input-field" placeholder="Step description" />
+                        {/* Branch toggle */}
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBranches(index)}
+                          className={`text-xs px-2 py-1 rounded border transition-all ${step.hasBranches ? 'border-[var(--color-purple)] bg-[var(--color-purple)]/15 text-[var(--color-purple)]' : 'border-[var(--color-border)] text-[var(--color-text-muted)]'}`}
+                        >
+                          {step.hasBranches ? '↳ Branching ON' : '+ Add branch choices'}
+                        </button>
+                        {step.hasBranches && (
+                          <div className="space-y-2 pl-2 border-l-2 border-[var(--color-purple)]/40">
+                            {step.branches.map((branch, bi) => (
+                              <div key={bi} className="space-y-1">
+                                <p className="text-xs text-[var(--color-text-muted)] font-semibold">Path {bi + 1}</p>
+                                <input type="text" value={branch.label} onChange={e => handleBranchChange(index, bi, 'label', e.target.value)} className="input-field !text-sm !py-1.5" placeholder={`Branch ${bi + 1} label`} />
+                                <div className="flex gap-2">
+                                  <input type="text" value={branch.description} onChange={e => handleBranchChange(index, bi, 'description', e.target.value)} className="input-field !text-sm !py-1.5 flex-1" placeholder="Brief description" />
+                                  <input type="number" value={branch.xpBonus} onChange={e => handleBranchChange(index, bi, 'xpBonus', Number(e.target.value))} className="input-field !text-sm !py-1.5 w-20" min={0} max={500} placeholder="XP" />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

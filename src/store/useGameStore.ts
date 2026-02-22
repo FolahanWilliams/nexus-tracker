@@ -153,12 +153,21 @@ export interface QuestChain {
     };
 }
 
+export interface StepBranch {
+    id: string;
+    label: string;       // e.g. "Study the theory"
+    description: string; // shown as a choice subtitle
+    xpBonus: number;     // extra XP awarded for this branch
+}
+
 export interface QuestStep {
     id: string;
     title: string;
     description: string;
     completed: boolean;
     taskId?: string;
+    branches?: StepBranch[];  // if set, user must pick a branch to complete
+    chosenBranchId?: string;  // which branch was chosen
 }
 
 export interface Habit {
@@ -195,6 +204,7 @@ export interface Goal {
     completedAt?: string;
     createdAt: string;
     xpReward: number;
+    manualProgress?: number; // 0-100, used when goal has no milestones
 }
 
 export interface Settings {
@@ -247,6 +257,8 @@ export interface GameState {
     // Streak & Login
     lastActiveDate: string | null;
     streak: number;
+    streakFreezes: number;       // purchased streak protection charges
+    lastFreezedDate: string | null; // date when a freeze was last used
     totalQuestsCompleted: number;
     lastDailyRewardClaim: string | null;
     loginStreak: number;
@@ -381,6 +393,13 @@ export interface GameState {
     addQuestChain: (chain: Omit<QuestChain, 'id' | 'currentStep' | 'completed'>) => void;
     advanceQuestChain: (chainId: string) => void;
     completeQuestStep: (chainId: string, stepId: string) => void;
+    chooseBranch: (chainId: string, stepId: string, branchId: string) => void;
+
+    // Goal Progress
+    updateGoalProgress: (goalId: string, progress: number) => void;
+
+    // Streak Freeze
+    buyStreakFreeze: () => void;
 }
 
 const DIFFICULTY_XP = {
@@ -539,6 +558,8 @@ export const useGameStore = create<GameState>()(
             totalQuestsCompleted: 0,
             lastDailyRewardClaim: null,
             loginStreak: 0,
+            streakFreezes: 0,
+            lastFreezedDate: null,
             focusSessionsTotal: 0,
             focusMinutesTotal: 0,
             habits: [],
@@ -882,11 +903,23 @@ export const useGameStore = create<GameState>()(
                     const yesterdayStr = yesterday.toISOString().split('T')[0];
 
                     if (lastActive === yesterdayStr) {
+                        // Consecutive day — streak grows
                         set({ streak: state.streak + 1, lastActiveDate: today });
                     } else if (!lastActive) {
+                        // First login ever
                         set({ streak: 1, lastActiveDate: today });
                     } else {
-                        set({ streak: 1, lastActiveDate: today });
+                        // Missed a day — try to use a streak freeze
+                        if (state.streakFreezes > 0 && state.lastFreezedDate !== today) {
+                            set({
+                                streakFreezes: state.streakFreezes - 1,
+                                lastActiveDate: today,
+                                lastFreezedDate: today,
+                                // streak count preserved intentionally
+                            });
+                        } else {
+                            set({ streak: 1, lastActiveDate: today });
+                        }
                     }
                 }
             },
@@ -1825,6 +1858,48 @@ export const useGameStore = create<GameState>()(
                 }));
 
                 get().advanceQuestChain(chainId);
+            },
+
+            chooseBranch: (chainId, stepId, branchId) => {
+                const chain = get().questChains.find(c => c.id === chainId);
+                if (!chain || chain.completed) return;
+                const step = chain.steps.find(s => s.id === stepId);
+                if (!step || step.completed || !step.branches) return;
+                const branch = step.branches.find(b => b.id === branchId);
+                if (!branch) return;
+
+                // Mark step as completed with the chosen branch recorded
+                set((state) => ({
+                    questChains: state.questChains.map(c =>
+                        c.id !== chainId ? c : {
+                            ...c,
+                            steps: c.steps.map(s =>
+                                s.id !== stepId ? s : { ...s, completed: true, chosenBranchId: branchId }
+                            )
+                        }
+                    )
+                }));
+
+                // Award branch XP bonus
+                if (branch.xpBonus > 0) get().addXP(branch.xpBonus);
+
+                // Advance the chain to the next step
+                get().advanceQuestChain(chainId);
+            },
+
+            updateGoalProgress: (goalId, progress) => {
+                const safe = Math.min(100, Math.max(0, Math.round(progress)));
+                set((state) => ({
+                    goals: state.goals.map(g =>
+                        g.id !== goalId ? g : { ...g, manualProgress: safe }
+                    )
+                }));
+            },
+
+            buyStreakFreeze: () => {
+                const state = get();
+                if (state.gems < 10) return;
+                set({ gems: state.gems - 10, streakFreezes: state.streakFreezes + 1 });
             },
 
             addFocusSession: (minutesCompleted: number) => {

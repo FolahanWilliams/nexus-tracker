@@ -9,6 +9,7 @@ import Onboarding from '@/components/Onboarding';
 import XPFloat from '@/components/XPFloat';
 import StreakCelebration from '@/components/StreakCelebration';
 import DailyIntention from '@/components/DailyIntention';
+import QuickAdd from '@/components/QuickAdd';
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
     return (
@@ -22,6 +23,7 @@ export default function ClientProviders({ children }: { children: React.ReactNod
             <XPFloat />
             <StreakCelebration />
             <DailyIntention />
+            <QuickAdd />
         </AuthProvider>
     );
 }

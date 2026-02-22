@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useGameStore, xpForLevel } from '@/store/useGameStore';
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy } from 'lucide-react';
+import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
@@ -51,6 +51,20 @@ function getProductivityScore(params: {
 }
 
 
+const menuItems = [
+  { href: '/quests',     emoji: '📦', label: 'Quests' },
+  { href: '/habits',     emoji: '🔁', label: 'Habits' },
+  { href: '/focus',      emoji: '⏱️', label: 'Focus Timer' },
+  { href: '/goals',      emoji: '🎯', label: 'Goals' },
+  { href: '/reflection', emoji: '🌙', label: 'Daily Check-In' },
+  { href: '/chains',     emoji: '🗺️', label: 'Quest Chains' },
+  { href: '/bosses',     emoji: '⚔️', label: 'Boss Battles' },
+  { href: '/character',  emoji: '🧙', label: 'Character & Skills' },
+  { href: '/inventory',  emoji: '🎒', label: 'Items & Shop' },
+  { href: '/analytics',  emoji: '📊', label: 'Progress & Records' },
+  { href: '/settings',   emoji: '⚙️', label: 'Settings' },
+];
+
 export default function HomePage() {
   const { user, loading } = useAuth();
 
@@ -76,7 +90,8 @@ function DashboardContent() {
     dailyQuests, checkDailyQuests, generateDailyQuests, toggleDailyQuest,
     claimDailyReward, lastDailyRewardClaim, loginStreak,
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
-    tasks, habits, goals, reflectionNotes, todayEnergyRating
+    tasks, habits, goals, reflectionNotes, todayEnergyRating,
+    completeHabit, streakFreezes, lastFreezedDate
   } = useGameStore();
   const { addToast } = useToastStore();
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -236,8 +251,13 @@ function DashboardContent() {
                   <p className="text-[10px] text-[var(--color-text-muted)]">Gems</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-[var(--color-orange)]">{streak} 🔥</p>
-                  <p className="text-[10px] text-[var(--color-text-muted)]">Streak</p>
+                  <p className="text-lg font-bold text-[var(--color-orange)]">
+                    {streak} 🔥
+                    {lastFreezedDate === today && <span className="text-[10px] ml-1 align-super text-[var(--color-blue)]">❄️</span>}
+                  </p>
+                  <p className="text-[10px] text-[var(--color-text-muted)]">
+                    Streak{streakFreezes > 0 ? ` · ❄️×${streakFreezes}` : ''}
+                  </p>
                 </div>
               </div>
             </div>
@@ -383,6 +403,44 @@ function DashboardContent() {
             ))}
           </motion.div>
 
+          {/* Habit Streak Strip */}
+          {habits.length > 0 && (
+            <motion.div
+              className="mb-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.18 }}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-bold text-[var(--color-text-muted)] tracking-widest uppercase">Today&apos;s Habits</p>
+                <Link href="/habits" className="text-xs text-[var(--color-purple)]">View all →</Link>
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {habits.map(habit => {
+                  const doneToday = habit.completedDates.includes(today);
+                  return (
+                    <button
+                      key={habit.id}
+                      onClick={() => { if (!doneToday) { completeHabit(habit.id); addToast(`${habit.name} completed! 🔥`, 'success'); } }}
+                      disabled={doneToday}
+                      className={`flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2 rounded-lg border transition-all ${
+                        doneToday
+                          ? 'border-[var(--color-green)] bg-[var(--color-green)]/10'
+                          : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/50 bg-[var(--color-bg-card)]'
+                      }`}
+                    >
+                      <span className="text-lg">{habit.icon}</span>
+                      <span className="text-xs font-semibold max-w-[64px] truncate">{habit.name}</span>
+                      <span className={`text-xs font-bold ${doneToday ? 'text-[var(--color-green)]' : 'text-[var(--color-text-muted)]'}`}>
+                        {doneToday ? '✓' : habit.streak > 0 ? `🔥 ${habit.streak}` : '○'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
           {/* Daily Quests + Daily Reward Row */}
           <motion.div
             className="grid grid-cols-2 gap-4 mb-4"
@@ -517,6 +575,28 @@ function DashboardContent() {
             </div>
           </motion.div>
 
+          {/* Full Menu Grid */}
+          <div className="grid grid-cols-2 gap-2 mb-6">
+            {menuItems.map((item, index) => (
+              <motion.div
+                key={item.href}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.35 + index * 0.04 }}
+              >
+                <Link
+                  href={item.href}
+                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] hover:border-[var(--color-purple)]/50 hover:bg-[var(--color-bg-hover)] transition-all"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">{item.emoji}</span>
+                    <span className="font-semibold text-sm">{item.label}</span>
+                  </div>
+                  <ChevronRight size={16} className="text-[var(--color-text-muted)]" />
+                </Link>
+              </motion.div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

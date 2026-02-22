@@ -40,7 +40,7 @@ function getDaysLeft(targetDate: string): number {
 }
 
 export default function GoalsPage() {
-  const { goals, addGoal, completeGoalMilestone, completeGoal, deleteGoal } = useGameStore();
+  const { goals, addGoal, completeGoalMilestone, completeGoal, deleteGoal, updateGoalProgress } = useGameStore();
   const { addToast } = useToastStore();
 
   const [showAdd, setShowAdd] = useState(false);
@@ -289,8 +289,8 @@ export default function GoalsPage() {
                         <span className="text-[var(--color-yellow)]">+{goal.xpReward} XP on completion</span>
                       </div>
 
-                      {/* Milestone progress bar */}
-                      {goal.milestones.length > 0 && (
+                      {/* Progress bar — milestone-driven OR manual */}
+                      {goal.milestones.length > 0 ? (
                         <div className="mt-2 h-1.5 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
                           <motion.div
                             className="h-full rounded-full bg-[var(--color-orange)]"
@@ -299,11 +299,41 @@ export default function GoalsPage() {
                             transition={{ duration: 0.6 }}
                           />
                         </div>
+                      ) : (
+                        <div className="mt-2">
+                          <div className="flex justify-between text-xs text-[var(--color-text-muted)] mb-1">
+                            <span>Manual progress</span>
+                            <span className="font-semibold" style={{ color: 'var(--color-orange)' }}>
+                              {goal.manualProgress ?? 0}%
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={goal.manualProgress ?? 0}
+                            onChange={e => updateGoalProgress(goal.id, Number(e.target.value))}
+                            className="w-full h-1.5 appearance-none rounded-full cursor-pointer"
+                            style={{ accentColor: 'var(--color-orange)' }}
+                          />
+                        </div>
                       )}
                     </div>
 
                     {/* Actions */}
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      {/* Quick "Goal achieved!" when manual progress = 100 */}
+                      {goal.milestones.length === 0 && (goal.manualProgress ?? 0) >= 100 && (
+                        <motion.button
+                          onClick={() => handleCompleteGoal(goal)}
+                          className="px-2 py-1 text-xs font-bold rounded bg-[var(--color-green)] text-white"
+                          initial={{ scale: 0.8 }} animate={{ scale: 1 }} whileHover={{ scale: 1.05 }}
+                          title="All done! Mark as achieved"
+                        >
+                          ✓ Done!
+                        </motion.button>
+                      )}
                       {goal.milestones.length > 0 && (
                         <button
                           onClick={() => setExpandedGoal(isExpanded ? null : goal.id)}

@@ -7,20 +7,17 @@ import { useGameStore } from '@/store/useGameStore';
 import {
   LayoutDashboard,
   Target,
-  ShoppingBag,
   BarChart3,
-  Trophy,
   User,
   Activity,
-  Map,
   Sparkles,
+  Map,
   Sword,
-  Hammer,
   Settings,
   Repeat2,
   Timer,
   Flag,
-  Calendar,
+  BookOpen,
   LogOut
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
@@ -34,6 +31,7 @@ const navGroups = [
       { href: '/habits', label: 'Habits', icon: Repeat2 },
       { href: '/focus', label: 'Focus Timer', icon: Timer },
       { href: '/goals', label: 'Goals', icon: Flag },
+      { href: '/reflection', label: 'Check-In', icon: BookOpen },
     ],
   },
   {
@@ -46,19 +44,14 @@ const navGroups = [
   {
     label: 'CHARACTER',
     items: [
-      { href: '/character', label: 'Character', icon: User },
-      { href: '/skills', label: 'Skills', icon: Activity },
-      { href: '/inventory', label: 'Inventory', icon: Sparkles },
-      { href: '/crafting', label: 'Crafting', icon: Hammer },
-      { href: '/shop', label: 'Shop', icon: ShoppingBag },
+      { href: '/character', label: 'Character & Skills', icon: User },
+      { href: '/inventory', label: 'Items & Shop', icon: Sparkles },
     ],
   },
   {
     label: 'RECORDS',
     items: [
-      { href: '/analytics', label: 'Analytics', icon: BarChart3 },
-      { href: '/achievements', label: 'Achievements', icon: Trophy },
-      { href: '/timeline', label: 'Timeline', icon: Calendar },
+      { href: '/analytics', label: 'Progress & Records', icon: BarChart3 },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },
