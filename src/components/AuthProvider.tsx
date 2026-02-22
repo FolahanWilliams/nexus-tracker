@@ -65,7 +65,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
                             const parsed = JSON.parse(remoteState);
                             // Merge the remote state into the store without re-saving to Firestore
                             setRemoteUpdateFlag(true);
-                            useGameStore.setState(parsed.state ?? parsed, true);
+                            useGameStore.setState(parsed.state ?? parsed, false);
                             setRemoteUpdateFlag(false);
                         } catch (err) {
                             console.error('Failed to apply remote state:', err);
