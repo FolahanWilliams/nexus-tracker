@@ -121,17 +121,20 @@ export default function Navigation() {
 function UserSection({ characterName }: { characterName: string }) {
   const { user, signOut } = useAuth();
 
+  const avatarUrl = user?.user_metadata?.avatar_url;
+  const fullName = user?.user_metadata?.full_name;
+
   return (
     <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
-      {user?.photoURL ? (
-        <img src={user.photoURL} alt="" className="w-8 h-8 rounded" referrerPolicy="no-referrer" />
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" className="w-8 h-8 rounded" referrerPolicy="no-referrer" />
       ) : (
         <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] flex items-center justify-center">
           <User size={14} className="text-[var(--color-text-secondary)]" />
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-white truncate">{user?.displayName || characterName}</p>
+        <p className="text-xs font-bold text-white truncate">{fullName || characterName}</p>
         <div className="flex items-center gap-1">
           <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-green)] animate-pulse" />
           <p className="text-[10px] text-[var(--color-text-secondary)]">ONLINE</p>

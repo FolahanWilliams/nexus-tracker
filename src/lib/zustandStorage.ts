@@ -1,8 +1,8 @@
-// Custom Zustand storage that uses IndexedDB with Firestore cloud sync
+// Custom Zustand storage that uses IndexedDB with Supabase cloud sync
 import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
-import { saveToFirestore, loadFromFirestore } from './firestoreSync';
-import { getAuthInstance } from './firebase';
+import { saveToSupabase, loadFromSupabase } from './supabaseSync';
+import { supabase } from './supabase';
 
 // Debounce Firestore writes to avoid excessive calls
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -17,23 +17,31 @@ export function setRemoteUpdateFlag(value: boolean) {
 
 function getCurrentUser() {
   try {
-    return getAuthInstance().currentUser;
+    // Note: session user might be stale, but it's enough to check if we should attempt cloud sync
+    return supabase.auth.getUser();
   } catch {
     return null;
   }
+}
+
+async function getUid() {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id || null;
 }
 
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
   getItem: async (_name: string): Promise<StorageValue<T> | null> => {
     if (typeof window === 'undefined') return null;
     try {
-      // Try Firestore first if user is authenticated
-      const user = getCurrentUser();
-      if (user) {
-        const cloudData = await loadFromFirestore(user.uid);
+      // Try Supabase first if user is authenticated
+      const uid = await getUid();
+      if (uid) {
+        const cloudData = await loadFromSupabase(uid);
         if (cloudData) {
-          await hybridStorage.save(cloudData);
-          return JSON.parse(cloudData) as StorageValue<T>;
+          // Flatten if needed or pass as is (loadFromSupabase returns {state})
+          const serialized = JSON.stringify(cloudData);
+          await hybridStorage.save(serialized);
+          return cloudData as StorageValue<T>;
         }
       }
 
@@ -55,16 +63,12 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       // Always save locally first (fast)
       await hybridStorage.save(serialized);
 
-      // Debounced Firestore sync if authenticated.
-      // Skip if this update originated from a remote snapshot (avoids infinite loop).
-      // Pass `value` (the plain object) — saveToFirestore calls JSON.stringify
-      // internally, so passing `serialized` (already a JSON string) would cause
-      // double-encoding and corrupt the Firestore document.
-      const user = getCurrentUser();
-      if (user && !_isRemoteUpdate) {
+      // Debounced Supabase sync if authenticated.
+      const uid = await getUid();
+      if (uid && !_isRemoteUpdate) {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
-          saveToFirestore(user.uid, value);
+          saveToSupabase(uid, value.state);
         }, DEBOUNCE_MS);
       }
     } catch (error) {
