@@ -6,7 +6,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ExternalLink, Loader2, Sparkles, BarChart3 } from 'lucide-react';
+import { Send, X, ExternalLink, Loader2, Sparkles } from 'lucide-react';
 
 interface HootSource {
     title: string;
@@ -120,6 +120,24 @@ export default function HootFAB() {
             case '/character':
                 parts.push(`Class: ${state.characterClass || 'Not chosen'} | Title: ${state.title}`);
                 break;
+            case '/inventory': {
+                const equippedNames = [
+                    state.equippedItems?.weapon?.name,
+                    state.equippedItems?.armor?.name,
+                    state.equippedItems?.accessory?.name,
+                ].filter(Boolean);
+                parts.push(`Inventory: ${state.inventory.length} items`);
+                parts.push(`Equipped: ${equippedNames.length > 0 ? equippedNames.join(', ') : 'Nothing equipped'}`);
+                const consumables = state.inventory.filter(i => i.usable || i.consumableEffect);
+                if (consumables.length > 0) parts.push(`Consumables: ${consumables.map(c => `${c.name} x${c.quantity}`).join(', ')}`);
+                break;
+            }
+            case '/shop': {
+                const affordable = state.shopItems.filter(r => !r.purchased && r.cost <= state.gold);
+                parts.push(`Gold: ${state.gold} | Shop items you can afford: ${affordable.length}`);
+                if (affordable.length > 0) parts.push(`Available: ${affordable.map(r => `${r.name} (${r.cost}g)`).join(', ')}`);
+                break;
+            }
             default:
                 break;
         }
@@ -217,6 +235,86 @@ export default function HootFAB() {
                         results.push(`🧭 Navigating to ${page}${reason ? ` — ${reason}` : ''}`);
                         break;
                     }
+                    // ── Power Actions ──────────────────────────────────────
+                    case 'equip_item': {
+                        const itemName = (params.itemName as string).toLowerCase();
+                        const act = (params.action as string) || 'equip';
+                        const item = state.inventory.find(i => i.name.toLowerCase().includes(itemName));
+                        if (!item) {
+                            results.push(`⚠️ Couldn't find "${params.itemName}" in your inventory`);
+                        } else if (act === 'use' && (item.usable || item.consumableEffect)) {
+                            state.useItem(item.id);
+                            results.push(`✅ Used ${item.name}${item.consumableEffect ? ` (${item.consumableEffect.type} +${item.consumableEffect.value})` : ''}`);
+                            addToast(`🦉 Used ${item.name}`, 'success');
+                        } else {
+                            state.equipItem(item.id);
+                            results.push(`✅ Equipped ${item.name}`);
+                            addToast(`🦉 Equipped ${item.name}`, 'success');
+                        }
+                        break;
+                    }
+                    case 'start_focus': {
+                        const minutes = (params.minutes as number) || 25;
+                        state.addFocusSession(minutes);
+                        router.push('/focus');
+                        results.push(`✅ Logged ${minutes}-min focus session & navigating to Focus Timer`);
+                        addToast(`🦉 Focus session logged: ${minutes} min`, 'success');
+                        break;
+                    }
+                    case 'buy_item': {
+                        const itemName = (params.itemName as string).toLowerCase();
+                        const shopItem = state.shopItems.find(r => !r.purchased && r.name.toLowerCase().includes(itemName));
+                        if (!shopItem) {
+                            results.push(`⚠️ Couldn't find "${params.itemName}" in the shop`);
+                        } else if (shopItem.cost > state.gold) {
+                            results.push(`⚠️ Not enough gold! ${shopItem.name} costs ${shopItem.cost}g, you have ${state.gold}g`);
+                        } else {
+                            state.buyReward(shopItem.id);
+                            results.push(`✅ Purchased ${shopItem.name} for ${shopItem.cost}g (Remaining: ${state.gold - shopItem.cost}g)`);
+                            addToast(`🦉 Bought ${shopItem.name}!`, 'success');
+                        }
+                        break;
+                    }
+                    case 'complete_milestone': {
+                        const goalName = (params.goalName as string).toLowerCase();
+                        const msName = (params.milestoneName as string).toLowerCase();
+                        const goal = state.goals.find(g => !g.completed && g.title.toLowerCase().includes(goalName));
+                        if (!goal) {
+                            results.push(`⚠️ Couldn't find an active goal matching "${params.goalName}"`);
+                        } else {
+                            const milestone = goal.milestones.find(m => !m.completed && m.title.toLowerCase().includes(msName));
+                            if (!milestone) {
+                                results.push(`⚠️ Couldn't find an uncompleted milestone matching "${params.milestoneName}" in goal "${goal.title}"`);
+                            } else {
+                                state.completeGoalMilestone(goal.id, milestone.id);
+                                const done = goal.milestones.filter(m => m.completed).length + 1;
+                                results.push(`✅ Completed milestone "${milestone.title}" on goal "${goal.title}" (${done}/${goal.milestones.length})`);
+                                addToast(`🦉 Milestone done: ${milestone.title}`, 'success');
+                            }
+                        }
+                        break;
+                    }
+                    // ── Strategic Intelligence ────────────────────────────
+                    case 'get_productivity_summary': {
+                        const summary = buildProductivitySummary(state);
+                        results.push(summary);
+                        break;
+                    }
+                    case 'suggest_quest_tags': {
+                        const taskName = (params.taskName as string).toLowerCase();
+                        const task = state.tasks.find(t => t.title.toLowerCase().includes(taskName));
+                        if (!task) {
+                            results.push(`⚠️ Couldn't find a quest matching "${params.taskName}"`);
+                        } else {
+                            results.push(`📋 Quest "${task.title}": Category=${task.category}, Difficulty=${task.difficulty}, XP=${task.xpReward}`);
+                        }
+                        break;
+                    }
+                    case 'get_boss_strategy': {
+                        const strategy = buildBossStrategy(state);
+                        results.push(strategy);
+                        break;
+                    }
                     default:
                         results.push(`⚠️ Unknown action: ${action}`);
                 }
@@ -227,6 +325,96 @@ export default function HootFAB() {
         }
 
         return results;
+    }
+
+    // ── Helper: Weekly productivity summary ─────────────────────────────
+    function buildProductivitySummary(state: ReturnType<typeof useGameStore.getState>): string {
+        const today = new Date();
+        const weekAgo = new Date(today.getTime() - 7 * 86400000);
+        const weekAgoStr = weekAgo.toISOString().split('T')[0];
+        const todayStr = today.toISOString().split('T')[0];
+
+        // Tasks completed this week
+        const completedThisWeek = state.tasks.filter(t =>
+            t.completed && t.completedAt && t.completedAt >= weekAgoStr
+        ).length;
+
+        // Habits at risk (have a streak but not done today)
+        const habitsAtRisk = state.habits.filter(h =>
+            h.streak > 0 && !h.completedDates.includes(todayStr)
+        );
+
+        // Goals nearing deadline (within 7 days)
+        const nextWeekStr = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
+        const urgentGoals = state.goals.filter(g =>
+            !g.completed && g.targetDate <= nextWeekStr
+        );
+
+        // Active tasks
+        const activeTasks = state.tasks.filter(t => !t.completed);
+
+        const lines: string[] = [
+            `📊 PRODUCTIVITY BRIEFING`,
+            `Level ${state.level} | ${state.xp} XP | ${state.gold}g | ${state.streak}-day streak`,
+            ``,
+            `📝 Quests: ${completedThisWeek} completed this week | ${activeTasks.length} active`,
+        ];
+
+        if (habitsAtRisk.length > 0) {
+            lines.push(`⚠️ Streaks at risk: ${habitsAtRisk.map(h => `${h.name} (${h.streak}🔥)`).join(', ')}`);
+        } else {
+            lines.push(`✅ All habit streaks safe today`);
+        }
+
+        if (urgentGoals.length > 0) {
+            lines.push(`🎯 Goals due soon: ${urgentGoals.map(g => `${g.title} (${g.targetDate})`).join(', ')}`);
+        }
+
+        const doneToday = state.tasks.filter(t => t.completed && t.completedAt?.startsWith(todayStr)).length;
+        lines.push(`📅 Today: ${doneToday} quests completed`);
+        lines.push(`⏱️ Focus: ${state.focusSessionsTotal} sessions (${state.focusMinutesTotal} min total)`);
+
+        return lines.join('\n');
+    }
+
+    // ── Helper: Boss battle strategy ────────────────────────────────────
+    function buildBossStrategy(state: ReturnType<typeof useGameStore.getState>): string {
+        const boss = state.bossBattles.find(b => !b.completed && !b.failed);
+        if (!boss) return `🏰 No active boss battle. Visit the Bosses page to start one!`;
+
+        const hpPercent = Math.round((boss.hp / boss.maxHp) * 100);
+        const activeTasks = state.tasks.filter(t => !t.completed);
+        const highValueTasks = [...activeTasks].sort((a, b) => b.xpReward - a.xpReward).slice(0, 5);
+
+        const lines: string[] = [
+            `⚔️ BOSS STRATEGY: ${boss.name}`,
+            `HP: ${boss.hp}/${boss.maxHp} (${hpPercent}%) | Difficulty: ${boss.difficulty}`,
+            `Rewards: ${boss.xpReward} XP, ${boss.goldReward}g${boss.itemReward ? `, ${boss.itemReward.name}` : ''}`,
+            ``,
+            `🎯 Recommended targets (highest XP):`,
+        ];
+
+        if (highValueTasks.length > 0) {
+            highValueTasks.forEach((t, i) => {
+                lines.push(`  ${i + 1}. ${t.title} (${t.difficulty}, ${t.xpReward} XP)`);
+            });
+        } else {
+            lines.push(`  No active quests — create some to damage the boss!`);
+        }
+
+        // Check equipped items
+        const weapon = state.equippedItems?.weapon;
+        if (weapon) {
+            lines.push(`\n🗡️ Equipped weapon: ${weapon.name}${weapon.stats?.xpBonus ? ` (+${weapon.stats.xpBonus} XP bonus)` : ''}`);
+        }
+
+        // Check for usable consumables
+        const consumables = state.inventory.filter(i => i.usable || i.consumableEffect);
+        if (consumables.length > 0) {
+            lines.push(`🧪 Available consumables: ${consumables.map(c => `${c.name} x${c.quantity}`).join(', ')}`);
+        }
+
+        return lines.join('\n');
     }
 
     async function handleSubmit(e: React.FormEvent) {
@@ -380,8 +568,10 @@ export default function HootFAB() {
                                             {[
                                                 '✨ Add a task',
                                                 '📊 How am I doing?',
-                                                '💡 Focus tips',
+                                                '⚔️ Boss strategy',
                                                 '🎯 Set a goal',
+                                                '🎒 Equip my best gear',
+                                                '⏱️ Start a focus session',
                                             ].map(suggestion => (
                                                 <button
                                                     key={suggestion}

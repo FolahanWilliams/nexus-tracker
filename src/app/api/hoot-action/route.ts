@@ -63,7 +63,7 @@ const hootFunctions = [
                 title: { type: SchemaType.STRING, description: 'Goal title' },
                 description: { type: SchemaType.STRING, description: 'Brief goal description' },
                 category: { type: SchemaType.STRING, description: 'Category: Study, Health, Creative, Social, Work, Personal, or Other' },
-                timeframe: { type: SchemaType.STRING, description: 'Timeframe: daily, weekly, monthly, quarterly, yearly' },
+                timeframe: { type: SchemaType.STRING, description: 'Timeframe: week, month, quarter, year, or lifetime' },
                 targetDate: { type: SchemaType.STRING, description: 'Target date in YYYY-MM-DD format' },
                 milestones: {
                     type: SchemaType.ARRAY,
@@ -109,6 +109,87 @@ const hootFunctions = [
                 reason: { type: SchemaType.STRING, description: 'Brief reason for suggesting this page' },
             },
             required: ['page'],
+        },
+    },
+    // ── Category 1: Power Actions ─────────────────────────────────────────
+    {
+        name: 'equip_item',
+        description: 'Equip or use an item from the user\'s inventory. Use when the user asks to equip gear, use a potion/consumable, or manage their inventory.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                itemName: { type: SchemaType.STRING, description: 'Name of the item to equip or use (fuzzy match OK)' },
+                action: { type: SchemaType.STRING, description: 'Either "equip" or "use". Equip for weapons/armor/accessories, use for consumables like potions.' },
+            },
+            required: ['itemName'],
+        },
+    },
+    {
+        name: 'start_focus',
+        description: 'Start a focus/pomodoro session. Use when the user wants to focus, concentrate, do deep work, or start a timer.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                minutes: { type: SchemaType.NUMBER, description: 'Focus session duration in minutes (default 25)' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'buy_item',
+        description: 'Purchase an item from the shop using gold. Use when the user asks to buy something or asks what they can afford.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                itemName: { type: SchemaType.STRING, description: 'Name of the shop item to buy (fuzzy match OK)' },
+            },
+            required: ['itemName'],
+        },
+    },
+    {
+        name: 'complete_milestone',
+        description: 'Mark a milestone within a goal as completed. Use when the user says they finished a milestone or a step of their goal.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                goalName: { type: SchemaType.STRING, description: 'The name of the goal (fuzzy match OK)' },
+                milestoneName: { type: SchemaType.STRING, description: 'The name of the milestone to mark complete (fuzzy match OK)' },
+            },
+            required: ['goalName', 'milestoneName'],
+        },
+    },
+    // ── Category 2: Strategic Intelligence ────────────────────────────────
+    {
+        name: 'get_productivity_summary',
+        description: 'Generate a weekly productivity briefing for the user. Use when the user asks for a summary, report, status update, "how am I doing", or wants strategic advice about their progress.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                period: { type: SchemaType.STRING, description: 'Summary period: "week" (default) or "today"' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'suggest_quest_tags',
+        description: 'Analyze a task and suggest optimal category and difficulty. Use when the user asks for help categorizing, tagging, or optimizing a quest.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                taskName: { type: SchemaType.STRING, description: 'Name of the task to analyze (fuzzy match OK)' },
+            },
+            required: ['taskName'],
+        },
+    },
+    {
+        name: 'get_boss_strategy',
+        description: 'Provide strategic advice for the active boss battle. Use when the user asks about their boss fight, needs battle strategy, or wants to know how to defeat the boss.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                bossName: { type: SchemaType.STRING, description: 'Optional boss name if multiple exist (fuzzy match OK)' },
+            },
+            required: [],
         },
     },
 ];
@@ -189,8 +270,9 @@ ${context ? `\nAPP STATE SNAPSHOT:\n${context}` : ''}
 
 YOUR CAPABILITIES:
 1. **Chat & Advise**: Answer questions, give productivity tips, motivate the user. Use Google Search for real, current information.
-2. **Take Actions**: You can add tasks, complete tasks, add habits, complete habits, add goals, set intentions, add reflections, and suggest navigation. Use function calls for these.
-3. **Be Context-Aware**: Tailor your responses to the current page. On /quests, focus on task management. On /habits, focus on habit coaching. On /reflection, focus on mindfulness.
+2. **Take Actions**: You can add/complete tasks, add/complete habits, add goals, complete milestones, set intentions, add reflections, equip/use items, start focus sessions, buy shop items, and suggest navigation. Use function calls for these.
+3. **Strategic Intelligence**: You can generate productivity summaries, analyze quest tags/categories, and provide boss battle strategy. Use function calls for these.
+4. **Be Context-Aware**: Tailor your responses to the current page. On /quests, focus on task management. On /habits, focus on habit coaching. On /reflection, focus on mindfulness. On /inventory, help with gear. On /boss, give battle strategy.
 
 RULES:
 - Be encouraging, slightly sassy, and fun — you're an owl mascot!
