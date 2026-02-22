@@ -62,15 +62,15 @@ export default function Navigation() {
   const { level, title, characterName } = useGameStore();
 
   return (
-    <nav className="fixed left-0 top-0 bottom-0 w-64 bg-[var(--bg-panel)] border-r border-[var(--border)] z-50 hidden lg:flex flex-col">
+    <nav className="fixed left-0 top-0 bottom-0 w-64 bg-[var(--color-bg-card)] border-r border-[var(--color-border)] z-50 hidden lg:flex flex-col">
       {/* Brand */}
-      <div className="p-4 border-b border-[var(--border)] flex items-center gap-3">
-        <div className="w-8 h-8 rounded bg-[var(--accent-blue)] flex items-center justify-center">
+      <div className="p-4 border-b border-[var(--color-border)] flex items-center gap-3">
+        <div className="w-8 h-8 rounded bg-[var(--color-blue)] flex items-center justify-center">
           <Activity className="text-white" size={18} />
         </div>
         <div>
           <h1 className="text-sm font-bold tracking-tight text-white uppercase">QuestFlow</h1>
-          <p className="text-[10px] text-[var(--text-secondary)] uppercase">AI Productivity RPG</p>
+          <p className="text-[10px] text-[var(--color-text-secondary)] uppercase">AI Productivity RPG</p>
         </div>
       </div>
 
@@ -78,7 +78,7 @@ export default function Navigation() {
       <div className="flex-1 py-3 flex flex-col px-2 overflow-y-auto">
         {navGroups.map((group) => (
           <div key={group.label} className="mb-4">
-            <p className="px-3 mb-1 text-[10px] font-bold tracking-widest text-[var(--text-secondary)] opacity-60 uppercase">
+            <p className="px-3 mb-1 text-[10px] font-bold tracking-widest text-[var(--color-text-secondary)] opacity-60 uppercase">
               {group.label}
             </p>
             <div className="flex flex-col gap-0.5">
@@ -90,8 +90,8 @@ export default function Navigation() {
                     key={item.href}
                     href={item.href}
                     className={`flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-all ${isActive
-                      ? 'bg-[var(--bg-hover)] text-white border-l-2 border-[var(--accent-green)]'
-                      : 'text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-hover)]'
+                      ? 'bg-[var(--color-bg-hover)] text-white border-l-2 border-[var(--color-green)]'
+                      : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-[var(--color-bg-hover)]'
                       }`}
                   >
                     <Icon size={16} />
@@ -105,11 +105,11 @@ export default function Navigation() {
       </div>
 
       {/* System Status / User */}
-      <div className="p-4 border-t border-[var(--border)] space-y-3">
+      <div className="p-4 border-t border-[var(--color-border)] space-y-3">
         {/* Level Indicator */}
         <div className="flex items-center justify-between text-xs px-2">
-          <span className="text-[var(--text-secondary)]">LEVEL {level}</span>
-          <span className="text-[var(--accent-blue)] font-mono">{title}</span>
+          <span className="text-[var(--color-text-secondary)]">LEVEL {level}</span>
+          <span className="text-[var(--color-blue)] font-mono">{title}</span>
         </div>
 
         <UserSection characterName={characterName} />
@@ -122,25 +122,25 @@ function UserSection({ characterName }: { characterName: string }) {
   const { user, signOut } = useAuth();
 
   return (
-    <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--bg-hover)] border border-[var(--border)]">
+    <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
       {user?.photoURL ? (
         <img src={user.photoURL} alt="" className="w-8 h-8 rounded" referrerPolicy="no-referrer" />
       ) : (
-        <div className="w-8 h-8 rounded bg-[var(--bg-card)] flex items-center justify-center">
-          <User size={14} className="text-[var(--text-secondary)]" />
+        <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] flex items-center justify-center">
+          <User size={14} className="text-[var(--color-text-secondary)]" />
         </div>
       )}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-white truncate">{user?.displayName || characterName}</p>
         <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse" />
-          <p className="text-[10px] text-[var(--text-secondary)]">ONLINE</p>
+          <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-green)] animate-pulse" />
+          <p className="text-[10px] text-[var(--color-text-secondary)]">ONLINE</p>
         </div>
       </div>
       {user && (
         <button
           onClick={signOut}
-          className="p-1.5 rounded hover:bg-[var(--bg-card)] text-[var(--text-secondary)] hover:text-red-400 transition-colors"
+          className="p-1.5 rounded hover:bg-[var(--color-bg-card)] text-[var(--color-text-secondary)] hover:text-red-400 transition-colors"
           title="Sign out"
         >
           <LogOut size={14} />
