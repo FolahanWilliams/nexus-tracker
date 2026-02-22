@@ -61,7 +61,15 @@ export default function HootFAB() {
 
     // Guardian Mode State
     const [activeNudge, setActiveNudge] = useState<Nudge | null>(null);
-    const [lastTriggerTime, setLastTriggerTime] = useState<Record<string, number>>({});
+    const lastTriggerTimeRef = useRef<Record<string, number>>({});
+    const activeNudgeRef = useRef<Nudge | null>(null);
+
+    // Keep ref in sync with state for use inside effects without causing re-renders
+    useEffect(() => { activeNudgeRef.current = activeNudge; }, [activeNudge]);
+
+    // Stable ref for playQuest to avoid re-render loops in audio effect
+    const playQuestRef = useRef(playQuest);
+    useEffect(() => { playQuestRef.current = playQuest; }, [playQuest]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -86,68 +94,73 @@ export default function HootFAB() {
     }, [isOpen, activeNudge]);
 
     // -- Guardian Mode: Trigger Engine --
+    // Runs on an interval instead of reactive deps to prevent infinite re-render loops.
     useEffect(() => {
         if (isOpen || isFocusTimerRunning) return;
 
-        const now = Date.now();
-        const COOLDOWN = 60000; // 1 minute per specific trigger type
-        const GLOBAL_COOLDOWN = 15000; // 15 seconds between any nudge
+        const runTriggerCheck = () => {
+            if (activeNudgeRef.current) return; // Already showing a nudge
 
-        const lastGlobal = Math.max(...Object.values(lastTriggerTime), 0);
-        if (now - lastGlobal < GLOBAL_COOLDOWN) return;
+            const now = Date.now();
+            const COOLDOWN = 60000; // 1 minute per specific trigger type
+            const GLOBAL_COOLDOWN = 15000; // 15 seconds between any nudge
+            const times = lastTriggerTimeRef.current;
 
-        const checkTrigger = (id: string, condition: () => boolean, nudgeData: Omit<Nudge, 'id'>) => {
-            if (activeNudge) return false;
-            if (lastTriggerTime[id] && now - lastTriggerTime[id] < COOLDOWN) return false;
+            const lastGlobal = Math.max(...Object.values(times), 0);
+            if (now - lastGlobal < GLOBAL_COOLDOWN) return;
 
-            if (condition()) {
-                setActiveNudge({ id, ...nudgeData });
-                setLastTriggerTime(prev => ({ ...prev, [id]: now }));
-                return true;
-            }
-            return false;
+            const checkTrigger = (id: string, condition: () => boolean, nudgeData: Omit<Nudge, 'id'>) => {
+                if (times[id] && now - times[id] < COOLDOWN) return false;
+                if (condition()) {
+                    setActiveNudge({ id, ...nudgeData });
+                    lastTriggerTimeRef.current = { ...times, [id]: now };
+                    return true;
+                }
+                return false;
+            };
+
+            // 1. Critical HP Check
+            if (checkTrigger('critical_hp', () => hp < 30, {
+                text: "Your health is low! Use a potion before your next quest?",
+                actionLabel: "Heal Me",
+                actions: [{ action: 'equip_item', params: { itemName: 'Potion', action: 'use' } }],
+                priority: 'high',
+                type: 'hp'
+            })) return;
+
+            // 2. Urgent Quest (Due soon/Hard difficulty but incomplete)
+            const incomplete = tasks.filter(t => !t.completed);
+            if (incomplete.length > 0 && checkTrigger('urgent_quest', () => incomplete.some(t => t.difficulty === 'Hard'), {
+                text: "That Hard quest looks tough. Want to break it down?",
+                actionLabel: "Help Me",
+                actions: [{ action: 'hoot_search', params: { query: `how to handle ${incomplete.find(t => t.difficulty === 'Hard')?.title}` } }],
+                priority: 'medium',
+                type: 'quest'
+            })) return;
+
+            // 3. Habit Streak Risk (Late in the day, habit not done)
+            const today = new Date().toISOString().split('T')[0];
+            const hour = new Date().getHours();
+            const undoneHabit = habits.find(h => !h.completedDates.includes(today));
+            if (undoneHabit && hour >= 18 && checkTrigger('habit_risk', () => true, {
+                text: `Don't lose your streak on ${undoneHabit.name}!`,
+                actionLabel: "Do it now",
+                actions: [{ action: 'complete_habit', params: { id: undoneHabit.id } }],
+                priority: 'high',
+                type: 'habit'
+            })) return;
         };
 
-        // 1. Critical HP Check
-        if (checkTrigger('critical_hp', () => hp < 30, {
-            text: "Your health is low! Use a potion before your next quest?",
-            actionLabel: "Heal Me",
-            actions: [{ action: 'equip_item', params: { itemName: 'Potion', action: 'use' } }],
-            priority: 'high',
-            type: 'hp'
-        })) return;
-
-        // 2. Urgent Quest (Due soon/Medium difficulty but incomplete)
-        const incomplete = tasks.filter(t => !t.completed);
-        if (incomplete.length > 0 && checkTrigger('urgent_quest', () => incomplete.some(t => t.difficulty === 'Hard'), {
-            text: "That Hard quest looks tough. Want to break it down?",
-            actionLabel: "Help Me",
-            actions: [{ action: 'hoot_search', params: { query: `how to handle ${incomplete.find(t => t.difficulty === 'Hard')?.title}` } }],
-            priority: 'medium',
-            type: 'quest'
-        })) return;
-
-        // 3. Habit Streak Risk (Late in the day, habit not done)
-        const today = new Date().toISOString().split('T')[0];
-        const hour = new Date().getHours();
-        const undoneHabit = habits.find(h => !h.completedDates.includes(today));
-        if (undoneHabit && hour >= 18 && checkTrigger('habit_risk', () => true, {
-            text: `Don't lose your streak on ${undoneHabit.name}!`,
-            actionLabel: "Do it now",
-            actions: [{ action: 'complete_habit', params: { id: undoneHabit.id } }],
-            priority: 'high',
-            type: 'habit'
-        })) return;
-
-    }, [
-        tasks, habits, hp, isFocusTimerRunning, isOpen,
-        activeNudge, lastTriggerTime, executeActions, addToast
-    ]);
+        // Run once immediately then on a 10-second interval
+        runTriggerCheck();
+        const interval = setInterval(runTriggerCheck, 10000);
+        return () => clearInterval(interval);
+    }, [tasks, habits, hp, isFocusTimerRunning, isOpen]);
 
     // Handle Nudge Audio & Ducking
     useEffect(() => {
         if (activeNudge) {
-            playQuest();
+            playQuestRef.current();
             setMusicDucked(true);
 
             // Auto-unduck after 8 seconds if not dismissed/accepted
@@ -161,7 +174,7 @@ export default function HootFAB() {
         } else {
             setMusicDucked(false);
         }
-    }, [activeNudge, playQuest, setMusicDucked]);
+    }, [activeNudge, setMusicDucked]);
 
     const handleNudgeDismiss = () => {
         setActiveNudge(null);
