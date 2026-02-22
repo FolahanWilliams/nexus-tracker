@@ -93,16 +93,18 @@
 
 @layer components {
   .rpg-card {
-    background: var(--color-bg-card);
+    background: linear-gradient(145deg, var(--color-bg-card), #252525);
     border: 1px solid var(--color-border);
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 1.5rem;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   }
 
   .rpg-card:hover {
-    border-color: var(--color-border);
+    border-color: rgba(167, 139, 250, 0.3);
     transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(167, 139, 250, 0.1);
   }
 
   .rpg-button {
@@ -111,19 +113,20 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 1rem 1.5rem;
-    background: var(--color-bg-card);
+    background: linear-gradient(145deg, var(--color-bg-card), #252525);
     border: 1px solid var(--color-border);
-    border-radius: 8px;
+    border-radius: 10px;
     color: var(--color-text-primary);
     font-weight: 600;
     font-size: 0.875rem;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .rpg-button:hover {
     background: var(--color-bg-hover);
     border-color: var(--color-purple);
+    box-shadow: 0 0 16px rgba(167, 139, 250, 0.15);
   }
 
   .rpg-badge {
@@ -263,7 +266,7 @@
   .fade-in {
     animation: fadeIn 0.3s ease-out;
   }
-  
+
   .slide-up {
     animation: slideUp 0.3s ease-out;
   }
@@ -274,6 +277,52 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  .shimmer {
+    position: relative;
+    overflow: hidden;
+  }
+  .shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+    animation: shimmer 3s infinite;
+  }
+
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(167, 139, 250, 0.15), 0 0 40px rgba(167, 139, 250, 0.05);
+  }
+  .glow-green {
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.15), 0 0 40px rgba(74, 222, 128, 0.05);
+  }
+  .glow-yellow {
+    box-shadow: 0 0 20px rgba(251, 191, 36, 0.15), 0 0 40px rgba(251, 191, 36, 0.05);
+  }
+
+  .animate-gradient {
+    background-size: 200% 200%;
+    animation: gradientShift 8s ease infinite;
+  }
+
+  .glass {
+    background: rgba(42, 42, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 200%; }
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 @keyframes fadeIn {
@@ -312,4 +361,14 @@
   50% {
     transform: translateY(-10px);
   }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 8px rgba(167, 139, 250, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(167, 139, 250, 0.5), 0 0 40px rgba(167, 139, 250, 0.2); }
 }
