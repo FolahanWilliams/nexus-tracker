@@ -91,12 +91,21 @@ function DashboardContent() {
     claimDailyReward, lastDailyRewardClaim, loginStreak,
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
     tasks, habits, goals, reflectionNotes, todayEnergyRating,
-    completeHabit, streakFreezes, lastFreezedDate
+    completeHabit, streakFreezes, lastFreezedDate,
+    comebackBonusAmount, clearComebackBonus
   } = useGameStore();
   const { addToast } = useToastStore();
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [aiCoachMessage, setAiCoachMessage] = useState<string | null>(null);
   const [trendInsight, setTrendInsight] = useState<string | null>(null);
+
+  // Show comeback bonus toast when the player returns after a broken streak
+  useEffect(() => {
+    if (comebackBonusAmount) {
+      addToast(`Welcome back! Comeback bonus: +${comebackBonusAmount} XP for returning! 💪`, 'success');
+      clearComebackBonus();
+    }
+  }, [comebackBonusAmount]);
 
   // Fetch AI Coach message on mount if we have recent reflections
   useEffect(() => {

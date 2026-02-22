@@ -19,9 +19,16 @@ export async function POST(request: Request) {
                 description: `A generated campaign for ${prompt}`,
                 difficulty: 'Medium',
                 steps: [
-                    { title: 'Step 1: Preparation', description: 'Get everything ready' },
-                    { title: 'Step 2: Execution', description: 'Do the hard work' },
-                    { title: 'Step 3: Review', description: 'Make sure it is done right' },
+                    {
+                        title: 'Step 1: Preparation',
+                        description: 'Get everything ready before diving in.',
+                        branches: [
+                            { label: 'Plan Thoroughly', description: 'Create a detailed outline and gather all resources first.', xpBonus: 30 },
+                            { label: 'Start Lean', description: 'Begin with the minimum setup and adapt as you go.', xpBonus: 20 },
+                        ]
+                    },
+                    { title: 'Step 2: Execution', description: 'Do the hard work and push through challenges.' },
+                    { title: 'Step 3: Review', description: 'Reflect on what was accomplished and refine your approach.' },
                 ],
                 reward: { xp: 200, gold: 100 },
                 isMock: true
@@ -34,18 +41,32 @@ export async function POST(request: Request) {
         });
 
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG.
-The user wants to accomplish a large project or goal. Your job is to break this goal down into a "Quest Chain" consisting of multiple logical steps.
+The user wants to accomplish a large project or goal. Your job is to break this goal down into a "Quest Chain" consisting of multiple logical steps, with optional branching paths to give the player meaningful choices.
 
 Output ONLY a valid JSON object with the following properties:
-- name: String. A cool, RPG-styled name for this overall quest chain (e.g. "The Great refactoring", "Path to Fluency").
+- name: String. A cool, RPG-styled name for this overall quest chain (e.g. "The Great Refactoring", "Path to Fluency").
 - description: String. A short, motivating description of what this chain aims to achieve.
 - difficulty: String. Must be exactly 'Easy', 'Medium', 'Hard', or 'Epic'.
-- steps: Array of Objects. Each object must have:
+- steps: Array of Objects. Between 3 and 6 steps. Each step object must have:
   - title: String. Actionable task name.
   - description: String. Brief details on how to complete it.
+  - branches: (Optional) Array of 2 branch objects, included on 1-2 steps where the player has a meaningful choice of approach. Each branch must have:
+    - label: String. Short name for this approach (e.g. "Deep Dive", "Quick Review").
+    - description: String. One sentence explaining this approach.
+    - xpBonus: Number. Extra XP for choosing this path (10-50).
 - reward: Object containing:
   - xp: Number. Base it on the total effort of all steps combined (e.g. 50-500).
   - gold: Number. Usually half of XP (e.g. 25-250).
+
+Example of a step with branches:
+{
+  "title": "Learn the fundamentals",
+  "description": "Build your foundation before advancing.",
+  "branches": [
+    { "label": "Deep Study", "description": "Read documentation and take detailed notes for thorough understanding.", "xpBonus": 30 },
+    { "label": "Practice First", "description": "Jump straight into exercises and learn by doing.", "xpBonus": 20 }
+  ]
+}
 
 Generate a quest chain for the following user goal:`;
 

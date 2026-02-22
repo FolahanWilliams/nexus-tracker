@@ -1,6 +1,6 @@
 'use client';
 
-import { useGameStore, TimelineEvent, TaskCategory } from '@/store/useGameStore';
+import { useGameStore, TimelineEvent, TaskCategory, GameState } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import Link from 'next/link';
 import { useState, useMemo } from 'react';
@@ -41,6 +41,24 @@ const RARITY_COLORS: Record<string, string> = {
   rare: 'border-[var(--color-blue)] bg-[var(--color-blue)]/10',
   epic: 'border-[var(--color-purple)] bg-[var(--color-purple)]/10',
   legendary: 'border-[var(--color-yellow)] bg-[var(--color-yellow)]/10',
+};
+
+// Progress functions for numeric achievements — returns { current, max } or null
+const ACHIEVEMENT_PROGRESS: Record<string, (s: GameState) => { current: number; max: number } | null> = {
+  FIRST_BLOOD:    s => ({ current: Math.min(s.totalQuestsCompleted, 1), max: 1 }),
+  LEVEL_5:        s => ({ current: Math.min(s.level, 5), max: 5 }),
+  QUEST_MASTER:   s => ({ current: Math.min(s.totalQuestsCompleted, 10), max: 10 }),
+  STREAK_7:       s => ({ current: Math.min(s.streak, 7), max: 7 }),
+  HABIT_BUILDER:  s => ({ current: Math.min(s.habits.length, 5), max: 5 }),
+  HABIT_HERO:     s => ({ current: Math.min(Math.max(...s.habits.map(h => h.streak), 0), 7), max: 7 }),
+  REFLECTOR:      s => ({ current: Math.min(s.reflectionNotes.length, 7), max: 7 }),
+  EPIC_SLAYER:    s => ({ current: Math.min(s.tasks.filter(t => t.completed && t.difficulty === 'Epic').length, 10), max: 10 }),
+  SCHOLAR_ELITE:  s => ({ current: Math.min(s.tasks.filter(t => t.completed && t.category === 'Study').length, 25), max: 25 }),
+  HEALTH_WARRIOR: s => ({ current: Math.min(s.tasks.filter(t => t.completed && t.category === 'Health').length, 25), max: 25 }),
+  QUEST_CENTURION:s => ({ current: Math.min(s.totalQuestsCompleted, 100), max: 100 }),
+  STREAK_30:      s => ({ current: Math.min(s.streak, 30), max: 30 }),
+  LEVEL_20:       s => ({ current: Math.min(s.level, 20), max: 20 }),
+  LOGIN_30:       s => ({ current: Math.min(s.loginStreak, 30), max: 30 }),
 };
 
 // ── Timeline constants ──
@@ -290,7 +308,8 @@ function StatsTab() {
 
 // ─────────────────────────────────────────────
 function AchievementsTab() {
-  const { level, xp, achievements, dynamicAchievements, totalQuestsCompleted, streak, title, loginStreak, gold, gems } = useGameStore();
+  const gameState = useGameStore();
+  const { level, xp, achievements, dynamicAchievements, totalQuestsCompleted, streak, title, loginStreak, gold, gems } = gameState;
   const { addToast } = useToastStore();
   const [filter, setFilter] = useState<'all' | 'unlocked' | 'locked'>('all');
 
@@ -357,6 +376,9 @@ function AchievementsTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredAchievements.map((achievement, index) => {
           const isUnlocked = achievements.includes(achievement.id);
+          const progressFn = ACHIEVEMENT_PROGRESS[achievement.id];
+          const progress = !isUnlocked && progressFn ? progressFn(gameState) : null;
+          const progressPct = progress ? Math.round((progress.current / progress.max) * 100) : 0;
           return (
             <motion.div key={achievement.id}
               className={`rpg-card border-2 ${isUnlocked ? RARITY_COLORS[achievement.rarity] : 'border-[var(--color-border)] opacity-60'}`}
@@ -373,7 +395,19 @@ function AchievementsTab() {
                 </div>
                 {isUnlocked ? <Trophy className="text-[var(--color-yellow)]" size={20} /> : <Lock size={20} className="text-[var(--color-text-muted)]" />}
               </div>
-              <p className="text-sm text-[var(--color-text-secondary)] mb-4">{achievement.description}</p>
+              <p className="text-sm text-[var(--color-text-secondary)] mb-3">{achievement.description}</p>
+              {progress && (
+                <div className="mb-3">
+                  <div className="flex justify-between text-xs text-[var(--color-text-muted)] mb-1">
+                    <span>{progress.current} / {progress.max}</span>
+                    <span>{progressPct}%</span>
+                  </div>
+                  <div className="h-1.5 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+                    <motion.div className="h-full rounded-full bg-[var(--color-purple)]"
+                      initial={{ width: 0 }} animate={{ width: `${progressPct}%` }} transition={{ duration: 0.6 }} />
+                  </div>
+                </div>
+              )}
               <button onClick={() => handleShare(achievement)}
                 className={`w-full rpg-button text-sm ${isUnlocked ? '!bg-[var(--color-blue)] !text-white' : '!bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'}`}>
                 <Share2 size={14} /> {isUnlocked ? 'Share Achievement' : 'Share Progress'}

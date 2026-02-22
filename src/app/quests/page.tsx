@@ -27,7 +27,7 @@ interface GeneratedQuest {
 }
 
 export default function QuestsPage() {
-  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
+  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, lastCriticalHit, clearCriticalHit, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
   const { addToast } = useToastStore();
 
   // Show toast when an item drops from the store
@@ -37,6 +37,14 @@ export default function QuestsPage() {
       clearDroppedItem();
     }
   }, [lastDroppedItem]);
+
+  // Show critical hit toast when lucky-star doubles the XP reward
+  useEffect(() => {
+    if (lastCriticalHit) {
+      addToast(`⚡ CRITICAL HIT! Lucky Star doubled your XP — +${lastCriticalHit} XP!`, 'success');
+      clearCriticalHit();
+    }
+  }, [lastCriticalHit]);
 
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | 'Epic'>('Medium');
