@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { getAuthInstance, googleProvider } from '@/lib/firebase';
+import { subscribeToFirestore } from '@/lib/firestoreSync';
+import { setRemoteUpdateFlag } from '@/lib/zustandStorage';
 import { useToastStore } from '@/components/ToastContainer';
 import { useGameStore } from '@/store/useGameStore';
 
@@ -31,6 +33,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     // distinguish "user was already logged in on page load" from a mid-session
     // sign-in — both need a rehydration, but only the first should be silent.
     const prevUidRef = useRef<string | null | undefined>(undefined); // undefined = not yet resolved
+    const unsubFirestoreRef = useRef<(() => void) | null>(null);
 
     useEffect(() => {
         const auth = getAuthInstance();
@@ -41,25 +44,44 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             setUser(firebaseUser);
             setLoading(false);
 
+            // Clean up previous Firestore subscription
+            if (unsubFirestoreRef.current) {
+                unsubFirestoreRef.current();
+                unsubFirestoreRef.current = null;
+            }
+
             // Rehydrate the Zustand store whenever a user becomes authenticated.
-            //
-            // Why this is necessary:
-            // Zustand's persist middleware calls getItem() exactly once — at module
-            // initialisation, before React has mounted.  At that point Firebase Auth
-            // has not yet restored its session from IndexedDB, so currentUser is null
-            // and getItem() falls back to local storage instead of Firestore.
-            //
-            // By calling rehydrate() here we give getItem() a second chance now that
-            // currentUser is guaranteed to be set, so it will fetch the user's real
-            // cloud state and push it into the store.
-            //
-            // We trigger this whenever the uid changes (new login or page load with an
-            // existing session) but NOT on sign-out (firebaseUser === null).
             if (firebaseUser && firebaseUser.uid !== prevUid) {
                 await useGameStore.persist.rehydrate();
+
+                // Subscribe to real-time Firestore updates for multi-device sync.
+                // When another device saves, this callback pushes the new state
+                // into the local Zustand store without triggering a save-back loop.
+                unsubFirestoreRef.current = subscribeToFirestore(
+                    firebaseUser.uid,
+                    (remoteState) => {
+                        if (!remoteState) return;
+                        try {
+                            const parsed = JSON.parse(remoteState);
+                            // Merge the remote state into the store without re-saving to Firestore
+                            setRemoteUpdateFlag(true);
+                            useGameStore.setState(parsed.state ?? parsed, true);
+                            setRemoteUpdateFlag(false);
+                        } catch (err) {
+                            console.error('Failed to apply remote state:', err);
+                            setRemoteUpdateFlag(false);
+                        }
+                    }
+                );
             }
         });
-        return unsubscribe;
+        return () => {
+            unsubscribe();
+            if (unsubFirestoreRef.current) {
+                unsubFirestoreRef.current();
+                unsubFirestoreRef.current = null;
+            }
+        };
     }, []);
 
     const signIn = async () => {

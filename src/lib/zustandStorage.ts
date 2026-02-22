@@ -8,6 +8,13 @@ import { getAuthInstance } from './firebase';
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 2000;
 
+// Flag to suppress Firestore saves when applying incoming remote snapshots.
+// This prevents infinite loops: snapshot → setState → setItem → save → snapshot…
+export let _isRemoteUpdate = false;
+export function setRemoteUpdateFlag(value: boolean) {
+  _isRemoteUpdate = value;
+}
+
 function getCurrentUser() {
   try {
     return getAuthInstance().currentUser;
@@ -49,11 +56,12 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       await hybridStorage.save(serialized);
 
       // Debounced Firestore sync if authenticated.
+      // Skip if this update originated from a remote snapshot (avoids infinite loop).
       // Pass `value` (the plain object) — saveToFirestore calls JSON.stringify
       // internally, so passing `serialized` (already a JSON string) would cause
       // double-encoding and corrupt the Firestore document.
       const user = getCurrentUser();
-      if (user) {
+      if (user && !_isRemoteUpdate) {
         if (saveTimeout) clearTimeout(saveTimeout);
         saveTimeout = setTimeout(() => {
           saveToFirestore(user.uid, value);

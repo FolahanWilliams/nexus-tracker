@@ -8,7 +8,6 @@ import { persist } from 'zustand/middleware';
 // from resetting a task more than once per cycle.
 const recurringTaskTimers = new Map<string, ReturnType<typeof setTimeout>>();
 import { createIndexedDBStorage } from '@/lib/zustandStorage';
-// import { createSupabaseStorage } from '@/lib/supabaseStorage';
 import {
     validateTaskTitle,
     validateCharacterName,
@@ -1269,7 +1268,7 @@ export const useGameStore = create<GameState>()(
                         focusSessionsTotal: safeInt(parsed.focusSessionsTotal, 0),
                         focusMinutesTotal: safeInt(parsed.focusMinutesTotal, 0),
                         achievements: safeAchievements,
-                        title: ((['Novice','Apprentice','Journeyman','Expert','Master','Grandmaster','Legend'] as const).includes(parsed.title as Title)
+                        title: ((['Novice', 'Apprentice', 'Journeyman', 'Expert', 'Master', 'Grandmaster', 'Legend'] as const).includes(parsed.title as Title)
                             ? parsed.title
                             : 'Novice') as Title,
                         settings: parsed.settings && typeof parsed.settings === 'object'
