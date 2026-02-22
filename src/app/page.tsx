@@ -179,8 +179,8 @@ function DashboardContent() {
       addToast('Daily reward already claimed! Come back tomorrow.', 'info');
       return;
     }
-    claimDailyReward();
     const reward = DAILY_REWARDS[loginStreak % 7];
+    claimDailyReward();
     addToast(`Daily reward claimed! +${reward.gold} Gold, +${reward.gems} Gems`, 'success');
   };
 
