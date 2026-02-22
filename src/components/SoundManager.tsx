@@ -1,65 +1,88 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { useCallback, useEffect, useRef } from 'react';
-
-// Using free sound effects - simplified
-const SOUNDS = {
-    complete: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3', // Ding
-    levelUp: 'https://assets.mixkit.co/active_storage/sfx/1435/1435-preview.mp3', // Victory
-    buy: 'https://assets.mixkit.co/active_storage/sfx/2019/2019-preview.mp3', // Cash register
-};
-
-const VIBRATIONS = {
-    complete: 50, // Short tick
-    buy: [30, 50, 30], // Double tap
-    levelUp: [100, 50, 100, 50, 200], // Victory fanfare pattern
-};
+import { useEffect, useRef } from 'react';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { useAmbientSound } from '@/hooks/useAmbientSound';
 
 export default function SoundManager() {
-    const { gold, level, tasks } = useGameStore();
+    const { gold, level, tasks, bossBattles, achievements, inventory } = useGameStore();
+    const { playCoin, playLevelUp, playSuccess, playBoss, playHit, playAchievement, playCraft } = useSoundEffects();
 
-    // Refs to track previous state
+    // Initialize ambient soundscape
+    useAmbientSound();
+
+    // Refs to track previous state for change detection
     const prevGold = useRef(gold);
     const prevLevel = useRef(level);
-    const prevTaskCount = useRef(tasks.filter(t => t.completed).length);
+    const prevTasks = useRef(tasks);
+    const prevBossBattles = useRef(bossBattles);
+    const prevAchievements = useRef(achievements);
+    const prevInventoryCount = useRef(inventory.length);
 
-    const playSoundAndVibrate = useCallback((src: string, pattern?: number | number[]) => {
-        try {
-            const audio = new Audio(src);
-            audio.volume = 0.5;
-            audio.play().catch(() => { });
-
-            if (pattern && typeof window !== 'undefined' && navigator.vibrate) {
-                navigator.vibrate(pattern);
-            }
-        } catch { }
-    }, []);
-
-    // Effect for Buying (Gold decrease)
+    // Effect for Gold (Gain/Loss)
     useEffect(() => {
-        if (gold < prevGold.current) {
-            playSoundAndVibrate(SOUNDS.buy, VIBRATIONS.buy);
+        if (gold > prevGold.current) {
+            playCoin();
         }
         prevGold.current = gold;
-    }, [gold, playSoundAndVibrate]);
+    }, [gold, playCoin]);
 
     // Effect for Level Up
     useEffect(() => {
-        if (level > prevLevel.current && prevLevel.current !== 1) {
-            playSoundAndVibrate(SOUNDS.levelUp, VIBRATIONS.levelUp);
+        if (level > prevLevel.current && prevLevel.current !== 0) {
+            playLevelUp();
         }
         prevLevel.current = level;
-    }, [level, playSoundAndVibrate]);
+    }, [level, playLevelUp]);
 
     // Effect for Task Completion
     useEffect(() => {
-        const currentCompleted = tasks.filter(t => t.completed).length;
-        if (currentCompleted > prevTaskCount.current) {
-            playSoundAndVibrate(SOUNDS.complete, VIBRATIONS.complete);
+        const completedCount = tasks.filter(t => t.completed).length;
+        const prevCompletedCount = prevTasks.current.filter(t => t.completed).length;
+
+        if (completedCount > prevCompletedCount) {
+            playSuccess();
         }
-        prevTaskCount.current = currentCompleted;
-    }, [tasks, playSoundAndVibrate]);
+        prevTasks.current = tasks;
+    }, [tasks, playSuccess]);
+
+    // Effect for Boss Battles (Damage/Victory/Failure)
+    useEffect(() => {
+        bossBattles.forEach(boss => {
+            const prevBoss = prevBossBattles.current.find(b => b.id === boss.id);
+            if (!prevBoss) return;
+
+            // Boss took damage
+            if (boss.hp < prevBoss.hp) {
+                playHit();
+            }
+
+            // Boss defeated
+            if (boss.completed && !prevBoss.completed) {
+                playBoss(); // Play special boss defeat sound
+            }
+        });
+        prevBossBattles.current = bossBattles;
+    }, [bossBattles, playHit, playBoss]);
+
+    // Effect for Achievements
+    useEffect(() => {
+        if (achievements.length > prevAchievements.current.length) {
+            playAchievement();
+        }
+        prevAchievements.current = achievements;
+    }, [achievements, playAchievement]);
+
+    // Effect for Inventory/Crafting
+    useEffect(() => {
+        if (inventory.length > prevInventoryCount.current) {
+            // Check if gold also decreased, implying a purchase? 
+            // Or just play craft sound if it's the most likely source of new items.
+            playCraft();
+        }
+        prevInventoryCount.current = inventory.length;
+    }, [inventory, playCraft]);
 
     return null;
 }

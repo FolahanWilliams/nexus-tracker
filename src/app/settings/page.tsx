@@ -4,7 +4,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { ChevronLeft, Volume2, VolumeX, Moon, Sun, Settings as SettingsIcon, Download, Upload, Trash2, Music, Music2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 
 export default function SettingsPage() {
@@ -57,7 +57,7 @@ export default function SettingsPage() {
       }
     };
     reader.readAsText(file);
-    
+
     // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -71,7 +71,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       className="min-h-screen pb-12"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -90,7 +90,7 @@ export default function SettingsPage() {
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Intro Text */}
-        <motion.div 
+        <motion.div
           className="mb-8 border-l-4 border-[var(--color-purple)] pl-4"
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -103,7 +103,7 @@ export default function SettingsPage() {
 
         <div className="space-y-6">
           {/* Sound Effects */}
-          <motion.div 
+          <motion.div
             className="rpg-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -125,9 +125,8 @@ export default function SettingsPage() {
               </div>
               <motion.button
                 onClick={toggleSound}
-                className={`relative w-14 h-7 rounded-full transition-colors ${
-                  settings.soundEnabled ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-border)]'
-                }`}
+                className={`relative w-14 h-7 rounded-full transition-colors ${settings.soundEnabled ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-border)]'
+                  }`}
                 whileTap={{ scale: 0.95 }}
               >
                 <motion.div
@@ -139,10 +138,35 @@ export default function SettingsPage() {
                 />
               </motion.button>
             </div>
+
+            <AnimatePresence>
+              {settings.soundEnabled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-6 pt-4 border-t border-[var(--color-border)] overflow-hidden"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-[var(--color-text-secondary)]">SFX Volume</span>
+                    <span className="text-sm font-bold text-[var(--color-purple)]">{Math.round((settings.sfxVolume ?? 0.5) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={settings.sfxVolume ?? 0.5}
+                    onChange={(e) => updateSettings({ sfxVolume: parseFloat(e.target.value) })}
+                    className="w-full h-2 bg-[var(--color-border)] rounded-lg appearance-none cursor-pointer accent-[var(--color-purple)]"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           {/* Music */}
-          <motion.div 
+          <motion.div
             className="rpg-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -164,9 +188,8 @@ export default function SettingsPage() {
               </div>
               <motion.button
                 onClick={toggleMusic}
-                className={`relative w-14 h-7 rounded-full transition-colors ${
-                  settings.musicEnabled ? 'bg-[var(--color-green)]' : 'bg-[var(--color-border)]'
-                }`}
+                className={`relative w-14 h-7 rounded-full transition-colors ${settings.musicEnabled ? 'bg-[var(--color-green)]' : 'bg-[var(--color-border)]'
+                  }`}
                 whileTap={{ scale: 0.95 }}
               >
                 <motion.div
@@ -178,10 +201,35 @@ export default function SettingsPage() {
                 />
               </motion.button>
             </div>
+
+            <AnimatePresence>
+              {settings.musicEnabled && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mt-6 pt-4 border-t border-[var(--color-border)] overflow-hidden"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-[var(--color-text-secondary)]">Ambient Volume</span>
+                    <span className="text-sm font-bold text-[var(--color-green)]">{Math.round((settings.musicVolume ?? 0.3) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={settings.musicVolume ?? 0.3}
+                    onChange={(e) => updateSettings({ musicVolume: parseFloat(e.target.value) })}
+                    className="w-full h-2 bg-[var(--color-border)] rounded-lg appearance-none cursor-pointer accent-[var(--color-green)]"
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </motion.div>
 
           {/* Theme */}
-          <motion.div 
+          <motion.div
             className="rpg-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -203,9 +251,8 @@ export default function SettingsPage() {
               </div>
               <motion.button
                 onClick={toggleTheme}
-                className={`relative w-14 h-7 rounded-full transition-colors ${
-                  settings.theme === 'dark' ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-yellow)]'
-                }`}
+                className={`relative w-14 h-7 rounded-full transition-colors ${settings.theme === 'dark' ? 'bg-[var(--color-purple)]' : 'bg-[var(--color-yellow)]'
+                  }`}
                 whileTap={{ scale: 0.95 }}
               >
                 <motion.div
@@ -220,7 +267,7 @@ export default function SettingsPage() {
           </motion.div>
 
           {/* Export/Import */}
-          <motion.div 
+          <motion.div
             className="rpg-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -256,7 +303,7 @@ export default function SettingsPage() {
           </motion.div>
 
           {/* Reset Progress */}
-          <motion.div 
+          <motion.div
             className="rpg-card !border-[var(--color-red)]/30"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -296,7 +343,7 @@ export default function SettingsPage() {
           </motion.div>
 
           {/* App Info */}
-          <motion.div 
+          <motion.div
             className="rpg-card"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
