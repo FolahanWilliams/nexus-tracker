@@ -6,7 +6,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ExternalLink, Loader2, Sparkles, Volume2 } from 'lucide-react';
+import { Send, X, ExternalLink, Loader2, Sparkles } from 'lucide-react';
 import useSoundEffects from '@/hooks/useSoundEffects';
 
 interface HootSource {
