@@ -42,13 +42,8 @@ export async function POST(request: Request) {
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
             tools: [{
-                googleSearchRetrieval: {
-                    dynamicRetrievalConfig: {
-                        mode: DynamicRetrievalMode.MODE_DYNAMIC,
-                        dynamicThreshold: 0.6, // Higher threshold — only search when truly beneficial
-                    },
-                },
-            }],
+                googleSearch: {},
+            } as any],
         });
 
         const systemPrompt = `You are the Dungeon Master for QuestFlow RPG.

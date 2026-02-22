@@ -41,13 +41,8 @@ export async function POST(request: Request) {
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
             tools: [{
-                googleSearchRetrieval: {
-                    dynamicRetrievalConfig: {
-                        mode: DynamicRetrievalMode.MODE_DYNAMIC,
-                        dynamicThreshold: 0.5,
-                    },
-                },
-            }],
+                googleSearch: {},
+            } as any],
         });
 
         // Build player context string if provided

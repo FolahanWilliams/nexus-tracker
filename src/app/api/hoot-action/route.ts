@@ -252,13 +252,8 @@ export async function POST(request: Request) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 { functionDeclarations: hootFunctions as any },
                 {
-                    googleSearchRetrieval: {
-                        dynamicRetrievalConfig: {
-                            mode: DynamicRetrievalMode.MODE_DYNAMIC,
-                            dynamicThreshold: 0.3,
-                        },
-                    },
-                },
+                    googleSearch: {},
+                } as any,
             ],
         });
 

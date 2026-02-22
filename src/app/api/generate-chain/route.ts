@@ -56,13 +56,13 @@ export async function POST(request: Request) {
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
             tools: [{
-                googleSearchRetrieval: {
+                googleSearch: {
                     dynamicRetrievalConfig: {
                         mode: DynamicRetrievalMode.MODE_DYNAMIC,
-                        dynamicThreshold: 0.4, // Search fairly often for accurate step breakdowns
+                        dynamicThreshold: 0.3, // Low threshold = search more often
                     },
                 },
-            }],
+            } as any],
         });
 
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG.

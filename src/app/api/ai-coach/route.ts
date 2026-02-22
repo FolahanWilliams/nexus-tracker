@@ -40,13 +40,13 @@ export async function POST(request: Request) {
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
             tools: [{
-                googleSearchRetrieval: {
+                googleSearch: {
                     dynamicRetrievalConfig: {
                         mode: DynamicRetrievalMode.MODE_DYNAMIC,
                         dynamicThreshold: 0.3, // Low threshold = search more often
                     },
                 },
-            }],
+            } as any],
         });
 
         // Build trend context from reflection history
