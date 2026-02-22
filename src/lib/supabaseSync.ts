@@ -1,20 +1,30 @@
 import { supabase } from './supabase';
 
+/**
+ * Checks whether a string is a valid UUID v4 format (36 chars with dashes).
+ */
+function isUUID(id: string): boolean {
+    return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export async function saveToSupabase(uid: string, state: any): Promise<void> {
     console.log('[supabaseSync] saveToSupabase called with uid:', uid, '| state keys:', state ? Object.keys(state) : null);
     try {
         // 1. Update Profile (HP, Gold, Level, etc.)
+        // The store uses flat fields: characterName, characterClass, characterMotto, characterStrengths
         const profile = {
             id: uid,
-            name: state.character?.name,
-            motto: state.character?.motto,
-            class: state.character?.class,
+            name: state.characterName || null,
+            motto: state.characterMotto || null,
+            class: state.characterClass || null,
             level: state.level,
             xp: state.xp,
             hp: state.hp,
             max_hp: state.maxHp,
             gold: state.gold,
-            strengths: state.character?.strengths || [],
+            strengths: state.characterStrengths
+                ? state.characterStrengths.split(',').map((s: string) => s.trim()).filter(Boolean)
+                : [],
             updated_at: new Date().toISOString(),
         };
 
@@ -28,65 +38,70 @@ export async function saveToSupabase(uid: string, state: any): Promise<void> {
         }
         console.log('[supabaseSync] Profile upserted successfully');
 
-        // 2. Sync Tasks (Atomic Upsert)
-        if (state.tasks && state.tasks.length > 0) {
-            const tasks = state.tasks.map((t: any) => ({
-                user_id: uid,
-                title: t.title,
-                completed: t.completed,
-                xp_reward: t.xpReward,
-                difficulty: t.difficulty,
-                category: t.category,
-                completed_at: t.completedAt,
-                is_daily: t.isDaily,
-                recurring: t.recurring,
-                duration: t.duration,
-            }));
+        // 2. Sync Tasks — delete-and-reinsert to handle removals and avoid duplicates
+        // First delete all existing tasks for this user
+        const { error: taskDeleteError } = await supabase
+            .from('tasks')
+            .delete()
+            .eq('user_id', uid);
+        if (taskDeleteError) console.error('[supabaseSync] Task delete error:', taskDeleteError);
 
-            // Note: For a real production app, we'd use a unique ID mapping
-            // but for this MVP, we'll clear and re-insert or use title-based upsert if IDs are consistent.
-            // Let's assume the state IDs are UUIDs or compatible.
+        // Then insert current tasks (skip daily quests with non-UUID IDs)
+        const tasksToSave = (state.tasks || []).filter((t: any) => isUUID(t.id));
+        if (tasksToSave.length > 0) {
             const { error: taskError } = await supabase
                 .from('tasks')
-                .upsert(state.tasks.map((t: any) => ({
-                    id: t.id.length === 36 ? t.id : undefined, // Check if it's a UUID
+                .insert(tasksToSave.map((t: any) => ({
+                    id: t.id,
                     user_id: uid,
                     title: t.title,
                     completed: t.completed,
                     xp_reward: t.xpReward,
                     difficulty: t.difficulty,
                     category: t.category,
-                    completed_at: t.completedAt,
-                    is_daily: t.isDaily,
-                    recurring: t.recurring,
-                    duration: t.duration,
+                    completed_at: t.completedAt || null,
+                    is_daily: t.isDaily || false,
+                    recurring: t.recurring || 'none',
+                    duration: t.duration || 'quick',
                 })));
-            if (taskError) console.error('[supabaseSync] Task sync error:', taskError);
-            else console.log('[supabaseSync] Tasks upserted:', state.tasks.length);
+            if (taskError) console.error('[supabaseSync] Task insert error:', taskError);
+            else console.log('[supabaseSync] Tasks saved:', tasksToSave.length);
         }
 
-        // 3. Sync Habits
+        // 3. Sync Habits — delete-and-reinsert
+        const { error: habitDeleteError } = await supabase
+            .from('habits')
+            .delete()
+            .eq('user_id', uid);
+        if (habitDeleteError) console.error('[supabaseSync] Habit delete error:', habitDeleteError);
+
         if (state.habits && state.habits.length > 0) {
             const { error: habitError } = await supabase
                 .from('habits')
-                .upsert(state.habits.map((h: any) => ({
-                    id: h.id.length === 36 ? h.id : undefined,
+                .insert(state.habits.map((h: any) => ({
+                    id: isUUID(h.id) ? h.id : undefined,
                     user_id: uid,
                     name: h.name,
                     icon: h.icon,
-                    color: h.color,
+                    color: h.color || h.category || null,
                     streak: h.streak,
-                    completed_dates: h.completedDates,
+                    completed_dates: h.completedDates || [],
                 })));
-            if (habitError) console.error('[supabaseSync] Habit sync error:', habitError);
-            else console.log('[supabaseSync] Habits upserted:', state.habits.length);
+            if (habitError) console.error('[supabaseSync] Habit insert error:', habitError);
+            else console.log('[supabaseSync] Habits saved:', state.habits.length);
         }
 
-        // 4. Sync Inventory
+        // 4. Sync Inventory — delete-and-reinsert to avoid duplicates
+        const { error: invDeleteError } = await supabase
+            .from('inventory')
+            .delete()
+            .eq('user_id', uid);
+        if (invDeleteError) console.error('[supabaseSync] Inventory delete error:', invDeleteError);
+
         if (state.inventory && state.inventory.length > 0) {
             const { error: invError } = await supabase
                 .from('inventory')
-                .upsert(state.inventory.map((i: any) => ({
+                .insert(state.inventory.map((i: any) => ({
                     user_id: uid,
                     item_id: i.id,
                     name: i.name,
@@ -95,11 +110,34 @@ export async function saveToSupabase(uid: string, state: any): Promise<void> {
                     rarity: i.rarity,
                     icon: i.icon,
                     quantity: i.quantity,
-                    equipped: i.equipped,
-                    stats: i.stats,
+                    equipped: i.equipped || false,
+                    stats: i.stats || {},
                 })));
-            if (invError) console.error('[supabaseSync] Inventory sync error:', invError);
-            else console.log('[supabaseSync] Inventory upserted:', state.inventory.length);
+            if (invError) console.error('[supabaseSync] Inventory insert error:', invError);
+            else console.log('[supabaseSync] Inventory saved:', state.inventory.length);
+        }
+
+        // 5. Sync Boss Battles — delete-and-reinsert
+        const { error: bossDeleteError } = await supabase
+            .from('boss_battles')
+            .delete()
+            .eq('user_id', uid);
+        if (bossDeleteError) console.error('[supabaseSync] Boss delete error:', bossDeleteError);
+
+        if (state.bossBattles && state.bossBattles.length > 0) {
+            const { error: bossError } = await supabase
+                .from('boss_battles')
+                .insert(state.bossBattles.map((b: any) => ({
+                    user_id: uid,
+                    boss_id: b.id,
+                    name: b.name,
+                    hp: b.hp,
+                    max_hp: b.maxHp,
+                    completed: b.completed || false,
+                    failed: b.failed || false,
+                })));
+            if (bossError) console.error('[supabaseSync] Boss insert error:', bossError);
+            else console.log('[supabaseSync] Boss battles saved:', state.bossBattles.length);
         }
 
     } catch (error) {
@@ -111,11 +149,11 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
     try {
         // Fetch everything in parallel
         const [
-            { data: profile },
-            { data: tasks },
-            { data: habits },
-            { data: inventory },
-            { data: bosses }
+            { data: profile, error: profileError },
+            { data: tasks, error: tasksError },
+            { data: habits, error: habitsError },
+            { data: inventory, error: inventoryError },
+            { data: bosses, error: bossesError }
         ] = await Promise.all([
             supabase.from('profiles').select('*').eq('id', uid).single(),
             supabase.from('tasks').select('*').eq('user_id', uid),
@@ -124,9 +162,18 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
             supabase.from('boss_battles').select('*').eq('user_id', uid)
         ]);
 
+        if (profileError) {
+            console.error('[supabaseSync] Profile load error:', profileError);
+        }
+        if (tasksError) console.error('[supabaseSync] Tasks load error:', tasksError);
+        if (habitsError) console.error('[supabaseSync] Habits load error:', habitsError);
+        if (inventoryError) console.error('[supabaseSync] Inventory load error:', inventoryError);
+        if (bossesError) console.error('[supabaseSync] Bosses load error:', bossesError);
+
         if (!profile) return null;
 
-        // Reconstruct GameState
+        // Reconstruct GameState using FLAT fields that match the Zustand store structure.
+        // The store uses characterName, characterClass, etc. — NOT a nested character object.
         return {
             state: {
                 level: profile.level,
@@ -134,12 +181,12 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
                 hp: profile.hp,
                 maxHp: profile.max_hp,
                 gold: profile.gold,
-                character: {
-                    name: profile.name,
-                    motto: profile.motto,
-                    class: profile.class,
-                    strengths: profile.strengths,
-                },
+                characterName: profile.name || 'Your Name',
+                characterMotto: profile.motto || 'Comfort is the enemy',
+                characterClass: profile.class || null,
+                characterStrengths: Array.isArray(profile.strengths)
+                    ? profile.strengths.join(', ')
+                    : (profile.strengths || 'Disciplined, Organised, Creative'),
                 tasks: tasks?.map(t => ({
                     id: t.id,
                     title: t.title,
@@ -157,8 +204,15 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
                     name: h.name,
                     icon: h.icon,
                     color: h.color,
+                    category: h.color || 'Other',
+                    xpReward: 15,
                     streak: h.streak,
-                    completedDates: h.completed_dates,
+                    longestStreak: h.streak,
+                    completedDates: h.completed_dates || [],
+                    createdAt: h.created_at,
+                    lastCompletedDate: (h.completed_dates && h.completed_dates.length > 0)
+                        ? h.completed_dates[h.completed_dates.length - 1]
+                        : null,
                 })) || [],
                 inventory: inventory?.map(i => ({
                     id: i.item_id,
@@ -172,7 +226,7 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
                     stats: i.stats,
                 })) || [],
                 bossBattles: bosses?.map(b => ({
-                    id: b.id,
+                    id: b.boss_id,
                     name: b.name,
                     hp: b.hp,
                     maxHp: b.max_hp,
