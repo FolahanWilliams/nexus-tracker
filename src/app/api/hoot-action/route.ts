@@ -251,9 +251,6 @@ export async function POST(request: Request) {
             tools: [
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 { functionDeclarations: hootFunctions as any },
-                {
-                    googleSearch: {},
-                } as any,
             ],
         });
 
