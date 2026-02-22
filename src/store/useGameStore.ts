@@ -246,6 +246,8 @@ export interface GameState {
     characterMotto: string;
     characterStrengths: string;
     title: Title;
+    hp: number;
+    maxHp: number;
 
     // Timeline
     timelineEvents: TimelineEvent[];
@@ -261,10 +263,14 @@ export interface GameState {
     totalQuestsCompleted: number;
     lastDailyRewardClaim: string | null;
     loginStreak: number;
+    isMusicDucked: boolean;
 
     // Focus Timer Stats
     focusSessionsTotal: number;
     focusMinutesTotal: number;
+    isFocusTimerRunning: boolean;
+    activeFocusTaskId: string | null;
+    setMusicDucked: (ducked: boolean) => void;
 
     // UI State
     showLevelUp: boolean;
@@ -391,6 +397,11 @@ export interface GameState {
 
     // Focus Timer Actions
     addFocusSession: (minutesCompleted: number) => void;
+    setFocusTimerRunning: (running: boolean, taskId: string | null) => void;
+
+    // Character Health Actions
+    setHP: (hp: number) => void;
+    takeDamage: (amount: number) => void;
 
     // RPG Actions - Quest Chains
     addQuestChain: (chain: Omit<QuestChain, 'id' | 'currentStep' | 'completed'>) => void;
@@ -565,9 +576,12 @@ export const useGameStore = create<GameState>()(
             lastFreezedDate: null,
             focusSessionsTotal: 0,
             focusMinutesTotal: 0,
+            isFocusTimerRunning: false,
+            activeFocusTaskId: null,
             habits: [],
             goals: [],
             activeBuffs: [],
+            isMusicDucked: false,
 
             // Character defaults
             characterClass: null,
@@ -577,6 +591,8 @@ export const useGameStore = create<GameState>()(
             characterMotto: 'Comfort is the enemy',
             characterStrengths: 'Disciplined, Organised, Creative',
             title: 'Novice',
+            hp: 100,
+            maxHp: 100,
 
             // Timeline defaults
             timelineEvents: [],
@@ -1513,7 +1529,9 @@ export const useGameStore = create<GameState>()(
                     } else if (type === 'gold') {
                         state.addGold(value);
                     } else if (type === 'heal') {
-                        // HP restore - could integrate with health system
+                        set((state) => ({
+                            hp: Math.min(state.maxHp, state.hp + value)
+                        }));
                     } else if (type === 'buff' && duration) {
                         state.addBuff('buff', value, duration);
                     }
@@ -1926,6 +1944,14 @@ export const useGameStore = create<GameState>()(
                 }));
             },
 
+            setFocusTimerRunning: (running: boolean, taskId: string | null = null) => {
+                set({ isFocusTimerRunning: running, activeFocusTaskId: taskId });
+            },
+
+            setHP: (hp: number) => set({ hp }),
+            takeDamage: (amount: number) => set((state) => ({ hp: Math.max(0, state.hp - amount) })),
+            setMusicDucked: (ducked: boolean) => set({ isMusicDucked: ducked }),
+
             resetProgress: () => {
                 set({
                     xp: 0,
@@ -1947,7 +1973,9 @@ export const useGameStore = create<GameState>()(
                     habits: [],
                     goals: [],
                     activeBuffs: [],
-                    gems: 0
+                    gems: 0,
+                    hp: 100,
+                    maxHp: 100
                 });
             },
         }),

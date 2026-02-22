@@ -6,7 +6,8 @@ import { useGameStore } from '@/store/useGameStore';
 import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ExternalLink, Loader2, Sparkles } from 'lucide-react';
+import { Send, X, ExternalLink, Loader2, Sparkles, Volume2 } from 'lucide-react';
+import useSoundEffects from '@/hooks/useSoundEffects';
 
 interface HootSource {
     title: string;
@@ -26,6 +27,15 @@ interface HootMessage {
     actionResults?: string[];
 }
 
+interface Nudge {
+    id: string;
+    text: string;
+    actionLabel: string;
+    actions: HootAction[];
+    priority: 'low' | 'medium' | 'high';
+    type: 'quest' | 'habit' | 'hp' | 'celebration';
+}
+
 export default function HootFAB() {
     const { user } = useAuth();
     const pathname = usePathname();
@@ -42,6 +52,16 @@ export default function HootFAB() {
 
     // Zustand store actions
     const store = useGameStore();
+    const {
+        tasks, habits, hp, maxHp, isFocusTimerRunning,
+        setFocusTimerRunning, setMusicDucked, gold, level
+    } = store;
+
+    const { playQuest } = useSoundEffects();
+
+    // Guardian Mode State
+    const [activeNudge, setActiveNudge] = useState<Nudge | null>(null);
+    const [lastTriggerTime, setLastTriggerTime] = useState<Record<string, number>>({});
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -57,13 +77,120 @@ export default function HootFAB() {
 
     // Periodic subtle animation on the FAB
     useEffect(() => {
-        if (isOpen) return;
+        if (isOpen || activeNudge) return;
         const interval = setInterval(() => {
             setIsAnimating(true);
             setTimeout(() => setIsAnimating(false), 600);
         }, 12000);
         return () => clearInterval(interval);
-    }, [isOpen]);
+    }, [isOpen, activeNudge]);
+
+    // -- Guardian Mode: Trigger Engine --
+    useEffect(() => {
+        if (isOpen || isFocusTimerRunning) return;
+
+        const now = Date.now();
+        const COOLDOWN = 60000; // 1 minute per specific trigger type
+        const GLOBAL_COOLDOWN = 15000; // 15 seconds between any nudge
+
+        const lastGlobal = Math.max(...Object.values(lastTriggerTime), 0);
+        if (now - lastGlobal < GLOBAL_COOLDOWN) return;
+
+        const checkTrigger = (id: string, condition: () => boolean, nudgeData: Omit<Nudge, 'id'>) => {
+            if (activeNudge) return false;
+            if (lastTriggerTime[id] && now - lastTriggerTime[id] < COOLDOWN) return false;
+
+            if (condition()) {
+                setActiveNudge({ id, ...nudgeData });
+                setLastTriggerTime(prev => ({ ...prev, [id]: now }));
+                return true;
+            }
+            return false;
+        };
+
+        // 1. Critical HP Check
+        if (checkTrigger('critical_hp', () => hp < 30, {
+            text: "Your health is low! Use a potion before your next quest?",
+            actionLabel: "Heal Me",
+            actions: [{ action: 'equip_item', params: { itemName: 'Potion', action: 'use' } }],
+            priority: 'high',
+            type: 'hp'
+        })) return;
+
+        // 2. Urgent Quest (Due soon/Medium difficulty but incomplete)
+        const incomplete = tasks.filter(t => !t.completed);
+        if (incomplete.length > 0 && checkTrigger('urgent_quest', () => incomplete.some(t => t.difficulty === 'Hard'), {
+            text: "That Hard quest looks tough. Want to break it down?",
+            actionLabel: "Help Me",
+            actions: [{ action: 'hoot_search', params: { query: `how to handle ${incomplete.find(t => t.difficulty === 'Hard')?.title}` } }],
+            priority: 'medium',
+            type: 'quest'
+        })) return;
+
+        // 3. Habit Streak Risk (Late in the day, habit not done)
+        const today = new Date().toISOString().split('T')[0];
+        const hour = new Date().getHours();
+        const undoneHabit = habits.find(h => !h.completedDates.includes(today));
+        if (undoneHabit && hour >= 18 && checkTrigger('habit_risk', () => true, {
+            text: `Don't lose your streak on ${undoneHabit.name}!`,
+            actionLabel: "Do it now",
+            actions: [{ action: 'complete_habit', params: { id: undoneHabit.id } }],
+            priority: 'high',
+            type: 'habit'
+        })) return;
+
+    }, [
+        tasks, habits, hp, isFocusTimerRunning, isOpen,
+        activeNudge, lastTriggerTime, executeActions, addToast
+    ]);
+
+    // Handle Nudge Audio & Ducking
+    useEffect(() => {
+        if (activeNudge) {
+            playQuest();
+            setMusicDucked(true);
+
+            // Auto-unduck after 8 seconds if not dismissed/accepted
+            const timer = setTimeout(() => {
+                setMusicDucked(false);
+            }, 8000);
+            return () => {
+                clearTimeout(timer);
+                setMusicDucked(false);
+            };
+        } else {
+            setMusicDucked(false);
+        }
+    }, [activeNudge, playQuest, setMusicDucked]);
+
+    const handleNudgeDismiss = () => {
+        setActiveNudge(null);
+    };
+
+    const handleNudgeAccept = async () => {
+        if (!activeNudge) return;
+        setIsOpen(true);
+        const nudge = activeNudge;
+        setActiveNudge(null);
+
+        // Add a message from hoot mimicking the nudge
+        setMessages(prev => [...prev, {
+            role: 'hoot',
+            text: nudge.text,
+            actions: nudge.actions,
+        }]);
+
+        // Automatically execute the actions
+        const results = await executeActions(nudge.actions);
+
+        setMessages(prev => {
+            const last = prev[prev.length - 1];
+            if (last && last.role === 'hoot') {
+                return [...prev.slice(0, -1), { ...last, actionResults: results }];
+            }
+            return prev;
+        });
+    };
 
     // Build context snapshot for the current page
     const buildContext = useCallback((): string => {
@@ -523,17 +650,63 @@ export default function HootFAB() {
 
     return (
         <>
+            {/* Nudge Bubble */}
+            <AnimatePresence>
+                {activeNudge && !isOpen && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20, scale: 0.8, x: -20 }}
+                        animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
+                        exit={{ opacity: 0, scale: 0.8, y: 10 }}
+                        className="fixed bottom-40 right-6 z-50 w-72 pointer-events-auto"
+                    >
+                        <div className="relative bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-2xl p-4 shadow-2xl glow-purple overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)]" />
+
+                            <button
+                                onClick={handleNudgeDismiss}
+                                className="absolute top-2 right-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"
+                            >
+                                <X size={14} />
+                            </button>
+
+                            <div className="flex gap-3 mb-3">
+                                <div className="w-10 h-10 rounded-full bg-[var(--color-purple)]/20 flex items-center justify-center text-xl shrink-0">🦉</div>
+                                <div>
+                                    <p className="text-[10px] uppercase tracking-wider text-[var(--color-purple)] font-bold mb-0.5">Hoot Advice</p>
+                                    <p className="text-sm text-[var(--color-text-primary)] leading-snug font-medium">{activeNudge.text}</p>
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={handleNudgeAccept}
+                                className="w-full py-2 bg-[var(--color-purple)] hover:bg-[var(--color-purple)]/90 text-white text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-2 group"
+                            >
+                                <span>{activeNudge.actionLabel}</span>
+                                <Sparkles size={12} className="group-hover:animate-pulse" />
+                            </button>
+
+                            {/* Speech bubble tail */}
+                            <div className="absolute -bottom-2 right-8 w-4 h-4 bg-[var(--color-bg-secondary)] border-r border-b border-[var(--color-border)] rotate-45" />
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* FAB Button */}
             <AnimatePresence>
                 {!isOpen && (
                     <motion.button
                         initial={{ scale: 0, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
+                        animate={{
+                            scale: 1,
+                            opacity: 1,
+                            animation: activeNudge ? "pulseGlow 2s infinite ease-in-out" : "none"
+                        }}
                         exit={{ scale: 0, opacity: 0 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => setIsOpen(true)}
-                        className="fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full shadow-lg shadow-[var(--color-purple)]/30 flex items-center justify-center transition-all"
+                        className={`fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${activeNudge ? 'ring-2 ring-[var(--color-purple)]' : 'shadow-[var(--color-purple)]/30'}`}
                         style={{
                             background: 'linear-gradient(135deg, var(--color-purple), var(--color-blue))',
                         }}

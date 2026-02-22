@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 
 export const useAmbientSound = () => {
-    const { settings } = useGameStore();
+    const { settings, isMusicDucked } = useGameStore();
     const audioContextRef = useRef<AudioContext | null>(null);
     const sourceRef = useRef<AudioBufferSourceNode | null>(null);
     const gainNodeRef = useRef<GainNode | null>(null);
@@ -60,8 +60,9 @@ export const useAmbientSound = () => {
 
         // Update volume based on settings
         if (gainNodeRef.current) {
-            const targetVolume = settings.musicEnabled ? (settings.musicVolume ?? 0.3) * 0.2 : 0;
-            gainNodeRef.current.gain.setTargetAtTime(targetVolume, audioContextRef.current!.currentTime, 0.5);
+            let volumeScale = settings.musicEnabled ? (settings.musicVolume ?? 0.3) * 0.2 : 0;
+            if (isMusicDucked) volumeScale *= 0.3; // Duck to 30% of original music volume
+            gainNodeRef.current.gain.setTargetAtTime(volumeScale, audioContextRef.current!.currentTime, 0.5);
         }
 
         return () => {
@@ -70,7 +71,7 @@ export const useAmbientSound = () => {
                 // Actually, for a hook meant to be global, we might want to keep it persistent.
             }
         };
-    }, [settings.musicEnabled, settings.musicVolume]);
+    }, [settings.musicEnabled, settings.musicVolume, isMusicDucked]);
 
     return null;
 };

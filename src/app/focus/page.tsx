@@ -11,9 +11,9 @@ import { useToastStore } from '@/components/ToastContainer';
 type TimerMode = 'focus' | 'short-break' | 'long-break';
 
 const MODES: Record<TimerMode, { label: string; duration: number; color: string; icon: React.FC<{ size?: number; className?: string }> }> = {
-  'focus':       { label: 'Focus',       duration: 25 * 60, color: 'var(--color-purple)', icon: Zap },
-  'short-break': { label: 'Short Break', duration: 5 * 60,  color: 'var(--color-green)',  icon: Coffee },
-  'long-break':  { label: 'Long Break',  duration: 15 * 60, color: 'var(--color-blue)',   icon: Coffee },
+  'focus': { label: 'Focus', duration: 25 * 60, color: 'var(--color-purple)', icon: Zap },
+  'short-break': { label: 'Short Break', duration: 5 * 60, color: 'var(--color-green)', icon: Coffee },
+  'long-break': { label: 'Long Break', duration: 15 * 60, color: 'var(--color-blue)', icon: Coffee },
 };
 
 const XP_PER_FOCUS_SESSION = 30;
@@ -25,7 +25,7 @@ function pad(n: number) {
 }
 
 export default function FocusPage() {
-  const { tasks, addXP, addGold, addFocusSession, focusSessionsTotal, focusMinutesTotal } = useGameStore();
+  const { tasks, addXP, addGold, addFocusSession, focusSessionsTotal, focusMinutesTotal, setFocusTimerRunning } = useGameStore();
   const { addToast } = useToastStore();
 
   const [mode, setMode] = useState<TimerMode>('focus');
@@ -48,6 +48,7 @@ export default function FocusPage() {
 
   const handleSessionComplete = useCallback(() => {
     stopTimer();
+    setFocusTimerRunning(false, null);
 
     if (mode === 'focus') {
       const newSessions = sessionsThisSession + 1;
@@ -77,7 +78,12 @@ export default function FocusPage() {
   }, [mode, sessionsThisSession, stopTimer, addXP, addGold, addFocusSession, addToast]);
 
   useEffect(() => {
-    if (!running) return;
+    if (!running) {
+      setFocusTimerRunning(false, null);
+      return;
+    }
+
+    setFocusTimerRunning(true, linkedTaskId);
 
     intervalRef.current = setInterval(() => {
       setTimeLeft(prev => {
@@ -92,7 +98,7 @@ export default function FocusPage() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [running, handleSessionComplete]);
+  }, [running, handleSessionComplete, setFocusTimerRunning, linkedTaskId]);
 
   const handleModeChange = (newMode: TimerMode) => {
     stopTimer();
@@ -141,11 +147,10 @@ export default function FocusPage() {
             <button
               key={key}
               onClick={() => handleModeChange(key)}
-              className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${
-                mode === key
-                  ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow'
-                  : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
-              }`}
+              className={`flex-1 py-2 px-3 rounded-lg text-sm font-semibold transition-all ${mode === key
+                ? 'bg-[var(--color-bg-card)] text-[var(--color-text-primary)] shadow'
+                : 'text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]'
+                }`}
             >
               {m.label}
             </button>
@@ -195,11 +200,10 @@ export default function FocusPage() {
             {Array.from({ length: SESSIONS_BEFORE_LONG_BREAK }).map((_, i) => (
               <div
                 key={i}
-                className={`w-3 h-3 rounded-full transition-all ${
-                  i < (sessionsThisSession % SESSIONS_BEFORE_LONG_BREAK)
-                    ? 'bg-[var(--color-purple)]'
-                    : 'bg-[var(--color-border)]'
-                }`}
+                className={`w-3 h-3 rounded-full transition-all ${i < (sessionsThisSession % SESSIONS_BEFORE_LONG_BREAK)
+                  ? 'bg-[var(--color-purple)]'
+                  : 'bg-[var(--color-border)]'
+                  }`}
               />
             ))}
           </div>
@@ -300,8 +304,8 @@ export default function FocusPage() {
             {mode === 'focus'
               ? '🧠 Eliminate distractions. No phone. No social media. Full focus for 25 minutes.'
               : mode === 'short-break'
-              ? '☕ Step away from the screen. Stretch, breathe, hydrate.'
-              : '🚶 Take a longer break. Go for a walk. Your brain needs recovery.'}
+                ? '☕ Step away from the screen. Stretch, breathe, hydrate.'
+                : '🚶 Take a longer break. Go for a walk. Your brain needs recovery.'}
           </p>
         </motion.div>
       </div>
