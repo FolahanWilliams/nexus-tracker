@@ -272,6 +272,8 @@ export interface GameState {
     achievements: string[];
     dynamicAchievements: { name: string; description: string; icon: string; earnedAt: string }[];
     lastDroppedItem: string | null; // Name of last item dropped, for toast display
+    lastCriticalHit: number | null; // XP amount when lucky-star double fires, for toast display
+    comebackBonusAmount: number | null; // XP awarded when returning after a broken streak
 
     // Daily intention & reflection
     lastIntentionDate: string | null;
@@ -320,6 +322,8 @@ export interface GameState {
     resetProgress: () => void;
     closeLevelUp: () => void;
     clearDroppedItem: () => void;
+    clearCriticalHit: () => void;
+    clearComebackBonus: () => void;
     unlockAchievement: (id: string) => void;
     checkAchievements: () => void;
     addDynamicAchievement: (achievement: { name: string; description: string; icon: string }) => void;
@@ -591,6 +595,8 @@ export const useGameStore = create<GameState>()(
             achievements: [],
             dynamicAchievements: [],
             lastDroppedItem: null,
+            lastCriticalHit: null,
+            comebackBonusAmount: null,
 
             // Daily intention & reflection
             lastIntentionDate: null,
@@ -782,6 +788,7 @@ export const useGameStore = create<GameState>()(
                     // Apply any active XP buffs
                     const state = get();
                     let finalAmount = validatedAmount;
+                    let isCritical = false;
 
                     // Apply class XP bonus and buffs only when gaining XP (not penalising uncomplete)
                     if (finalAmount > 0) {
@@ -799,6 +806,7 @@ export const useGameStore = create<GameState>()(
                         const luckySkill = state.skills.find(s => s.id === 'lucky-star');
                         if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < (luckySkill.currentLevel * 0.05)) {
                             finalAmount *= 2;
+                            isCritical = true;
                         }
                     }
 
@@ -810,7 +818,8 @@ export const useGameStore = create<GameState>()(
                         return {
                             xp: newXP,
                             level: newLevel,
-                            showLevelUp: hasLeveledUp || state.showLevelUp
+                            showLevelUp: hasLeveledUp || state.showLevelUp,
+                            lastCriticalHit: isCritical ? finalAmount : state.lastCriticalHit,
                         };
                     });
                     get().checkAchievements();
@@ -825,6 +834,8 @@ export const useGameStore = create<GameState>()(
 
             closeLevelUp: () => set({ showLevelUp: false }),
             clearDroppedItem: () => set({ lastDroppedItem: null }),
+            clearCriticalHit: () => set({ lastCriticalHit: null }),
+            clearComebackBonus: () => set({ comebackBonusAmount: null }),
 
             addGold: (amount) => {
                 try {
@@ -918,7 +929,13 @@ export const useGameStore = create<GameState>()(
                                 // streak count preserved intentionally
                             });
                         } else {
-                            set({ streak: 1, lastActiveDate: today });
+                            // Streak broken — award a comeback bonus if the streak was meaningful
+                            const oldStreak = state.streak;
+                            const comebackBonus = oldStreak >= 3 ? Math.min(oldStreak * 10, 150) : 0;
+                            set({ streak: 1, lastActiveDate: today, comebackBonusAmount: comebackBonus > 0 ? comebackBonus : null });
+                            if (comebackBonus > 0) {
+                                get().addXP(comebackBonus);
+                            }
                         }
                     }
                 }
