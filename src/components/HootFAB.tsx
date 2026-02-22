@@ -146,7 +146,7 @@ export default function HootFAB() {
     }, [pathname, store]);
 
     // Execute actions returned by the API
-    function executeActions(actions: HootAction[]): string[] {
+    async function executeActions(actions: HootAction[]): Promise<string[]> {
         const results: string[] = [];
         const state = useGameStore.getState();
 
@@ -315,6 +315,26 @@ export default function HootFAB() {
                         results.push(strategy);
                         break;
                     }
+                    case 'perform_web_search': {
+                        const query = params.query as string;
+                        try {
+                            const searchRes = await fetch('/api/hoot-search', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ query }),
+                            });
+                            const searchData = await searchRes.json();
+                            if (searchData.result) {
+                                results.push(`🌐 Search Result:\n${searchData.result}`);
+                            } else {
+                                results.push(`⚠️ Web search failed or returned no results.`);
+                            }
+                        } catch (err) {
+                            console.error('Web search error', err);
+                            results.push(`⚠️ Web search encountered an error.`);
+                        }
+                        break;
+                    }
                     default:
                         results.push(`⚠️ Unknown action: ${action}`);
                 }
@@ -444,7 +464,7 @@ export default function HootFAB() {
             // Execute any actions the AI requested
             let actionResults: string[] = [];
             if (data.actions && data.actions.length > 0) {
-                actionResults = executeActions(data.actions);
+                actionResults = await executeActions(data.actions);
             }
 
             setMessages(prev => [...prev, {

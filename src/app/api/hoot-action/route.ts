@@ -192,6 +192,20 @@ const hootFunctions = [
             required: [],
         },
     },
+    {
+        name: 'perform_web_search',
+        description: 'Perform a web search using Google Search to answer a user\'s question or fetch live information from the internet.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                query: {
+                    type: SchemaType.STRING,
+                    description: 'The search query to look up on the internet. Be specific and concise.',
+                }
+            },
+            required: ['query'],
+        },
+    },
 ];
 
 /**
