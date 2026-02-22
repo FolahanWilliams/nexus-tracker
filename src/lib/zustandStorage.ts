@@ -15,6 +15,12 @@ export function setRemoteUpdateFlag(value: boolean) {
   _isRemoteUpdate = value;
 }
 
+// Hydration guard: prevents saving default/empty state to Supabase before
+// getItem has completed. Without this, useEffect hooks that fire on mount
+// (e.g. checkDailyQuests, checkBuffs) trigger setItem with the default empty
+// state, and the delete-and-reinsert sync strategy wipes the user's cloud data.
+let _hasHydrated = false;
+
 async function getUid(): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -39,16 +45,21 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
         if (cloudData) {
           const serialized = JSON.stringify(cloudData);
           await hybridStorage.save(serialized);
+          _hasHydrated = true;
+          console.log('[zustandStorage] Hydration complete (from Supabase)');
           return cloudData as StorageValue<T>;
         }
       }
 
       // Fall back to local IndexedDB
       const data = await hybridStorage.load();
+      _hasHydrated = true;
+      console.log('[zustandStorage] Hydration complete (from local storage)');
       if (!data) return null;
       return JSON.parse(data) as StorageValue<T>;
     } catch (error) {
       console.error('[zustandStorage] getItem error:', error);
+      _hasHydrated = true; // Allow saves even on error so the app isn't stuck
       return null;
     }
   },
@@ -59,6 +70,14 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
     try {
       // Always save locally first (fast)
       await hybridStorage.save(serialized);
+
+      // CRITICAL: Do NOT save to Supabase until initial hydration is complete.
+      // Before hydration, the store contains default/empty state. Saving that
+      // would delete all the user's cloud data via the delete-and-reinsert strategy.
+      if (!_hasHydrated) {
+        console.log('[zustandStorage] setItem: skipping Supabase save (not yet hydrated)');
+        return;
+      }
 
       // Debounced Supabase sync if authenticated.
       const uid = await getUid();
