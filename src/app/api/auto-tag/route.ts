@@ -73,7 +73,7 @@ Analyze the following task:`;
     } catch (error) {
         console.error('Gemini Auto-Tag Error:', error);
         return NextResponse.json({
-            cleanTitle: '',
+            cleanTitle: 'Untitled Quest',
             difficulty: 'Medium',
             category: 'Other',
             xpReward: 25,

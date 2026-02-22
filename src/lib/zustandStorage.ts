@@ -4,11 +4,11 @@ import { hybridStorage } from './indexedDB';
 import { saveToSupabase, loadFromSupabase } from './supabaseSync';
 import { supabase } from './supabase';
 
-// Debounce Firestore writes to avoid excessive calls
+// Debounce Supabase writes to avoid excessive calls
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 2000;
 
-// Flag to suppress Firestore saves when applying incoming remote snapshots.
+// Flag to suppress Supabase saves when applying incoming remote snapshots.
 // This prevents infinite loops: snapshot → setState → setItem → save → snapshot…
 export let _isRemoteUpdate = false;
 export function setRemoteUpdateFlag(value: boolean) {
