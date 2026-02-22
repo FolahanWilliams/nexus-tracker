@@ -34,7 +34,7 @@ export default function QuickAdd() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    addTask(title.trim(), difficulty, category);
+    addTask(title.trim(), difficulty, undefined, category);
     triggerXPFloat(`+${DIFF_XP[difficulty]} XP`, '#4ade80');
     addToast(`Quest added! "${title.trim()}"`, 'success');
     setTitle('');
