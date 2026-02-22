@@ -39,7 +39,7 @@ export async function POST(request: Request) {
         // Google Search Grounding lets the AI research the user's goal in real-time
         // so quests reference accurate, current information (e.g., latest docs, tutorials).
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
+            model: "gemini-3-flash-preview",
             tools: [{
                 googleSearchRetrieval: {
                     dynamicRetrievalConfig: {

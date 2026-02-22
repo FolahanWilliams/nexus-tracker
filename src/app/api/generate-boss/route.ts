@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         // Google Search Grounding lets the AI reference real-world events and trends
         // to create culturally relevant, topical boss battles.
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
+            model: "gemini-3-flash-preview",
             tools: [{
                 googleSearchRetrieval: {
                     dynamicRetrievalConfig: {

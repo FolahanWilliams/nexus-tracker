@@ -38,7 +38,7 @@ export async function POST(request: Request) {
         // Use Google Search Grounding so Hoot can cite real articles, studies,
         // and current information when coaching the user.
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
+            model: "gemini-3-flash-preview",
             tools: [{
                 googleSearchRetrieval: {
                     dynamicRetrievalConfig: {

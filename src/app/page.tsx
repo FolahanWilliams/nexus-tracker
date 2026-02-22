@@ -7,6 +7,7 @@ import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, Chevr
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
+import AICoachWidget from '@/components/AICoachWidget';
 import { useAuth } from '@/components/AuthProvider';
 import LoginScreen from '@/components/LoginScreen';
 
@@ -52,17 +53,17 @@ function getProductivityScore(params: {
 
 
 const menuItems = [
-  { href: '/quests',     icon: Target,    label: 'Quests',             color: 'var(--color-green)' },
-  { href: '/habits',     icon: Repeat2,   label: 'Habits',             color: 'var(--color-purple)' },
-  { href: '/focus',      icon: Timer,     label: 'Focus Timer',        color: 'var(--color-blue)' },
-  { href: '/goals',      icon: Flag,      label: 'Goals',              color: 'var(--color-orange)' },
-  { href: '/reflection', icon: BookOpen,  label: 'Daily Check-In',     color: 'var(--color-yellow)' },
-  { href: '/chains',     icon: Map,       label: 'Quest Chains',       color: 'var(--color-blue)' },
-  { href: '/bosses',     icon: Sword,     label: 'Boss Battles',       color: 'var(--color-red)' },
-  { href: '/character',  icon: User,      label: 'Character & Skills', color: 'var(--color-purple-light)' },
-  { href: '/inventory',  icon: Backpack,  label: 'Items & Shop',       color: 'var(--color-yellow)' },
-  { href: '/analytics',  icon: BarChart3, label: 'Progress & Records', color: 'var(--color-green)' },
-  { href: '/settings',   icon: Settings,  label: 'Settings',           color: 'var(--color-text-muted)' },
+  { href: '/quests', icon: Target, label: 'Quests', color: 'var(--color-green)' },
+  { href: '/habits', icon: Repeat2, label: 'Habits', color: 'var(--color-purple)' },
+  { href: '/focus', icon: Timer, label: 'Focus Timer', color: 'var(--color-blue)' },
+  { href: '/goals', icon: Flag, label: 'Goals', color: 'var(--color-orange)' },
+  { href: '/reflection', icon: BookOpen, label: 'Daily Check-In', color: 'var(--color-yellow)' },
+  { href: '/chains', icon: Map, label: 'Quest Chains', color: 'var(--color-blue)' },
+  { href: '/bosses', icon: Sword, label: 'Boss Battles', color: 'var(--color-red)' },
+  { href: '/character', icon: User, label: 'Character & Skills', color: 'var(--color-purple-light)' },
+  { href: '/inventory', icon: Backpack, label: 'Items & Shop', color: 'var(--color-yellow)' },
+  { href: '/analytics', icon: BarChart3, label: 'Progress & Records', color: 'var(--color-green)' },
+  { href: '/settings', icon: Settings, label: 'Settings', color: 'var(--color-text-muted)' },
 ];
 
 export default function HomePage() {
@@ -96,8 +97,6 @@ function DashboardContent() {
   } = useGameStore();
   const { addToast } = useToastStore();
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-  const [aiCoachMessage, setAiCoachMessage] = useState<string | null>(null);
-  const [trendInsight, setTrendInsight] = useState<string | null>(null);
 
   // Show comeback bonus toast when the player returns after a broken streak
   useEffect(() => {
@@ -107,44 +106,10 @@ function DashboardContent() {
     }
   }, [comebackBonusAmount]);
 
-  // Fetch AI Coach message on mount if we have recent reflections
   useEffect(() => {
     checkDailyQuests();
     checkBuffs();
-
-    const fetchAiCoach = async () => {
-      if (reflectionNotes.length === 0) return;
-
-      try {
-        const lastReflection = reflectionNotes[reflectionNotes.length - 1];
-        // Only fetch if reflection is from today
-        if (lastReflection.date !== new Date().toISOString().split('T')[0]) return;
-
-        const response = await fetch('/api/ai-coach', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            reflection: lastReflection.note,
-            energyRating: todayEnergyRating,
-            recentTasks: tasks.filter(t => t.completedAt?.startsWith(new Date().toISOString().split('T')[0])),
-            playerContext: { name: characterName, characterClass, level, streak },
-            reflectionHistory: reflectionNotes
-          })
-        });
-        const data = await response.json();
-        if (data?.message) {
-          setAiCoachMessage(data.message);
-        }
-        if (data?.trendInsight) {
-          setTrendInsight(data.trendInsight);
-        }
-      } catch (error) {
-        console.error('Failed to fetch AI Coach message:', error);
-      }
-    };
-
-    fetchAiCoach();
-  }, [reflectionNotes.length]);
+  }, []);
 
 
   const today = new Date().toISOString().split('T')[0];
@@ -392,32 +357,10 @@ function DashboardContent() {
             </div>
           </motion.div>
 
-          {/* AI Reflection Coach */}
-          <AnimatePresence>
-            {aiCoachMessage && (
-              <motion.div
-                className="rpg-card mb-4 !border-[var(--color-blue)]/30 relative overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.08), rgba(167, 139, 250, 0.08))' }}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-              >
-                <div className="absolute top-0 right-0 w-20 h-20 rounded-full bg-[var(--color-blue)]/5 blur-2xl" />
-                <div className="flex gap-3 items-start relative">
-                  <div className="text-2xl mt-0.5 w-9 h-9 flex items-center justify-center rounded-full bg-[var(--color-blue)]/10">🦉</div>
-                  <div className="flex-1">
-                    <p className="text-[10px] font-bold text-[var(--color-blue)] uppercase tracking-[0.15em] mb-1">Hoot says</p>
-                    <p className="text-sm italic text-[var(--color-text-secondary)] leading-relaxed">&quot;{aiCoachMessage}&quot;</p>
-                    {trendInsight && (
-                      <p className="text-xs text-[var(--color-yellow)] mt-2 flex items-center gap-1.5 bg-[var(--color-yellow)]/5 rounded px-2 py-1 w-fit">
-                        <BarChart3 size={11} /> <span className="italic">{trendInsight}</span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* AI Coach Widget — interactive, always accessible */}
+          <motion.div className="mb-4" variants={fadeUp}>
+            <AICoachWidget />
+          </motion.div>
 
           {/* Weekly Strategy Planner */}
           <motion.div className="mb-4" variants={fadeUp}>
@@ -463,11 +406,10 @@ function DashboardContent() {
                       key={habit.id}
                       onClick={() => { if (!doneToday) { completeHabit(habit.id); addToast(`${habit.name} completed!`, 'success'); } }}
                       disabled={doneToday}
-                      className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border transition-all ${
-                        doneToday
+                      className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border transition-all ${doneToday
                           ? 'border-[var(--color-green)]/40 bg-[var(--color-green)]/10'
                           : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/40 bg-[var(--color-bg-card)]'
-                      }`}
+                        }`}
                       whileHover={!doneToday ? { scale: 1.04, y: -2 } : {}}
                       whileTap={!doneToday ? { scale: 0.96 } : {}}
                     >

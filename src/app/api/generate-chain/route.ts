@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         // Google Search Grounding lets the AI research the user's project topic
         // to create steps that reference real tools, frameworks, and best practices.
         const model = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash",
+            model: "gemini-3-flash-preview",
             tools: [{
                 googleSearchRetrieval: {
                     dynamicRetrievalConfig: {
