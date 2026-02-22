@@ -1,6 +1,8 @@
 'use client';
 
 import AuthProvider from '@/components/AuthProvider';
+import Navigation from '@/components/Navigation';
+import MobileNavigation from '@/components/MobileNavigation';
 import LevelUpModal from '@/components/LevelUpModal';
 import SoundManager from '@/components/SoundManager';
 import ConfettiManager from '@/components/ConfettiManager';
@@ -14,7 +16,11 @@ import QuickAdd from '@/components/QuickAdd';
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
     return (
         <AuthProvider>
-            {children}
+            <Navigation />
+            <MobileNavigation />
+            <div className="lg:ml-64 pb-20 lg:pb-0">
+                {children}
+            </div>
             <Onboarding />
             <LevelUpModal />
             <SoundManager />

@@ -224,7 +224,7 @@ function DashboardContent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col pb-20">
+    <div className="min-h-screen flex flex-col">
       {/* Hero Banner */}
       <motion.div
         className="relative w-full h-44 overflow-hidden"
@@ -237,7 +237,7 @@ function DashboardContent() {
         <div className="absolute top-4 right-8 w-32 h-32 rounded-full bg-[var(--color-purple)]/10 blur-3xl" />
         <div className="absolute bottom-0 left-4 w-24 h-24 rounded-full bg-[var(--color-blue)]/10 blur-2xl" />
         <div className="absolute inset-0 flex items-end px-4 py-5">
-          <div className="max-w-3xl mx-auto w-full">
+          <div className="max-w-3xl lg:max-w-5xl mx-auto w-full">
             <motion.p
               className="text-[10px] text-[var(--color-purple-light)] uppercase tracking-[0.2em] font-bold mb-1.5"
               initial={{ opacity: 0, x: -10 }}
@@ -264,7 +264,7 @@ function DashboardContent() {
         initial="hidden"
         animate="show"
       >
-        <div className="max-w-3xl mx-auto px-4">
+        <div className="max-w-3xl lg:max-w-5xl mx-auto px-4 lg:px-8">
 
           {/* Stats Card */}
           <motion.div
@@ -628,7 +628,7 @@ function DashboardContent() {
           {/* Full Menu Grid */}
           <motion.div variants={fadeUp}>
             <p className="text-[10px] font-bold text-[var(--color-text-muted)] tracking-[0.15em] uppercase mb-2.5">All Modules</p>
-            <div className="grid grid-cols-2 gap-2 mb-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 mb-6">
               {menuItems.map((item, index) => {
                 const Icon = item.icon;
                 return (

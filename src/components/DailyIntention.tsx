@@ -239,6 +239,13 @@ export default function DailyIntention() {
                 >
                   <Moon size={16} /> Submit Reflection & Earn +{stars * 10}+ XP
                 </motion.button>
+
+                <button
+                  onClick={() => setShowEvening(false)}
+                  className="w-full text-center text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors py-2"
+                >
+                  Not now — I&apos;ll reflect later
+                </button>
               </div>
             </motion.div>
           </motion.div>
