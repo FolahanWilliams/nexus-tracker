@@ -1973,6 +1973,7 @@ export const useGameStore = create<GameState>()(
                     habits: [],
                     goals: [],
                     activeBuffs: [],
+                    isMusicDucked: false,
                     gems: 0,
                     hp: 100,
                     maxHp: 100
