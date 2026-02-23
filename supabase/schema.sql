@@ -12,13 +12,14 @@ CREATE TABLE IF NOT EXISTS profiles (
   max_hp INTEGER DEFAULT 100,
   gold INTEGER DEFAULT 0,
   strengths TEXT[] DEFAULT '{}',
+  extra_state JSONB DEFAULT '{}',
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
-DO $$ 
-BEGIN 
+DO $$
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Users can view own profile') THEN
     CREATE POLICY "Users can view own profile" ON profiles FOR SELECT USING (auth.uid() = id);
   END IF;
@@ -48,8 +49,8 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
 
-DO $$ 
-BEGIN 
+DO $$
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Users can manage own tasks') THEN
     CREATE POLICY "Users can manage own tasks" ON tasks FOR ALL USING (auth.uid() = user_id);
   END IF;
@@ -62,15 +63,18 @@ CREATE TABLE IF NOT EXISTS habits (
   name TEXT NOT NULL,
   icon TEXT,
   color TEXT,
+  category TEXT DEFAULT 'Other',
+  xp_reward INTEGER DEFAULT 15,
   streak INTEGER DEFAULT 0,
+  longest_streak INTEGER DEFAULT 0,
   completed_dates TEXT[] DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 ALTER TABLE habits ENABLE ROW LEVEL SECURITY;
 
-DO $$ 
-BEGIN 
+DO $$
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Users can manage own habits') THEN
     CREATE POLICY "Users can manage own habits" ON habits FOR ALL USING (auth.uid() = user_id);
   END IF;
@@ -94,8 +98,8 @@ CREATE TABLE IF NOT EXISTS inventory (
 
 ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;
 
-DO $$ 
-BEGIN 
+DO $$
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Users can manage own inventory') THEN
     CREATE POLICY "Users can manage own inventory" ON inventory FOR ALL USING (auth.uid() = user_id);
   END IF;
@@ -107,8 +111,14 @@ CREATE TABLE IF NOT EXISTS boss_battles (
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
   boss_id TEXT NOT NULL,
   name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  difficulty TEXT DEFAULT 'Medium',
   hp INTEGER NOT NULL,
   max_hp INTEGER NOT NULL,
+  xp_reward INTEGER DEFAULT 100,
+  gold_reward INTEGER DEFAULT 50,
+  starts_at TIMESTAMP WITH TIME ZONE,
+  expires_at TIMESTAMP WITH TIME ZONE,
   completed BOOLEAN DEFAULT FALSE,
   failed BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -116,8 +126,8 @@ CREATE TABLE IF NOT EXISTS boss_battles (
 
 ALTER TABLE boss_battles ENABLE ROW LEVEL SECURITY;
 
-DO $$ 
-BEGIN 
+DO $$
+BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'Users can manage own boss battles') THEN
     CREATE POLICY "Users can manage own boss battles" ON boss_battles FOR ALL USING (auth.uid() = user_id);
   END IF;

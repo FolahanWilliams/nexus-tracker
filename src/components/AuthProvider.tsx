@@ -32,16 +32,12 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     const prevUidRef = useRef<string | null | undefined>(undefined);
     const unsubRef = useRef<(() => void) | null>(null);
 
-    // Single unified effect: handles both initial hydration and auth changes.
+    // Single unified effect: handles initial hydration, auth changes, and realtime.
     //
     // With skipHydration: true, getItem is NOT called during store creation
     // (which happens during SSR).  We call rehydrate() from onAuthStateChange
     // so that auth state is known before getItem runs — this allows getItem to
     // load from Supabase when the user is logged in.
-    //
-    // Previously there was a separate mount effect that called rehydrate()
-    // independently, racing with the onAuthStateChange rehydrate.  Merging
-    // them eliminates that race condition.
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             const currentUser = session?.user ?? null;
@@ -51,6 +47,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             setUser(currentUser);
             setLoading(false);
 
+            // Tear down previous realtime subscription
             if (unsubRef.current) {
                 unsubRef.current();
                 unsubRef.current = null;
@@ -66,7 +63,9 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             if (isFirstEvent || isNewLogin) {
                 await useGameStore.persist.rehydrate();
 
-                // Set up realtime subscription for logged-in users
+                // Set up realtime subscription for logged-in users.
+                // When another device pushes changes to Supabase, the callback
+                // receives the full cloud state and merges it into the store.
                 if (currentUser) {
                     unsubRef.current = subscribeToSupabase(currentUser.id, (remoteState) => {
                         if (!remoteState) return;
@@ -109,7 +108,6 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             console.error('Sign-out error:', error);
         }
     };
-
 
     return (
         <AuthContext.Provider value={{ user, loading, signIn, signOut }}>
