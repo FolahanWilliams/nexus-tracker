@@ -14,6 +14,15 @@ export function setRemoteUpdateFlag(value: boolean) {
   _isRemoteUpdate = value;
 }
 
+// Hydration guard: prevents saving to Supabase before getItem has completed.
+// Set to true by Zustand's onRehydrateStorage callback (in store config),
+// which fires AFTER getItem resolves — guaranteed by the persist middleware.
+let _hasHydrated = false;
+export function setHasHydrated(value: boolean) {
+  console.log('[zustandStorage] _hasHydrated =', value);
+  _hasHydrated = value;
+}
+
 async function getUid(): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -59,11 +68,27 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       // Always save locally first (fast, safe)
       await hybridStorage.save(serialized);
 
+      // Block Supabase saves until rehydration has completed.
+      // Without this, useEffect hooks that fire on mount trigger setItem
+      // with DEFAULT empty state, which would overwrite real data in Supabase.
+      if (!_hasHydrated) {
+        console.log('[zustandStorage] setItem: skipping Supabase (not yet hydrated)');
+        return;
+      }
+
       // Don't echo remote updates back to Supabase
-      if (_isRemoteUpdate) return;
+      if (_isRemoteUpdate) {
+        console.log('[zustandStorage] setItem: skipping Supabase (remote update)');
+        return;
+      }
 
       const uid = await getUid();
-      if (!uid) return; // No auth session — can't save to cloud
+      if (!uid) {
+        console.log('[zustandStorage] setItem: skipping Supabase (no uid)');
+        return;
+      }
+
+      console.log('[zustandStorage] setItem: scheduling Supabase save (debounce', DEBOUNCE_MS, 'ms)');
 
       // Debounced Supabase sync.
       // When the debounce fires, we re-read from IndexedDB to get the absolute
