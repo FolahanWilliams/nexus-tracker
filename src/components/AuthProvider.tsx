@@ -32,6 +32,14 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     const prevUidRef = useRef<string | null | undefined>(undefined);
     const unsubRef = useRef<(() => void) | null>(null);
 
+    // With skipHydration: true, getItem is NOT called during store creation
+    // (which happens during SSR). We must call rehydrate() manually on the client.
+    // This fires getItem on the client → loads from Supabase/IndexedDB → then
+    // onRehydrateStorage sets _hasHydrated = true, unblocking Supabase saves.
+    useEffect(() => {
+        useGameStore.persist.rehydrate();
+    }, []);
+
     useEffect(() => {
         // Handle Session changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -55,8 +63,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
                 unsubRef.current = subscribeToSupabase(currentUser.id, (remoteState) => {
                     if (!remoteState) return;
                     setRemoteUpdateFlag(true);
-                    useGameStore.setState(remoteState.state || remoteState, false);
-                    setRemoteUpdateFlag(false);
+                    try {
+                        useGameStore.setState(remoteState.state || remoteState, false);
+                    } finally {
+                        setRemoteUpdateFlag(false);
+                    }
                 });
             }
         });

@@ -7,7 +7,7 @@ import { persist } from 'zustand/middleware';
 // timer before creating a new one, preventing multiple accumulated timeouts
 // from resetting a task more than once per cycle.
 const recurringTaskTimers = new Map<string, ReturnType<typeof setTimeout>>();
-import { createIndexedDBStorage } from '@/lib/zustandStorage';
+import { createIndexedDBStorage, setHasHydrated } from '@/lib/zustandStorage';
 import {
     validateTaskTitle,
     validateCharacterName,
@@ -1983,6 +1983,14 @@ export const useGameStore = create<GameState>()(
         {
             name: 'ai-productivity-storage',
             storage: createIndexedDBStorage<GameState>(),
+            skipHydration: true,
+            onRehydrateStorage: () => {
+                return () => {
+                    // Called AFTER getItem resolves — guaranteed by persist middleware.
+                    // This is the correct moment to allow Supabase saves.
+                    setHasHydrated(true);
+                };
+            },
         }
     )
 );
