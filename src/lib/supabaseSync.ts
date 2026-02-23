@@ -84,24 +84,28 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
             }
         }
 
-        // Prune tasks that were deleted locally (only if upsert succeeded)
-        const localTaskIds = localTasks.map((t: any) => t.id);
-        const { data: remoteTasks } = await supabase
-            .from('tasks')
-            .select('id')
-            .eq('user_id', uid);
+        // Prune tasks that were deleted locally.
+        // SAFETY: only prune if the local state has at least 1 task. If local tasks
+        // is empty, it might be un-hydrated default state — pruning would wipe everything.
+        if (localTasks.length > 0) {
+            const localTaskIds = localTasks.map((t: any) => t.id);
+            const { data: remoteTasks } = await supabase
+                .from('tasks')
+                .select('id')
+                .eq('user_id', uid);
 
-        if (remoteTasks) {
-            const staleIds = remoteTasks
-                .map((r: any) => r.id)
-                .filter((id: string) => !localTaskIds.includes(id));
-            if (staleIds.length > 0) {
-                const { error: pruneErr } = await supabase
-                    .from('tasks')
-                    .delete()
-                    .in('id', staleIds);
-                if (pruneErr) console.error('[supabaseSync] Task prune error:', pruneErr);
-                else console.log('[supabaseSync] Pruned stale tasks:', staleIds.length);
+            if (remoteTasks) {
+                const staleIds = remoteTasks
+                    .map((r: any) => r.id)
+                    .filter((id: string) => !localTaskIds.includes(id));
+                if (staleIds.length > 0) {
+                    const { error: pruneErr } = await supabase
+                        .from('tasks')
+                        .delete()
+                        .in('id', staleIds);
+                    if (pruneErr) console.error('[supabaseSync] Task prune error:', pruneErr);
+                    else console.log('[supabaseSync] Pruned stale tasks:', staleIds.length);
+                }
             }
         }
 
@@ -129,23 +133,26 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
             }
         }
 
-        const localHabitIds = localHabits.map((h: any) => h.id);
-        const { data: remoteHabits } = await supabase
-            .from('habits')
-            .select('id')
-            .eq('user_id', uid);
+        // SAFETY: only prune habits if local state has at least 1 habit
+        if (localHabits.length > 0) {
+            const localHabitIds = localHabits.map((h: any) => h.id);
+            const { data: remoteHabits } = await supabase
+                .from('habits')
+                .select('id')
+                .eq('user_id', uid);
 
-        if (remoteHabits) {
-            const staleIds = remoteHabits
-                .map((r: any) => r.id)
-                .filter((id: string) => !localHabitIds.includes(id));
-            if (staleIds.length > 0) {
-                const { error: pruneErr } = await supabase
-                    .from('habits')
-                    .delete()
-                    .in('id', staleIds);
-                if (pruneErr) console.error('[supabaseSync] Habit prune error:', pruneErr);
-                else console.log('[supabaseSync] Pruned stale habits:', staleIds.length);
+            if (remoteHabits) {
+                const staleIds = remoteHabits
+                    .map((r: any) => r.id)
+                    .filter((id: string) => !localHabitIds.includes(id));
+                if (staleIds.length > 0) {
+                    const { error: pruneErr } = await supabase
+                        .from('habits')
+                        .delete()
+                        .in('id', staleIds);
+                    if (pruneErr) console.error('[supabaseSync] Habit prune error:', pruneErr);
+                    else console.log('[supabaseSync] Pruned stale habits:', staleIds.length);
+                }
             }
         }
 
@@ -183,10 +190,8 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
                     console.log('[supabaseSync] Inventory saved OK:', state.inventory.length);
                 }
             }
-        } else {
-            // No local inventory — clear remote too
-            await supabase.from('inventory').delete().eq('user_id', uid);
         }
+        // Don't clear remote inventory when local is empty — could be un-hydrated default state
 
         // ─── 5. BOSS BATTLES (clear + reinsert, same pattern as inventory) ───
         if (state.bossBattles && state.bossBattles.length > 0) {
@@ -218,9 +223,8 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
                     console.log('[supabaseSync] Boss battles saved OK:', state.bossBattles.length);
                 }
             }
-        } else {
-            await supabase.from('boss_battles').delete().eq('user_id', uid);
         }
+        // Don't clear remote bosses when local is empty — could be un-hydrated default state
 
     } catch (error) {
         console.error('[supabaseSync] Unexpected save error:', error);
