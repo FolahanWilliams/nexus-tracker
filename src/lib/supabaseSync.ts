@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 import { useSyncStore } from './syncStatus';
 import type { Task, Habit, InventoryItem, BossBattle } from '@/store/useGameStore';
 
@@ -76,6 +76,8 @@ export const SUPABASE_MANAGED_FIELDS = [
 // ──────────────────────────────────────────────────────────────────────────────
 
 export async function saveToSupabase(uid: string, state: SyncableState): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+
     if (!state || typeof state !== 'object') {
         console.warn('[supabaseSync] saveToSupabase: state is null/invalid, aborting');
         return false;
@@ -356,6 +358,8 @@ async function saveBossBattles(uid: string, state: SyncableState): Promise<boole
 // ──────────────────────────────────────────────────────────────────────────────
 
 export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | null> {
+    if (!isSupabaseConfigured) return null;
+
     console.log('[supabaseSync] loadFromSupabase called for uid:', uid);
     try {
         const [
@@ -494,11 +498,19 @@ export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | nul
 /**
  * Subscribe to Supabase Realtime changes for the current user's profile.
  * When another device updates the profile's `updated_at`, we reload.
+ *
+ * Returns a cleanup function.  If Supabase isn't configured (placeholder
+ * credentials), returns a no-op immediately — no WebSocket is opened.
  */
 export function subscribeToSupabase(
     uid: string,
     callback: (snapshot: CloudSnapshot) => void,
 ): () => void {
+    if (!isSupabaseConfigured) {
+        console.warn('[supabaseSync] Skipping realtime subscription — Supabase not configured');
+        return () => {};
+    }
+
     const channel = supabase
         .channel(`profile-sync-${uid}`)
         .on(
@@ -528,6 +540,14 @@ export function subscribeToSupabase(
         )
         .subscribe((status) => {
             console.log('[supabaseSync] Realtime channel status:', status);
+            if (status === 'CHANNEL_ERROR') {
+                console.warn(
+                    '[supabaseSync] Realtime channel error — removing channel to stop retries. ' +
+                    'Check that Realtime is enabled for the "profiles" table in your Supabase dashboard ' +
+                    '(Database → Replication) and that RLS policies allow SELECT for the authenticated user.',
+                );
+                supabase.removeChannel(channel);
+            }
         });
 
     return () => {
