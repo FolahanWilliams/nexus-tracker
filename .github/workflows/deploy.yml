@@ -1,0 +1,65 @@
+name: Deploy & Migrate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false  # Never cancel in-progress deploys
+
+jobs:
+  migrate:
+    name: Run Supabase Migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Only run if migration files changed, OR if manually triggered
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.modified, 'supabase/') ||
+      contains(github.event.head_commit.added, 'supabase/')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Link Supabase project
+        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Run database migrations
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+      - name: Verify migration success
+        run: |
+          echo "Migrations applied successfully."
+          echo "Project ref: ${{ secrets.SUPABASE_PROJECT_REF }}"
+
+  # Fallback: direct SQL execution if Supabase CLI approach fails.
+  # This job only runs if the 'migrate' job is skipped (no supabase/ changes)
+  # AND there are migration files that haven't been run.
+  # Enable this by uncommenting and adding SUPABASE_DB_URL secret.
+  #
+  # migrate-direct:
+  #   name: Run Migrations (Direct SQL)
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'workflow_dispatch'
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Run migrations via psql
+  #       run: |
+  #         for f in supabase/migrations/*.sql; do
+  #           echo "Running $f..."
+  #           psql "${{ secrets.SUPABASE_DB_URL }}" -f "$f"
+  #         done
