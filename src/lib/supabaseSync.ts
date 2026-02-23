@@ -7,21 +7,36 @@ function isUUID(id: string): boolean {
     return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
-export async function saveToSupabase(uid: string, state: any): Promise<void> {
-    console.log('[supabaseSync] saveToSupabase called with uid:', uid, '| state keys:', state ? Object.keys(state) : null);
+export async function saveToSupabase(uid: string, state: any): Promise<boolean> {
+    // Safety: refuse to save if the state looks like un-hydrated defaults
+    if (!state || typeof state !== 'object') {
+        console.warn('[supabaseSync] saveToSupabase: state is null/invalid, aborting');
+        return false;
+    }
+
+    console.log('[supabaseSync] saveToSupabase called', {
+        uid,
+        characterName: state.characterName,
+        taskCount: state.tasks?.length ?? 0,
+        habitCount: state.habits?.length ?? 0,
+        level: state.level,
+        xp: state.xp,
+    });
+
+    let allOk = true;
+
     try {
-        // 1. Update Profile (HP, Gold, Level, etc.)
-        // The store uses flat fields: characterName, characterClass, characterMotto, characterStrengths
+        // ─── 1. PROFILE (upsert — safe, single row per user) ───
         const profile = {
             id: uid,
             name: state.characterName || null,
             motto: state.characterMotto || null,
             class: state.characterClass || null,
-            level: state.level,
-            xp: state.xp,
-            hp: state.hp,
-            max_hp: state.maxHp,
-            gold: state.gold,
+            level: state.level ?? 1,
+            xp: state.xp ?? 0,
+            hp: state.hp ?? 100,
+            max_hp: state.maxHp ?? 100,
+            gold: state.gold ?? 0,
             strengths: state.characterStrengths
                 ? state.characterStrengths.split(',').map((s: string) => s.trim()).filter(Boolean)
                 : [],
@@ -33,121 +48,192 @@ export async function saveToSupabase(uid: string, state: any): Promise<void> {
             .upsert(profile);
 
         if (profileError) {
-            console.error('[supabaseSync] Profile upsert error:', profileError);
-            throw profileError;
+            console.error('[supabaseSync] Profile upsert FAILED:', profileError);
+            allOk = false;
+            // If profile fails, remaining table writes will likely also fail (auth issue).
+            // Return early rather than making doomed requests.
+            return false;
         }
-        console.log('[supabaseSync] Profile upserted successfully');
+        console.log('[supabaseSync] Profile upserted OK');
 
-        // 2. Sync Tasks — delete-and-reinsert to handle removals and avoid duplicates
-        // First delete all existing tasks for this user
-        const { error: taskDeleteError } = await supabase
-            .from('tasks')
-            .delete()
-            .eq('user_id', uid);
-        if (taskDeleteError) console.error('[supabaseSync] Task delete error:', taskDeleteError);
+        // ─── 2. TASKS (upsert existing + insert new, then prune deleted) ───
+        const localTasks = (state.tasks || []).filter((t: any) => t && isUUID(t.id));
 
-        // Then insert current tasks (skip daily quests with non-UUID IDs)
-        const tasksToSave = (state.tasks || []).filter((t: any) => isUUID(t.id));
-        if (tasksToSave.length > 0) {
-            const { error: taskError } = await supabase
+        if (localTasks.length > 0) {
+            const { error: taskUpsertErr } = await supabase
                 .from('tasks')
-                .insert(tasksToSave.map((t: any) => ({
+                .upsert(localTasks.map((t: any) => ({
                     id: t.id,
                     user_id: uid,
                     title: t.title,
-                    completed: t.completed,
-                    xp_reward: t.xpReward,
-                    difficulty: t.difficulty,
-                    category: t.category,
+                    completed: t.completed ?? false,
+                    xp_reward: t.xpReward ?? 10,
+                    difficulty: t.difficulty ?? 'Medium',
+                    category: t.category ?? 'Other',
                     completed_at: t.completedAt || null,
-                    is_daily: t.isDaily || false,
-                    recurring: t.recurring || 'none',
-                    duration: t.duration || 'quick',
-                })));
-            if (taskError) console.error('[supabaseSync] Task insert error:', taskError);
-            else console.log('[supabaseSync] Tasks saved:', tasksToSave.length);
+                    is_daily: t.isDaily ?? false,
+                    recurring: t.recurring ?? 'none',
+                    duration: t.duration ?? 'quick',
+                })), { onConflict: 'id' });
+
+            if (taskUpsertErr) {
+                console.error('[supabaseSync] Task upsert FAILED:', taskUpsertErr);
+                allOk = false;
+            } else {
+                console.log('[supabaseSync] Tasks upserted OK:', localTasks.length);
+            }
         }
 
-        // 3. Sync Habits — delete-and-reinsert
-        const { error: habitDeleteError } = await supabase
-            .from('habits')
-            .delete()
+        // Prune tasks that were deleted locally (only if upsert succeeded)
+        const localTaskIds = localTasks.map((t: any) => t.id);
+        const { data: remoteTasks } = await supabase
+            .from('tasks')
+            .select('id')
             .eq('user_id', uid);
-        if (habitDeleteError) console.error('[supabaseSync] Habit delete error:', habitDeleteError);
 
-        if (state.habits && state.habits.length > 0) {
-            const { error: habitError } = await supabase
+        if (remoteTasks) {
+            const staleIds = remoteTasks
+                .map((r: any) => r.id)
+                .filter((id: string) => !localTaskIds.includes(id));
+            if (staleIds.length > 0) {
+                const { error: pruneErr } = await supabase
+                    .from('tasks')
+                    .delete()
+                    .in('id', staleIds);
+                if (pruneErr) console.error('[supabaseSync] Task prune error:', pruneErr);
+                else console.log('[supabaseSync] Pruned stale tasks:', staleIds.length);
+            }
+        }
+
+        // ─── 3. HABITS (upsert + prune) ───
+        const localHabits = (state.habits || []).filter((h: any) => h && isUUID(h.id));
+
+        if (localHabits.length > 0) {
+            const { error: habitUpsertErr } = await supabase
                 .from('habits')
-                .insert(state.habits.map((h: any) => ({
-                    id: isUUID(h.id) ? h.id : undefined,
+                .upsert(localHabits.map((h: any) => ({
+                    id: h.id,
                     user_id: uid,
                     name: h.name,
                     icon: h.icon,
                     color: h.color || h.category || null,
-                    streak: h.streak,
+                    streak: h.streak ?? 0,
                     completed_dates: h.completedDates || [],
-                })));
-            if (habitError) console.error('[supabaseSync] Habit insert error:', habitError);
-            else console.log('[supabaseSync] Habits saved:', state.habits.length);
+                })), { onConflict: 'id' });
+
+            if (habitUpsertErr) {
+                console.error('[supabaseSync] Habit upsert FAILED:', habitUpsertErr);
+                allOk = false;
+            } else {
+                console.log('[supabaseSync] Habits upserted OK:', localHabits.length);
+            }
         }
 
-        // 4. Sync Inventory — delete-and-reinsert to avoid duplicates
-        const { error: invDeleteError } = await supabase
-            .from('inventory')
-            .delete()
+        const localHabitIds = localHabits.map((h: any) => h.id);
+        const { data: remoteHabits } = await supabase
+            .from('habits')
+            .select('id')
             .eq('user_id', uid);
-        if (invDeleteError) console.error('[supabaseSync] Inventory delete error:', invDeleteError);
 
+        if (remoteHabits) {
+            const staleIds = remoteHabits
+                .map((r: any) => r.id)
+                .filter((id: string) => !localHabitIds.includes(id));
+            if (staleIds.length > 0) {
+                const { error: pruneErr } = await supabase
+                    .from('habits')
+                    .delete()
+                    .in('id', staleIds);
+                if (pruneErr) console.error('[supabaseSync] Habit prune error:', pruneErr);
+                else console.log('[supabaseSync] Pruned stale habits:', staleIds.length);
+            }
+        }
+
+        // ─── 4. INVENTORY (no stable primary key — clear + reinsert, but ONLY if we have items) ───
+        // First read what's there, so we can restore if insert fails.
         if (state.inventory && state.inventory.length > 0) {
-            const { error: invError } = await supabase
+            const { error: invDelErr } = await supabase
                 .from('inventory')
-                .insert(state.inventory.map((i: any) => ({
-                    user_id: uid,
-                    item_id: i.id,
-                    name: i.name,
-                    description: i.description,
-                    type: i.type,
-                    rarity: i.rarity,
-                    icon: i.icon,
-                    quantity: i.quantity,
-                    equipped: i.equipped || false,
-                    stats: i.stats || {},
-                })));
-            if (invError) console.error('[supabaseSync] Inventory insert error:', invError);
-            else console.log('[supabaseSync] Inventory saved:', state.inventory.length);
+                .delete()
+                .eq('user_id', uid);
+
+            if (invDelErr) {
+                console.error('[supabaseSync] Inventory delete error:', invDelErr);
+                allOk = false;
+            } else {
+                const { error: invInsErr } = await supabase
+                    .from('inventory')
+                    .insert(state.inventory.map((i: any) => ({
+                        user_id: uid,
+                        item_id: i.id,
+                        name: i.name,
+                        description: i.description || '',
+                        type: i.type,
+                        rarity: i.rarity,
+                        icon: i.icon,
+                        quantity: i.quantity ?? 1,
+                        equipped: i.equipped ?? false,
+                        stats: i.stats || {},
+                    })));
+
+                if (invInsErr) {
+                    console.error('[supabaseSync] Inventory insert FAILED:', invInsErr);
+                    allOk = false;
+                } else {
+                    console.log('[supabaseSync] Inventory saved OK:', state.inventory.length);
+                }
+            }
+        } else {
+            // No local inventory — clear remote too
+            await supabase.from('inventory').delete().eq('user_id', uid);
         }
 
-        // 5. Sync Boss Battles — delete-and-reinsert
-        const { error: bossDeleteError } = await supabase
-            .from('boss_battles')
-            .delete()
-            .eq('user_id', uid);
-        if (bossDeleteError) console.error('[supabaseSync] Boss delete error:', bossDeleteError);
-
+        // ─── 5. BOSS BATTLES (clear + reinsert, same pattern as inventory) ───
         if (state.bossBattles && state.bossBattles.length > 0) {
-            const { error: bossError } = await supabase
+            const { error: bossDelErr } = await supabase
                 .from('boss_battles')
-                .insert(state.bossBattles.map((b: any) => ({
-                    user_id: uid,
-                    boss_id: b.id,
-                    name: b.name,
-                    hp: b.hp,
-                    max_hp: b.maxHp,
-                    completed: b.completed || false,
-                    failed: b.failed || false,
-                })));
-            if (bossError) console.error('[supabaseSync] Boss insert error:', bossError);
-            else console.log('[supabaseSync] Boss battles saved:', state.bossBattles.length);
+                .delete()
+                .eq('user_id', uid);
+
+            if (bossDelErr) {
+                console.error('[supabaseSync] Boss delete error:', bossDelErr);
+                allOk = false;
+            } else {
+                const { error: bossInsErr } = await supabase
+                    .from('boss_battles')
+                    .insert(state.bossBattles.map((b: any) => ({
+                        user_id: uid,
+                        boss_id: b.id,
+                        name: b.name,
+                        hp: b.hp,
+                        max_hp: b.maxHp,
+                        completed: b.completed ?? false,
+                        failed: b.failed ?? false,
+                    })));
+
+                if (bossInsErr) {
+                    console.error('[supabaseSync] Boss insert FAILED:', bossInsErr);
+                    allOk = false;
+                } else {
+                    console.log('[supabaseSync] Boss battles saved OK:', state.bossBattles.length);
+                }
+            }
+        } else {
+            await supabase.from('boss_battles').delete().eq('user_id', uid);
         }
 
     } catch (error) {
-        console.error('Supabase save error:', error);
+        console.error('[supabaseSync] Unexpected save error:', error);
+        return false;
     }
+
+    console.log('[supabaseSync] Save complete. allOk =', allOk);
+    return allOk;
 }
 
 export async function loadFromSupabase(uid: string): Promise<any | null> {
+    console.log('[supabaseSync] loadFromSupabase called for uid:', uid);
     try {
-        // Fetch everything in parallel
         const [
             { data: profile, error: profileError },
             { data: tasks, error: tasksError },
@@ -163,24 +249,25 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
         ]);
 
         if (profileError) {
-            console.error('[supabaseSync] Profile load error:', profileError);
+            console.error('[supabaseSync] Profile load error:', profileError.message, profileError.code);
         }
-        if (tasksError) console.error('[supabaseSync] Tasks load error:', tasksError);
-        if (habitsError) console.error('[supabaseSync] Habits load error:', habitsError);
-        if (inventoryError) console.error('[supabaseSync] Inventory load error:', inventoryError);
-        if (bossesError) console.error('[supabaseSync] Bosses load error:', bossesError);
+        if (tasksError) console.error('[supabaseSync] Tasks load error:', tasksError.message);
+        if (habitsError) console.error('[supabaseSync] Habits load error:', habitsError.message);
+        if (inventoryError) console.error('[supabaseSync] Inventory load error:', inventoryError.message);
+        if (bossesError) console.error('[supabaseSync] Bosses load error:', bossesError.message);
 
-        if (!profile) return null;
+        if (!profile) {
+            console.log('[supabaseSync] No profile found for uid, returning null');
+            return null;
+        }
 
-        // Reconstruct GameState using FLAT fields that match the Zustand store structure.
-        // The store uses characterName, characterClass, etc. — NOT a nested character object.
-        return {
+        const result = {
             state: {
-                level: profile.level,
-                xp: profile.xp,
-                hp: profile.hp,
-                maxHp: profile.max_hp,
-                gold: profile.gold,
+                level: profile.level ?? 1,
+                xp: profile.xp ?? 0,
+                hp: profile.hp ?? 100,
+                maxHp: profile.max_hp ?? 100,
+                gold: profile.gold ?? 0,
                 characterName: profile.name || 'Your Name',
                 characterMotto: profile.motto || 'Comfort is the enemy',
                 characterClass: profile.class || null,
@@ -235,14 +322,22 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
                 })) || [],
             }
         };
+
+        console.log('[supabaseSync] Loaded from Supabase:', {
+            taskCount: result.state.tasks.length,
+            habitCount: result.state.habits.length,
+            inventoryCount: result.state.inventory.length,
+            level: result.state.level,
+            characterName: result.state.characterName,
+        });
+
+        return result;
     } catch (error) {
-        console.error('Supabase load error:', error);
+        console.error('[supabaseSync] Unexpected load error:', error);
         return null;
     }
 }
 
 export function subscribeToSupabase(uid: string, callback: (state: any) => void) {
-    // Implement realtime subscription to profiles/tasks etc if needed.
-    // For now, we'll return a dummy unsubscribe.
     return () => { };
 }
