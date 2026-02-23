@@ -2,6 +2,7 @@
 import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
 import { saveToSupabase, loadFromSupabase } from './supabaseSync';
+import type { CloudSnapshot } from './supabaseSync';
 import { supabase } from './supabase';
 import { useSyncStore } from './syncStatus';
 
@@ -66,9 +67,9 @@ async function getUid(): Promise<string | null> {
  * fields, so the merge mainly serves as a safety net.
  */
 function mergeCloudAndLocal(
-  cloudData: { state: Record<string, any> },
-  localData: { state: Record<string, any>; version?: number } | null,
-): { state: Record<string, any>; version?: number } {
+  cloudData: CloudSnapshot,
+  localData: { state: Record<string, unknown>; version?: number } | null,
+): { state: Record<string, unknown>; version?: number } {
   if (!localData || !localData.state) {
     return cloudData;
   }
@@ -200,14 +201,14 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
   registerOnlineListeners();
 
   return {
-    getItem: async (_name: string): Promise<StorageValue<T> | null> => {
+    getItem: async (): Promise<StorageValue<T> | null> => {
       if (typeof window === 'undefined') return null;
       try {
         // ── 1. Load local data from IndexedDB (fast, has FULL state) ──
-        let localData: any = null;
+        let localData: StorageValue<T> | null = null;
         try {
           const raw = await hybridStorage.load();
-          if (raw) localData = JSON.parse(raw);
+          if (raw) localData = JSON.parse(raw) as StorageValue<T>;
         } catch (e) {
           console.warn('[zustandStorage] Failed to parse local data:', e);
         }
@@ -220,7 +221,10 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
           const cloudData = await loadFromSupabase(uid);
           if (cloudData) {
             // ── 3. Merge: Supabase fields override local, everything else preserved ──
-            const merged = mergeCloudAndLocal(cloudData, localData);
+            const merged = mergeCloudAndLocal(
+              cloudData,
+              localData as { state: Record<string, unknown>; version?: number } | null,
+            );
 
             // Save the merged (complete) state back to IndexedDB
             await hybridStorage.save(JSON.stringify(merged));
@@ -232,7 +236,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
         // ── 4. Fall back to local IndexedDB ──
         console.log('[zustandStorage] Hydration complete (from local, data found:', !!localData, ')');
         if (!localData) return null;
-        return localData as StorageValue<T>;
+        return localData;
       } catch (error) {
         console.error('[zustandStorage] getItem error:', error);
         return null;
@@ -284,17 +288,17 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
           const latestData = await hybridStorage.load();
           if (!latestData) return;
 
-          let latestState: any;
+          let latestState: Record<string, unknown>;
           try {
-            const parsed = JSON.parse(latestData);
-            latestState = parsed.state || parsed;
+            const parsed = JSON.parse(latestData) as { state?: Record<string, unknown> };
+            latestState = parsed.state || parsed as unknown as Record<string, unknown>;
           } catch {
             console.error('[zustandStorage] Failed to parse latest state for save');
             return;
           }
 
           console.log('[zustandStorage] Firing saveToSupabase for uid:', uid,
-            'tasks:', latestState.tasks?.length ?? 0,
+            'tasks:', (latestState.tasks as unknown[] | undefined)?.length ?? 0,
             'level:', latestState.level);
 
           try {
@@ -310,13 +314,13 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
       }
     },
 
-    removeItem: async (_name: string): Promise<void> => {
+    removeItem: async (name: string): Promise<void> => {
       if (typeof window === 'undefined') return;
       try {
         await hybridStorage.clear();
       } catch (error) {
         console.error('Storage removeItem error:', error);
-        localStorage.removeItem(_name);
+        localStorage.removeItem(name);
       }
     },
   };

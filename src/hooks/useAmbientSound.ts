@@ -14,7 +14,8 @@ export const useAmbientSound = () => {
 
         const initAmbient = () => {
             if (!audioContextRef.current) {
-                audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+                const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+                audioContextRef.current = new AudioCtx();
             }
 
             const ctx = audioContextRef.current;

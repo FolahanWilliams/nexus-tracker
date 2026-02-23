@@ -62,6 +62,7 @@ export async function POST(request: Request) {
                         dynamicThreshold: 0.3, // Low threshold = search more often
                     },
                 },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
             } as any],
         });
 

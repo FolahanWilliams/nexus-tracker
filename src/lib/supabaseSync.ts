@@ -1,5 +1,32 @@
 import { supabase } from './supabase';
 import { useSyncStore } from './syncStatus';
+import type { Task, Habit, InventoryItem, BossBattle } from '@/store/useGameStore';
+
+/**
+ * The subset of the game store that gets synced to Supabase.
+ * Uses an index signature so extra_state fields pass through.
+ */
+interface SyncableState {
+    characterName?: string;
+    characterMotto?: string;
+    characterClass?: string;
+    characterStrengths?: string[] | string;
+    level?: number;
+    xp?: number;
+    hp?: number;
+    maxHp?: number;
+    gold?: number;
+    tasks?: Task[];
+    habits?: Habit[];
+    inventory?: InventoryItem[];
+    bossBattles?: BossBattle[];
+    [key: string]: unknown;
+}
+
+/** Shape returned by loadFromSupabase — a plain state snapshot. */
+export interface CloudSnapshot {
+    state: Record<string, unknown>;
+}
 
 /**
  * Checks whether a string is a valid UUID v4 format (36 chars with dashes).
@@ -48,7 +75,7 @@ export const SUPABASE_MANAGED_FIELDS = [
 // SAVE
 // ──────────────────────────────────────────────────────────────────────────────
 
-export async function saveToSupabase(uid: string, state: any): Promise<boolean> {
+export async function saveToSupabase(uid: string, state: SyncableState): Promise<boolean> {
     if (!state || typeof state !== 'object') {
         console.warn('[supabaseSync] saveToSupabase: state is null/invalid, aborting');
         return false;
@@ -71,7 +98,7 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
     try {
         // ─── Build extra_state JSONB ───────────────────────────────────────
         // Everything that isn't in a dedicated table and isn't transient UI state.
-        const extraState: Record<string, any> = {};
+        const extraState: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(state)) {
             if (!TABLE_MANAGED_FIELDS.has(key) && !TRANSIENT_FIELDS.has(key)) {
                 extraState[key] = value;
@@ -146,14 +173,14 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
 
 // ── Individual table save functions (run in parallel) ──────────────────────
 
-async function saveTasks(uid: string, state: any): Promise<boolean> {
-    const localTasks = (state.tasks || []).filter((t: any) => t && isUUID(t.id));
+async function saveTasks(uid: string, state: SyncableState): Promise<boolean> {
+    const localTasks = (state.tasks || []).filter((t: Task) => t && isUUID(t.id));
     let ok = true;
 
     if (localTasks.length > 0) {
         const { error } = await supabase
             .from('tasks')
-            .upsert(localTasks.map((t: any) => ({
+            .upsert(localTasks.map((t: Task) => ({
                 id: t.id,
                 user_id: uid,
                 title: t.title,
@@ -175,7 +202,7 @@ async function saveTasks(uid: string, state: any): Promise<boolean> {
         }
 
         // Prune deleted tasks
-        const localTaskIds = localTasks.map((t: any) => t.id);
+        const localTaskIds = localTasks.map((t: Task) => t.id);
         const { data: remoteTasks } = await supabase
             .from('tasks')
             .select('id')
@@ -183,7 +210,7 @@ async function saveTasks(uid: string, state: any): Promise<boolean> {
 
         if (remoteTasks) {
             const staleIds = remoteTasks
-                .map((r: any) => r.id)
+                .map((r: { id: string }) => r.id)
                 .filter((id: string) => !localTaskIds.includes(id));
             if (staleIds.length > 0) {
                 const { error: pruneErr } = await supabase
@@ -198,19 +225,19 @@ async function saveTasks(uid: string, state: any): Promise<boolean> {
     return ok;
 }
 
-async function saveHabits(uid: string, state: any): Promise<boolean> {
-    const localHabits = (state.habits || []).filter((h: any) => h && isUUID(h.id));
+async function saveHabits(uid: string, state: SyncableState): Promise<boolean> {
+    const localHabits = (state.habits || []).filter((h: Habit) => h && isUUID(h.id));
     let ok = true;
 
     if (localHabits.length > 0) {
         const { error } = await supabase
             .from('habits')
-            .upsert(localHabits.map((h: any) => ({
+            .upsert(localHabits.map((h: Habit) => ({
                 id: h.id,
                 user_id: uid,
                 name: h.name,
                 icon: h.icon,
-                color: h.category || h.color || null,
+                color: h.category || null,
                 category: h.category || 'Other',
                 xp_reward: h.xpReward ?? 15,
                 streak: h.streak ?? 0,
@@ -226,7 +253,7 @@ async function saveHabits(uid: string, state: any): Promise<boolean> {
         }
 
         // Prune deleted habits
-        const localHabitIds = localHabits.map((h: any) => h.id);
+        const localHabitIds = localHabits.map((h: Habit) => h.id);
         const { data: remoteHabits } = await supabase
             .from('habits')
             .select('id')
@@ -234,7 +261,7 @@ async function saveHabits(uid: string, state: any): Promise<boolean> {
 
         if (remoteHabits) {
             const staleIds = remoteHabits
-                .map((r: any) => r.id)
+                .map((r: { id: string }) => r.id)
                 .filter((id: string) => !localHabitIds.includes(id));
             if (staleIds.length > 0) {
                 const { error: pruneErr } = await supabase
@@ -249,7 +276,7 @@ async function saveHabits(uid: string, state: any): Promise<boolean> {
     return ok;
 }
 
-async function saveInventory(uid: string, state: any): Promise<boolean> {
+async function saveInventory(uid: string, state: SyncableState): Promise<boolean> {
     if (!state.inventory || state.inventory.length === 0) return true;
 
     const { error: delErr } = await supabase
@@ -264,7 +291,7 @@ async function saveInventory(uid: string, state: any): Promise<boolean> {
 
     const { error: insErr } = await supabase
         .from('inventory')
-        .insert(state.inventory.map((i: any) => ({
+        .insert(state.inventory.map((i: InventoryItem) => ({
             user_id: uid,
             item_id: i.id,
             name: i.name,
@@ -285,7 +312,7 @@ async function saveInventory(uid: string, state: any): Promise<boolean> {
     return true;
 }
 
-async function saveBossBattles(uid: string, state: any): Promise<boolean> {
+async function saveBossBattles(uid: string, state: SyncableState): Promise<boolean> {
     if (!state.bossBattles || state.bossBattles.length === 0) return true;
 
     const { error: delErr } = await supabase
@@ -300,7 +327,7 @@ async function saveBossBattles(uid: string, state: any): Promise<boolean> {
 
     const { error: insErr } = await supabase
         .from('boss_battles')
-        .insert(state.bossBattles.map((b: any) => ({
+        .insert(state.bossBattles.map((b: BossBattle) => ({
             user_id: uid,
             boss_id: b.id,
             name: b.name,
@@ -328,7 +355,7 @@ async function saveBossBattles(uid: string, state: any): Promise<boolean> {
 // LOAD
 // ──────────────────────────────────────────────────────────────────────────────
 
-export async function loadFromSupabase(uid: string): Promise<any | null> {
+export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | null> {
     console.log('[supabaseSync] loadFromSupabase called for uid:', uid);
     try {
         const [
@@ -359,9 +386,9 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
         }
 
         // Unpack extra_state JSONB (all the fields not in dedicated tables)
-        const extra: Record<string, any> = profile.extra_state || {};
+        const extra: Record<string, unknown> = (profile.extra_state as Record<string, unknown>) || {};
 
-        const result = {
+        const result: CloudSnapshot = {
             state: {
                 // ── extra_state fields (spread first, so table columns override) ──
                 ...extra,
@@ -442,10 +469,10 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
         };
 
         console.log('[supabaseSync] Loaded from Supabase:', {
-            taskCount: result.state.tasks.length,
-            habitCount: result.state.habits.length,
-            inventoryCount: result.state.inventory.length,
-            bossCount: result.state.bossBattles.length,
+            taskCount: (result.state.tasks as unknown[]).length,
+            habitCount: (result.state.habits as unknown[]).length,
+            inventoryCount: (result.state.inventory as unknown[]).length,
+            bossCount: (result.state.bossBattles as unknown[]).length,
             extraStateKeys: Object.keys(extra).length,
             level: result.state.level,
             characterName: result.state.characterName,
@@ -470,7 +497,7 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
  */
 export function subscribeToSupabase(
     uid: string,
-    callback: (state: any) => void,
+    callback: (snapshot: CloudSnapshot) => void,
 ): () => void {
     const channel = supabase
         .channel(`profile-sync-${uid}`)

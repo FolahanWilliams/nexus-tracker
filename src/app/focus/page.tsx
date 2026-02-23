@@ -46,6 +46,7 @@ export default function FocusPage() {
     setRunning(false);
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleSessionComplete = useCallback(() => {
     stopTimer();
     setFocusTimerRunning(false, null);

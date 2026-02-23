@@ -95,9 +95,10 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
                 }
             });
             if (error) throw error;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Sign-in error:', error);
-            useToastStore.getState().addToast(error.message, 'error');
+            const message = error instanceof Error ? error.message : 'Sign-in failed';
+            useToastStore.getState().addToast(message, 'error');
         }
     };
 
