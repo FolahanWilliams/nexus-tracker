@@ -1985,6 +1985,12 @@ export const useGameStore = create<GameState>()(
             storage: createIndexedDBStorage<GameState>(),
             skipHydration: true,
             onRehydrateStorage: () => {
+                // Called BEFORE getItem — reset the flag so that setItem skips
+                // all persistence writes while the authoritative state is being
+                // fetched.  This is critical when onAuthStateChange triggers a
+                // second rehydrate(): without the reset, setItem would happily
+                // flush stale/partial state to IndexedDB and Supabase.
+                setHasHydrated(false);
                 return () => {
                     // Called AFTER getItem resolves — guaranteed by persist middleware.
                     // This is the correct moment to allow Supabase saves.

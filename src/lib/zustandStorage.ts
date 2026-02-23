@@ -8,19 +8,35 @@ import { supabase } from './supabase';
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 3000;
 
+// Cancel any pending debounced save. Called when entering rehydration
+// to prevent stale (pre-hydration) data from being flushed to Supabase.
+function cancelPendingSave() {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+}
+
 // Flag to suppress Supabase saves when applying incoming remote snapshots.
 export let _isRemoteUpdate = false;
 export function setRemoteUpdateFlag(value: boolean) {
   _isRemoteUpdate = value;
 }
 
-// Hydration guard: prevents saving to Supabase before getItem has completed.
-// Set to true by Zustand's onRehydrateStorage callback (in store config),
-// which fires AFTER getItem resolves — guaranteed by the persist middleware.
+// Hydration guard: prevents saving to IndexedDB AND Supabase before getItem
+// has completed.  Set to true by Zustand's onRehydrateStorage callback (in
+// store config), which fires AFTER getItem resolves — guaranteed by the
+// persist middleware.
 let _hasHydrated = false;
 export function setHasHydrated(value: boolean) {
   console.log('[zustandStorage] _hasHydrated =', value);
   _hasHydrated = value;
+  // When entering rehydration, cancel any pending debounced Supabase save
+  // so that stale/default data is never flushed while we reload from the
+  // authoritative source.
+  if (!value) {
+    cancelPendingSave();
+  }
 }
 
 async function getUid(): Promise<string | null> {
@@ -63,18 +79,22 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
 
   setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
     if (typeof window === 'undefined') return;
+
+    // Block ALL persistence (IndexedDB AND Supabase) until rehydration has
+    // completed.  Without this, useEffect hooks that fire on mount trigger
+    // setItem with DEFAULT empty state, which overwrites real data in
+    // IndexedDB.  When getItem later falls back to IndexedDB (e.g. because
+    // the Supabase session isn't available yet), it loads the empty defaults
+    // instead of the user's real data — causing quests to vanish on reload.
+    if (!_hasHydrated) {
+      console.log('[zustandStorage] setItem: skipping ALL saves (not yet hydrated)');
+      return;
+    }
+
     const serialized = JSON.stringify(value);
     try {
-      // Always save locally first (fast, safe)
+      // Save locally first (fast, safe) — now safe because hydration is done
       await hybridStorage.save(serialized);
-
-      // Block Supabase saves until rehydration has completed.
-      // Without this, useEffect hooks that fire on mount trigger setItem
-      // with DEFAULT empty state, which would overwrite real data in Supabase.
-      if (!_hasHydrated) {
-        console.log('[zustandStorage] setItem: skipping Supabase (not yet hydrated)');
-        return;
-      }
 
       // Don't echo remote updates back to Supabase
       if (_isRemoteUpdate) {
@@ -95,6 +115,13 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       // latest state, avoiding stale-closure issues.
       if (saveTimeout) clearTimeout(saveTimeout);
       saveTimeout = setTimeout(async () => {
+        // Re-check hydration flag — a concurrent rehydrate() may have reset
+        // it.  If so, skip the save to avoid flushing stale data.
+        if (!_hasHydrated) {
+          console.log('[zustandStorage] Debounced save: skipping (rehydrating)');
+          return;
+        }
+
         const latestData = await hybridStorage.load();
         if (!latestData) return;
 
