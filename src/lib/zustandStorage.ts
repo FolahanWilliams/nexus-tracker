@@ -49,28 +49,79 @@ async function getUid(): Promise<string | null> {
   }
 }
 
+/**
+ * Merges Supabase cloud data with local IndexedDB data.
+ *
+ * Supabase is authoritative for the fields it manages (profile, tasks,
+ * habits, inventory, bossBattles).  Everything else (questChains, goals,
+ * skills, achievements, settings, streak, gems, etc.) is preserved from
+ * the local IndexedDB snapshot.
+ *
+ * This prevents the "partial overwrite" bug where loading from Supabase
+ * would discard all fields that Supabase doesn't store.
+ */
+function mergeCloudAndLocal(
+  cloudData: { state: Record<string, any> },
+  localData: { state: Record<string, any>; version?: number } | null,
+): { state: Record<string, any>; version?: number } {
+  if (!localData || !localData.state) {
+    // No local data — use cloud as-is
+    return cloudData;
+  }
+
+  const merged = {
+    ...localData,
+    state: {
+      // Start with the full local state (preserves quest chains, goals, etc.)
+      ...localData.state,
+      // Overlay Supabase-managed fields (authoritative)
+      ...cloudData.state,
+    },
+  };
+
+  console.log('[zustandStorage] Merged cloud + local state.',
+    'Cloud fields:', Object.keys(cloudData.state).length,
+    'Local fields:', Object.keys(localData.state).length,
+    'Merged fields:', Object.keys(merged.state).length,
+  );
+
+  return merged;
+}
+
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
   getItem: async (_name: string): Promise<StorageValue<T> | null> => {
     if (typeof window === 'undefined') return null;
     try {
+      // ── 1. Load local data from IndexedDB (fast, has FULL state) ──
+      let localData: any = null;
+      try {
+        const raw = await hybridStorage.load();
+        if (raw) localData = JSON.parse(raw);
+      } catch (e) {
+        console.warn('[zustandStorage] Failed to parse local data:', e);
+      }
+
+      // ── 2. Try loading from Supabase (authoritative for managed fields) ──
       const uid = await getUid();
-      console.log('[zustandStorage] getItem: uid =', uid);
+      console.log('[zustandStorage] getItem: uid =', uid, ', local data found:', !!localData);
 
       if (uid) {
         const cloudData = await loadFromSupabase(uid);
         if (cloudData) {
-          const serialized = JSON.stringify(cloudData);
-          await hybridStorage.save(serialized);
-          console.log('[zustandStorage] Hydration complete (from Supabase)');
-          return cloudData as StorageValue<T>;
+          // ── 3. Merge: Supabase fields override local, everything else preserved ──
+          const merged = mergeCloudAndLocal(cloudData, localData);
+
+          // Save the merged (complete) state back to IndexedDB
+          await hybridStorage.save(JSON.stringify(merged));
+          console.log('[zustandStorage] Hydration complete (merged Supabase + local)');
+          return merged as StorageValue<T>;
         }
       }
 
-      // Fall back to local IndexedDB
-      const data = await hybridStorage.load();
-      console.log('[zustandStorage] Hydration complete (from local, data found:', !!data, ')');
-      if (!data) return null;
-      return JSON.parse(data) as StorageValue<T>;
+      // ── 4. Fall back to local IndexedDB ──
+      console.log('[zustandStorage] Hydration complete (from local, data found:', !!localData, ')');
+      if (!localData) return null;
+      return localData as StorageValue<T>;
     } catch (error) {
       console.error('[zustandStorage] getItem error:', error);
       return null;

@@ -32,16 +32,17 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     const prevUidRef = useRef<string | null | undefined>(undefined);
     const unsubRef = useRef<(() => void) | null>(null);
 
+    // Single unified effect: handles both initial hydration and auth changes.
+    //
     // With skipHydration: true, getItem is NOT called during store creation
-    // (which happens during SSR). We must call rehydrate() manually on the client.
-    // This fires getItem on the client → loads from Supabase/IndexedDB → then
-    // onRehydrateStorage sets _hasHydrated = true, unblocking Supabase saves.
+    // (which happens during SSR).  We call rehydrate() from onAuthStateChange
+    // so that auth state is known before getItem runs — this allows getItem to
+    // load from Supabase when the user is logged in.
+    //
+    // Previously there was a separate mount effect that called rehydrate()
+    // independently, racing with the onAuthStateChange rehydrate.  Merging
+    // them eliminates that race condition.
     useEffect(() => {
-        useGameStore.persist.rehydrate();
-    }, []);
-
-    useEffect(() => {
-        // Handle Session changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             const currentUser = session?.user ?? null;
             const prevUid = prevUidRef.current;
@@ -55,20 +56,28 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
                 unsubRef.current = null;
             }
 
-            // Sync Zustand on Login
-            if (currentUser && currentUser.id !== prevUid) {
+            // Rehydrate on:
+            // 1. First auth event (prevUid === undefined) — handles both
+            //    logged-in users AND anonymous users on initial page load.
+            // 2. Login transitions (new user ID that differs from previous).
+            const isFirstEvent = prevUid === undefined;
+            const isNewLogin = currentUser != null && currentUser.id !== prevUid;
+
+            if (isFirstEvent || isNewLogin) {
                 await useGameStore.persist.rehydrate();
 
-                // Realtime sync (optional)
-                unsubRef.current = subscribeToSupabase(currentUser.id, (remoteState) => {
-                    if (!remoteState) return;
-                    setRemoteUpdateFlag(true);
-                    try {
-                        useGameStore.setState(remoteState.state || remoteState, false);
-                    } finally {
-                        setRemoteUpdateFlag(false);
-                    }
-                });
+                // Set up realtime subscription for logged-in users
+                if (currentUser) {
+                    unsubRef.current = subscribeToSupabase(currentUser.id, (remoteState) => {
+                        if (!remoteState) return;
+                        setRemoteUpdateFlag(true);
+                        try {
+                            useGameStore.setState(remoteState.state || remoteState, false);
+                        } finally {
+                            setRemoteUpdateFlag(false);
+                        }
+                    });
+                }
             }
         });
 

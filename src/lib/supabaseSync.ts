@@ -7,6 +7,16 @@ function isUUID(id: string): boolean {
     return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 }
 
+/**
+ * Fields that Supabase manages authoritatively.
+ * getItem uses this list to know which local fields to override with cloud data.
+ */
+export const SUPABASE_MANAGED_FIELDS = [
+    'level', 'xp', 'hp', 'maxHp', 'gold',
+    'characterName', 'characterMotto', 'characterClass', 'characterStrengths',
+    'tasks', 'habits', 'inventory', 'bossBattles',
+] as const;
+
 export async function saveToSupabase(uid: string, state: any): Promise<boolean> {
     // Safety: refuse to save if the state looks like un-hydrated defaults
     if (!state || typeof state !== 'object') {
@@ -27,6 +37,14 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
 
     try {
         // ─── 1. PROFILE (upsert — safe, single row per user) ───
+        // Safely convert characterStrengths to TEXT[] regardless of input type
+        let strengthsArray: string[] = [];
+        if (Array.isArray(state.characterStrengths)) {
+            strengthsArray = state.characterStrengths;
+        } else if (typeof state.characterStrengths === 'string' && state.characterStrengths) {
+            strengthsArray = state.characterStrengths.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+
         const profile = {
             id: uid,
             name: state.characterName || null,
@@ -37,9 +55,7 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
             hp: state.hp ?? 100,
             max_hp: state.maxHp ?? 100,
             gold: state.gold ?? 0,
-            strengths: state.characterStrengths
-                ? state.characterStrengths.split(',').map((s: string) => s.trim()).filter(Boolean)
-                : [],
+            strengths: strengthsArray,
             updated_at: new Date().toISOString(),
         };
 
@@ -120,7 +136,8 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
                     user_id: uid,
                     name: h.name,
                     icon: h.icon,
-                    color: h.color || h.category || null,
+                    // Store the category in the color column (only TEXT column available)
+                    color: h.category || h.color || null,
                     streak: h.streak ?? 0,
                     completed_dates: h.completedDates || [],
                 })), { onConflict: 'id' });
@@ -156,8 +173,7 @@ export async function saveToSupabase(uid: string, state: any): Promise<boolean> 
             }
         }
 
-        // ─── 4. INVENTORY (no stable primary key — clear + reinsert, but ONLY if we have items) ───
-        // First read what's there, so we can restore if insert fails.
+        // ─── 4. INVENTORY (clear + reinsert, but ONLY if we have items) ───
         if (state.inventory && state.inventory.length > 0) {
             const { error: invDelErr } = await supabase
                 .from('inventory')
@@ -265,6 +281,10 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
             return null;
         }
 
+        // Build the partial state containing ONLY fields Supabase manages.
+        // getItem will merge this with the full local state from IndexedDB so
+        // that fields Supabase doesn't track (questChains, goals, skills,
+        // settings, etc.) are preserved.
         const result = {
             state: {
                 level: profile.level ?? 1,
@@ -294,11 +314,12 @@ export async function loadFromSupabase(uid: string): Promise<any | null> {
                     id: h.id,
                     name: h.name,
                     icon: h.icon,
-                    color: h.color,
+                    // The DB 'color' column stores the category
                     category: h.color || 'Other',
+                    color: h.color || 'Other',
                     xpReward: 15,
-                    streak: h.streak,
-                    longestStreak: h.streak,
+                    streak: h.streak ?? 0,
+                    longestStreak: h.streak ?? 0,
                     completedDates: h.completed_dates || [],
                     createdAt: h.created_at,
                     lastCompletedDate: (h.completed_dates && h.completed_dates.length > 0)
