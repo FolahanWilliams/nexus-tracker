@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
             tools: [
                 {
                     googleSearch: {}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
                 } as any
             ]
         });

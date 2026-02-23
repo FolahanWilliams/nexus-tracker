@@ -43,6 +43,7 @@ export async function POST(request: Request) {
             model: "gemini-3-flash-preview",
             tools: [{
                 googleSearch: {},
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
             } as any],
         });
 
