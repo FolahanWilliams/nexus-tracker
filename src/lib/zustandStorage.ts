@@ -3,7 +3,6 @@ import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
 import { saveToSupabase, loadFromSupabase } from './supabaseSync';
 import type { CloudSnapshot } from './supabaseSync';
-import { supabase } from './supabase';
 import { useSyncStore } from './syncStatus';
 
 // ── Debounce & retry config ───────────────────────────────────────────────
@@ -44,13 +43,21 @@ export function setHasHydrated(value: boolean) {
   if (!value) cancelPendingSave();
 }
 
-async function getUid(): Promise<string | null> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.user?.id || null;
-  } catch {
-    return null;
-  }
+// ── Cached UID ────────────────────────────────────────────────────────────
+// Avoids calling supabase.auth.getSession() inside the storage adapter.
+// getSession() acquires a Navigator Lock internally; if getItem() is invoked
+// from an onAuthStateChange callback (which already holds the same lock) the
+// second acquisition deadlocks until the 10 s timeout fires.
+//
+// AuthProvider pushes the UID here synchronously from the auth event, so we
+// can read it without touching the lock.
+let _cachedUid: string | null = null;
+export function setCachedUid(uid: string | null) {
+  _cachedUid = uid;
+}
+
+function getUid(): string | null {
+  return _cachedUid;
 }
 
 // ── Merge: pick the newer source, use the other as fallback ───────────────
@@ -80,7 +87,7 @@ function registerVisibilityFlush() {
     clearTimeout(saveTimeout);
     saveTimeout = null;
 
-    const uid = await getUid();
+    const uid = getUid();
     if (!uid) return;
 
     try {
@@ -128,7 +135,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
         }
 
         // 2. Load cloud (with timeout)
-        const uid = await getUid();
+        const uid = getUid();
         if (uid) {
           const TIMEOUT_MS = 8000;
           let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -166,7 +173,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
       try {
         await hybridStorage.save(serialized);
 
-        const uid = await getUid();
+        const uid = getUid();
         if (!uid || !navigator.onLine) return;
 
         // Debounced cloud sync
