@@ -9,13 +9,10 @@ import {
   ChevronLeft,
   Plus,
   Lock,
-  Unlock,
   Trophy,
   Target,
   Zap,
-  Star,
   Coins,
-  Package,
   Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,7 +26,7 @@ const DIFFICULTY_COLORS = {
 };
 
 export default function QuestChainsPage() {
-  const { questChains, addQuestChain, completeQuestStep, chooseBranch, tasks, addItem } = useGameStore();
+  const { questChains, addQuestChain, completeQuestStep, chooseBranch } = useGameStore();
   const { addToast } = useToastStore();
   const [selectedChain, setSelectedChain] = useState<QuestChain | null>(null);
   const [showAddChain, setShowAddChain] = useState(false);

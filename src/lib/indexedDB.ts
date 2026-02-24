@@ -107,13 +107,6 @@ class IndexedDBStorage {
     });
   }
 
-  async export(): Promise<string | null> {
-    return this.load();
-  }
-
-  async import(data: string): Promise<void> {
-    return this.save(data);
-  }
 }
 
 // Singleton instance
@@ -161,18 +154,4 @@ export const hybridStorage = {
     localStorage.removeItem('questflow-game-storage');
   },
 };
-
-// Migrate existing localStorage data to IndexedDB
-export async function migrateToIndexedDB(): Promise<void> {
-  if (!isClient) return;
-  const localData = localStorage.getItem('questflow-game-storage');
-  if (localData) {
-    try {
-      await indexedDBStorage.save(localData);
-      console.log('Successfully migrated data to IndexedDB');
-    } catch (error) {
-      console.error('Failed to migrate to IndexedDB:', error);
-    }
-  }
-}
 

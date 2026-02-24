@@ -88,10 +88,10 @@ function DashboardContent() {
   const {
     level, xp, gold, gems, streak, title,
     characterName, characterClass,
-    dailyQuests, checkDailyQuests, generateDailyQuests, toggleDailyQuest,
+    dailyQuests, checkDailyQuests, toggleDailyQuest,
     claimDailyReward, lastDailyRewardClaim, loginStreak,
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
-    tasks, habits, goals, reflectionNotes, todayEnergyRating,
+    tasks, habits, goals,
     completeHabit, streakFreezes, lastFreezedDate,
     comebackBonusAmount, clearComebackBonus
   } = useGameStore();

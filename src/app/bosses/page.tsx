@@ -8,10 +8,8 @@ import {
   ChevronLeft,
   Sword,
   Zap,
-  Coins,
   Trophy,
   Skull,
-  Heart,
   Timer,
   Play,
   X
@@ -49,7 +47,7 @@ const DIFFICULTY_BG = {
 };
 
 export default function BossBattlesPage() {
-  const { bossBattles, startBossBattle, damageBoss, failBossBattle, level, checkDailyQuests, dailyQuests, toggleTask } = useGameStore();
+  const { bossBattles, startBossBattle, damageBoss, failBossBattle, checkDailyQuests } = useGameStore();
   const { addToast } = useToastStore();
   const [showBossSelect, setShowBossSelect] = useState(false);
   const [selectedBoss, setSelectedBoss] = useState<BossBattle | null>(null);
@@ -65,7 +63,6 @@ export default function BossBattlesPage() {
   const activeBossTemplate = selectedBoss
     ? BOSS_TEMPLATES.find(t => t.name === selectedBoss.name)
     : null;
-  const timeLimit = activeBossTemplate?.timeLimit ?? 300;
   const attackRange = activeBossTemplate ? ATTACK_RANGES[activeBossTemplate.difficulty] : { min: 5, max: 50 };
 
   useEffect(() => {
@@ -141,7 +138,7 @@ export default function BossBattlesPage() {
         });
         addToast(`Vanquish the ${data.name}!`, 'success');
       }
-    } catch (error) {
+    } catch {
       addToast('Failed to summon boss. The arcane energies fizzled.', 'error');
     }
     setIsGeneratingBoss(false);

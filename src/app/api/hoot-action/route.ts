@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, DynamicRetrievalMode, SchemaType } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
@@ -207,22 +207,6 @@ const hootFunctions = [
         },
     },
 ];
-
-/**
- * Extract JSON from a Gemini response that may contain markdown fences or prose.
- */
-function extractJSON(text: string): unknown {
-    try { return JSON.parse(text); } catch { /* continue */ }
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenced) {
-        try { return JSON.parse(fenced[1].trim()); } catch { /* continue */ }
-    }
-    const braces = text.match(/\{[\s\S]*\}/);
-    if (braces) {
-        try { return JSON.parse(braces[0]); } catch { /* continue */ }
-    }
-    return null;
-}
 
 // ── Page context descriptions ────────────────────────────────────────────
 const PAGE_CONTEXT: Record<string, string> = {

@@ -92,8 +92,6 @@ export default function HabitsPage() {
   const totalHabits = habits.length;
   const completionRate = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0;
 
-  const detailHabit = habits.find(h => h.id === selectedHabit);
-
   return (
     <motion.div
       className="min-h-screen pb-20"

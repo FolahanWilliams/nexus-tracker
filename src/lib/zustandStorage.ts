@@ -140,9 +140,9 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
           const TIMEOUT_MS = 8000;
           let timeoutId: ReturnType<typeof setTimeout> | null = null;
           const cloudData = await Promise.race([
-            loadFromSupabase(uid).then((r) => { if (timeoutId) clearTimeout(timeoutId); return r; }),
+            loadFromSupabase(uid).finally(() => { if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; } }),
             new Promise<null>((resolve) => {
-              timeoutId = setTimeout(() => { console.warn('[sync] Cloud load timed out'); resolve(null); }, TIMEOUT_MS);
+              timeoutId = setTimeout(() => { timeoutId = null; console.warn('[sync] Cloud load timed out'); resolve(null); }, TIMEOUT_MS);
             }),
           ]);
 
