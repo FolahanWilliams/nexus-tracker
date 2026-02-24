@@ -8,7 +8,6 @@ import { persist } from 'zustand/middleware';
 // from resetting a task more than once per cycle.
 const recurringTaskTimers = new Map<string, ReturnType<typeof setTimeout>>();
 import { createIndexedDBStorage, setHasHydrated } from '@/lib/zustandStorage';
-import { trackDeletion } from '@/lib/supabaseSync';
 import {
     validateTaskTitle,
     validateCharacterName,
@@ -1449,7 +1448,6 @@ export const useGameStore = create<GameState>()(
             },
 
             deleteTask: (id) => {
-                trackDeletion('tasks', id);
                 set((state) => ({
                     tasks: state.tasks.filter((t) => t.id !== id),
                 }));
@@ -1469,7 +1467,6 @@ export const useGameStore = create<GameState>()(
                     if (!item) return state;
 
                     if (item.quantity <= quantity) {
-                        trackDeletion('inventory', id);
                         return {
                             inventory: state.inventory.filter(i => i.id !== id),
                             equippedItems: {
@@ -1694,7 +1691,6 @@ export const useGameStore = create<GameState>()(
             },
 
             deleteHabit: (habitId) => {
-                trackDeletion('habits', habitId);
                 set((state) => ({ habits: state.habits.filter(h => h.id !== habitId) }));
             },
 

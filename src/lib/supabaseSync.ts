@@ -1,70 +1,13 @@
 import { supabase } from './supabase';
 import { useSyncStore } from './syncStatus';
-import type { Task, Habit, InventoryItem, BossBattle } from '@/store/useGameStore';
 
-/**
- * The subset of the game store that gets synced to Supabase.
- * Uses an index signature so extra_state fields pass through.
- */
-interface SyncableState {
-    characterName?: string;
-    characterMotto?: string;
-    characterClass?: string;
-    characterStrengths?: string[] | string;
-    level?: number;
-    xp?: number;
-    hp?: number;
-    maxHp?: number;
-    gold?: number;
-    tasks?: Task[];
-    habits?: Habit[];
-    inventory?: InventoryItem[];
-    bossBattles?: BossBattle[];
-    [key: string]: unknown;
-}
-
-/** Shape returned by loadFromSupabase — a plain state snapshot. */
+/** Shape returned by loadFromSupabase — the raw state blob + timestamp. */
 export interface CloudSnapshot {
     state: Record<string, unknown>;
     updatedAt: string | null;
 }
 
-/**
- * Checks whether a string is a valid UUID v4 format (36 chars with dashes).
- */
-function isUUID(id: string): boolean {
-    return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// DELETION TRACKING
-// ──────────────────────────────────────────────────────────────────────────────
-// Instead of re-querying every remote ID on each save to find stale rows,
-// track deletions as they happen and prune only those specific IDs.
-// ──────────────────────────────────────────────────────────────────────────────
-
-const pendingDeletes: Record<string, Set<string>> = {
-    tasks: new Set(),
-    habits: new Set(),
-    inventory: new Set(),
-    boss_battles: new Set(),
-};
-
-/** Call from Zustand store actions when an item is removed. */
-export function trackDeletion(table: 'tasks' | 'habits' | 'inventory' | 'boss_battles', id: string) {
-    pendingDeletes[table].add(id);
-}
-
-/** Flush and clear pending deletes for a table. Returns IDs to delete (or empty set). */
-function consumeDeletes(table: string): string[] {
-    const ids = Array.from(pendingDeletes[table] || []);
-    if (pendingDeletes[table]) pendingDeletes[table].clear();
-    return ids;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// Transient UI fields that should NEVER be persisted to Supabase.
-// ──────────────────────────────────────────────────────────────────────────────
+// Transient UI fields that should never be persisted to the cloud.
 const TRANSIENT_FIELDS = new Set([
     'isMusicDucked',
     'isFocusTimerRunning',
@@ -73,429 +16,78 @@ const TRANSIENT_FIELDS = new Set([
     'lastDroppedItem',
     'lastCriticalHit',
     'comebackBonusAmount',
-    'craftingRecipes',       // constant, defined in code
+    'craftingRecipes',
 ]);
 
-/**
- * Fields stored in dedicated Supabase tables (profiles, tasks, habits,
- * inventory, boss_battles).  Everything ELSE that isn't transient goes
- * into the `extra_state` JSONB column on profiles.
- */
-const TABLE_MANAGED_FIELDS = new Set([
-    // profiles table columns
-    'level', 'xp', 'hp', 'maxHp', 'gold',
-    'characterName', 'characterMotto', 'characterClass', 'characterStrengths',
-    // dedicated tables
-    'tasks', 'habits', 'inventory', 'bossBattles',
-]);
-
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SAVE
-// ──────────────────────────────────────────────────────────────────────────────
-
-export async function saveToSupabase(uid: string, state: SyncableState): Promise<boolean> {
-    if (!state || typeof state !== 'object') {
-        console.warn('[supabaseSync] saveToSupabase: state is null/invalid, aborting');
-        return false;
+/** Strip transient UI state before saving. */
+function cleanState(state: Record<string, unknown>): Record<string, unknown> {
+    const cleaned: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(state)) {
+        if (!TRANSIENT_FIELDS.has(key)) {
+            cleaned[key] = value;
+        }
     }
+    return cleaned;
+}
+
+// ─── SAVE ──────────────────────────────────────────────────────────────────
+
+export async function saveToSupabase(uid: string, state: Record<string, unknown>): Promise<boolean> {
+    if (!state || typeof state !== 'object') return false;
 
     const sync = useSyncStore.getState();
     sync.setStatus('syncing');
 
-    console.log('[supabaseSync] saveToSupabase called', {
-        uid,
-        characterName: state.characterName,
-        taskCount: state.tasks?.length ?? 0,
-        habitCount: state.habits?.length ?? 0,
-        level: state.level,
-        xp: state.xp,
-    });
-
-    let allOk = true;
-
     try {
-        // ─── Build extra_state JSONB ───────────────────────────────────────
-        // Everything that isn't in a dedicated table and isn't transient UI state.
-        const extraState: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(state)) {
-            if (!TABLE_MANAGED_FIELDS.has(key) && !TRANSIENT_FIELDS.has(key)) {
-                extraState[key] = value;
-            }
-        }
+        const { error } = await supabase
+            .from('user_state')
+            .upsert({
+                user_id: uid,
+                state: cleanState(state),
+                updated_at: new Date().toISOString(),
+            });
 
-        // ─── 1. PROFILE (upsert) ──────────────────────────────────────────
-        let strengthsArray: string[] = [];
-        if (Array.isArray(state.characterStrengths)) {
-            strengthsArray = state.characterStrengths;
-        } else if (typeof state.characterStrengths === 'string' && state.characterStrengths) {
-            strengthsArray = state.characterStrengths.split(',').map((s: string) => s.trim()).filter(Boolean);
-        }
-
-        const profile = {
-            id: uid,
-            name: state.characterName || null,
-            motto: state.characterMotto || null,
-            class: state.characterClass || null,
-            level: state.level ?? 1,
-            xp: state.xp ?? 0,
-            hp: state.hp ?? 100,
-            max_hp: state.maxHp ?? 100,
-            gold: state.gold ?? 0,
-            strengths: strengthsArray,
-            extra_state: extraState,
-            updated_at: new Date().toISOString(),
-        };
-
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert(profile);
-
-        if (profileError) {
-            console.error('[supabaseSync] Profile upsert FAILED:', profileError);
-            sync.setError('Profile save failed');
+        if (error) {
+            console.error('[supabaseSync] Save failed:', error.message);
+            sync.setError('Save failed');
             return false;
         }
-        console.log('[supabaseSync] Profile upserted OK (extra_state keys:', Object.keys(extraState).length, ')');
 
-        // ─── 2–5. Tables: run independent writes in parallel ──────────────
-        const results = await Promise.allSettled([
-            saveTasks(uid, state),
-            saveHabits(uid, state),
-            saveInventory(uid, state),
-            saveBossBattles(uid, state),
-        ]);
-
-        for (const r of results) {
-            if (r.status === 'rejected') {
-                console.error('[supabaseSync] Parallel save rejected:', r.reason);
-                allOk = false;
-            } else if (!r.value) {
-                allOk = false;
-            }
-        }
-
+        sync.setSynced();
+        return true;
     } catch (error) {
         console.error('[supabaseSync] Unexpected save error:', error);
         sync.setError('Unexpected save error');
         return false;
     }
-
-    if (allOk) {
-        sync.setSynced();
-    } else {
-        sync.setError('Some tables failed to sync');
-    }
-    console.log('[supabaseSync] Save complete. allOk =', allOk);
-    return allOk;
 }
 
-// ── Individual table save functions (run in parallel) ──────────────────────
-
-async function saveTasks(uid: string, state: SyncableState): Promise<boolean> {
-    const localTasks = (state.tasks || []).filter((t: Task) => t && isUUID(t.id));
-    let ok = true;
-
-    if (localTasks.length > 0) {
-        const { error } = await supabase
-            .from('tasks')
-            .upsert(localTasks.map((t: Task) => ({
-                id: t.id,
-                user_id: uid,
-                title: t.title,
-                completed: t.completed ?? false,
-                xp_reward: t.xpReward ?? 10,
-                difficulty: t.difficulty ?? 'Medium',
-                category: t.category ?? 'Other',
-                completed_at: t.completedAt || null,
-                is_daily: t.isDaily ?? false,
-                recurring: t.recurring ?? 'none',
-                duration: t.duration ?? 'quick',
-            })), { onConflict: 'id' });
-
-        if (error) {
-            console.error('[supabaseSync] Task upsert FAILED:', error);
-            ok = false;
-        } else {
-            console.log('[supabaseSync] Tasks upserted OK:', localTasks.length);
-        }
-
-        // Prune tracked deletions
-        const deletedTaskIds = consumeDeletes('tasks');
-        if (deletedTaskIds.length > 0) {
-            const { error: pruneErr } = await supabase
-                .from('tasks')
-                .delete()
-                .in('id', deletedTaskIds);
-            if (pruneErr) console.error('[supabaseSync] Task prune error:', pruneErr);
-            else console.log('[supabaseSync] Pruned deleted tasks:', deletedTaskIds.length);
-        }
-    }
-    return ok;
-}
-
-async function saveHabits(uid: string, state: SyncableState): Promise<boolean> {
-    const localHabits = (state.habits || []).filter((h: Habit) => h && isUUID(h.id));
-    let ok = true;
-
-    if (localHabits.length > 0) {
-        const { error } = await supabase
-            .from('habits')
-            .upsert(localHabits.map((h: Habit) => ({
-                id: h.id,
-                user_id: uid,
-                name: h.name,
-                icon: h.icon,
-                color: h.category || null,
-                category: h.category || 'Other',
-                xp_reward: h.xpReward ?? 15,
-                streak: h.streak ?? 0,
-                longest_streak: h.longestStreak ?? h.streak ?? 0,
-                completed_dates: h.completedDates || [],
-            })), { onConflict: 'id' });
-
-        if (error) {
-            console.error('[supabaseSync] Habit upsert FAILED:', error);
-            ok = false;
-        } else {
-            console.log('[supabaseSync] Habits upserted OK:', localHabits.length);
-        }
-
-        // Prune tracked deletions
-        const deletedHabitIds = consumeDeletes('habits');
-        if (deletedHabitIds.length > 0) {
-            const { error: pruneErr } = await supabase
-                .from('habits')
-                .delete()
-                .in('id', deletedHabitIds);
-            if (pruneErr) console.error('[supabaseSync] Habit prune error:', pruneErr);
-            else console.log('[supabaseSync] Pruned deleted habits:', deletedHabitIds.length);
-        }
-    }
-    return ok;
-}
-
-async function saveInventory(uid: string, state: SyncableState): Promise<boolean> {
-    const localItems = (state.inventory || []).filter((i: InventoryItem) => i && i.id);
-    let ok = true;
-
-    if (localItems.length > 0) {
-        const { error } = await supabase
-            .from('inventory')
-            .upsert(localItems.map((i: InventoryItem) => ({
-                user_id: uid,
-                item_id: i.id,
-                name: i.name,
-                description: i.description || '',
-                type: i.type,
-                rarity: i.rarity,
-                icon: i.icon,
-                quantity: i.quantity ?? 1,
-                equipped: i.equipped ?? false,
-                stats: i.stats || {},
-            })), { onConflict: 'user_id,item_id' });
-
-        if (error) {
-            console.error('[supabaseSync] Inventory upsert FAILED:', error);
-            ok = false;
-        } else {
-            console.log('[supabaseSync] Inventory upserted OK:', localItems.length);
-        }
-
-        // Prune tracked deletions
-        const deletedItemIds = consumeDeletes('inventory');
-        if (deletedItemIds.length > 0) {
-            const { error: pruneErr } = await supabase
-                .from('inventory')
-                .delete()
-                .eq('user_id', uid)
-                .in('item_id', deletedItemIds);
-            if (pruneErr) console.error('[supabaseSync] Inventory prune error:', pruneErr);
-            else console.log('[supabaseSync] Pruned deleted inventory:', deletedItemIds.length);
-        }
-    }
-    return ok;
-}
-
-async function saveBossBattles(uid: string, state: SyncableState): Promise<boolean> {
-    const localBosses = (state.bossBattles || []).filter((b: BossBattle) => b && b.id);
-    let ok = true;
-
-    if (localBosses.length > 0) {
-        const { error } = await supabase
-            .from('boss_battles')
-            .upsert(localBosses.map((b: BossBattle) => ({
-                user_id: uid,
-                boss_id: b.id,
-                name: b.name,
-                description: b.description || '',
-                difficulty: b.difficulty || 'Medium',
-                hp: b.hp,
-                max_hp: b.maxHp,
-                xp_reward: b.xpReward ?? 100,
-                gold_reward: b.goldReward ?? 50,
-                starts_at: b.startsAt || null,
-                expires_at: b.expiresAt || null,
-                completed: b.completed ?? false,
-                failed: b.failed ?? false,
-            })), { onConflict: 'user_id,boss_id' });
-
-        if (error) {
-            console.error('[supabaseSync] Boss upsert FAILED:', error);
-            ok = false;
-        } else {
-            console.log('[supabaseSync] Boss battles upserted OK:', localBosses.length);
-        }
-
-        // Prune tracked deletions
-        const deletedBossIds = consumeDeletes('boss_battles');
-        if (deletedBossIds.length > 0) {
-            const { error: pruneErr } = await supabase
-                .from('boss_battles')
-                .delete()
-                .eq('user_id', uid)
-                .in('boss_id', deletedBossIds);
-            if (pruneErr) console.error('[supabaseSync] Boss prune error:', pruneErr);
-            else console.log('[supabaseSync] Pruned deleted bosses:', deletedBossIds.length);
-        }
-    }
-    return ok;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// LOAD
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── LOAD ──────────────────────────────────────────────────────────────────
 
 export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | null> {
-    console.log('[supabaseSync] loadFromSupabase called for uid:', uid);
     try {
-        const [
-            { data: profile, error: profileError },
-            { data: tasks, error: tasksError },
-            { data: habits, error: habitsError },
-            { data: inventory, error: inventoryError },
-            { data: bosses, error: bossesError }
-        ] = await Promise.all([
-            supabase.from('profiles').select('*').eq('id', uid).single(),
-            supabase.from('tasks').select('*').eq('user_id', uid),
-            supabase.from('habits').select('*').eq('user_id', uid),
-            supabase.from('inventory').select('*').eq('user_id', uid),
-            supabase.from('boss_battles').select('*').eq('user_id', uid)
-        ]);
+        const { data, error } = await supabase
+            .from('user_state')
+            .select('state, updated_at')
+            .eq('user_id', uid)
+            .single();
 
-        if (profileError) {
-            console.error('[supabaseSync] Profile load error:', profileError.message, profileError.code);
-        }
-        if (tasksError) console.error('[supabaseSync] Tasks load error:', tasksError.message);
-        if (habitsError) console.error('[supabaseSync] Habits load error:', habitsError.message);
-        if (inventoryError) console.error('[supabaseSync] Inventory load error:', inventoryError.message);
-        if (bossesError) console.error('[supabaseSync] Bosses load error:', bossesError.message);
-
-        if (!profile) {
-            console.log('[supabaseSync] No profile found for uid, returning null');
+        if (error) {
+            // PGRST116 = no rows found — normal for first-time users
+            if (error.code === 'PGRST116') return null;
+            console.error('[supabaseSync] Load failed:', error.message);
+            useSyncStore.getState().setError('Load failed');
             return null;
         }
 
-        // Unpack extra_state JSONB (all the fields not in dedicated tables)
-        const extra: Record<string, unknown> = (profile.extra_state as Record<string, unknown>) || {};
-
-        const result: CloudSnapshot = {
-            updatedAt: profile.updated_at || null,
-            state: {
-                // ── extra_state fields (spread first, so table columns override) ──
-                ...extra,
-
-                // ── Profile table columns (authoritative) ──
-                level: profile.level ?? 1,
-                xp: profile.xp ?? 0,
-                hp: profile.hp ?? 100,
-                maxHp: profile.max_hp ?? 100,
-                gold: profile.gold ?? 0,
-                characterName: profile.name || 'Your Name',
-                characterMotto: profile.motto || 'Comfort is the enemy',
-                characterClass: profile.class || null,
-                characterStrengths: Array.isArray(profile.strengths)
-                    ? profile.strengths.join(', ')
-                    : (profile.strengths || 'Disciplined, Organised, Creative'),
-
-                // ── Tasks ──
-                tasks: tasks?.map(t => ({
-                    id: t.id,
-                    title: t.title,
-                    completed: t.completed,
-                    xpReward: t.xp_reward,
-                    difficulty: t.difficulty,
-                    category: t.category,
-                    completedAt: t.completed_at,
-                    isDaily: t.is_daily,
-                    recurring: t.recurring,
-                    duration: t.duration,
-                })) || [],
-
-                // ── Habits (full columns) ──
-                habits: habits?.map(h => ({
-                    id: h.id,
-                    name: h.name,
-                    icon: h.icon,
-                    category: h.category || h.color || 'Other',
-                    color: h.color || h.category || 'Other',
-                    xpReward: h.xp_reward ?? 15,
-                    streak: h.streak ?? 0,
-                    longestStreak: h.longest_streak ?? h.streak ?? 0,
-                    completedDates: h.completed_dates || [],
-                    createdAt: h.created_at,
-                    lastCompletedDate: (h.completed_dates && h.completed_dates.length > 0)
-                        ? h.completed_dates[h.completed_dates.length - 1]
-                        : null,
-                })) || [],
-
-                // ── Inventory ──
-                inventory: inventory?.map(i => ({
-                    id: i.item_id,
-                    name: i.name,
-                    description: i.description,
-                    type: i.type,
-                    rarity: i.rarity,
-                    icon: i.icon,
-                    quantity: i.quantity,
-                    equipped: i.equipped,
-                    stats: i.stats,
-                })) || [],
-
-                // ── Boss Battles (full columns) ──
-                bossBattles: bosses?.map(b => ({
-                    id: b.boss_id,
-                    name: b.name,
-                    description: b.description || '',
-                    difficulty: b.difficulty || 'Medium',
-                    hp: b.hp,
-                    maxHp: b.max_hp,
-                    xpReward: b.xp_reward ?? 100,
-                    goldReward: b.gold_reward ?? 50,
-                    startsAt: b.starts_at,
-                    expiresAt: b.expires_at,
-                    completed: b.completed,
-                    failed: b.failed,
-                })) || [],
-            }
-        };
-
-        console.log('[supabaseSync] Loaded from Supabase:', {
-            taskCount: (result.state.tasks as unknown[]).length,
-            habitCount: (result.state.habits as unknown[]).length,
-            inventoryCount: (result.state.inventory as unknown[]).length,
-            bossCount: (result.state.bossBattles as unknown[]).length,
-            extraStateKeys: Object.keys(extra).length,
-            level: result.state.level,
-            characterName: result.state.characterName,
-        });
-
         useSyncStore.getState().setSynced();
-        return result;
+        return {
+            state: (data.state as Record<string, unknown>) || {},
+            updatedAt: data.updated_at || null,
+        };
     } catch (error) {
         console.error('[supabaseSync] Unexpected load error:', error);
         useSyncStore.getState().setError('Load failed');
         return null;
     }
 }
-
