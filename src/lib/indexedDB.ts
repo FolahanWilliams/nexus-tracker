@@ -89,6 +89,24 @@ class IndexedDBStorage {
     });
   }
 
+  async getUpdatedAt(): Promise<string | null> {
+    if (!isClient) return null;
+    if (!this.db) await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORE_NAME], 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get('gameState');
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const result = request.result as DBSchema | undefined;
+        resolve(result?.updatedAt ?? null);
+      };
+    });
+  }
+
   async export(): Promise<string | null> {
     return this.load();
   }
@@ -122,6 +140,15 @@ export const hybridStorage = {
       console.warn('IndexedDB load failed, falling back to localStorage:', error);
     }
     return localStorage.getItem('questflow-game-storage');
+  },
+
+  async getUpdatedAt(): Promise<string | null> {
+    if (!isClient) return null;
+    try {
+      return await indexedDBStorage.getUpdatedAt();
+    } catch {
+      return null;
+    }
   },
 
   async clear(): Promise<void> {

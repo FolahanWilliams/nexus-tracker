@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { hybridStorage } from '@/lib/indexedDB';
 import { useToastStore } from '@/components/ToastContainer';
 import { useGameStore } from '@/store/useGameStore';
 
@@ -79,6 +80,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
     const signOut = async () => {
         try {
+            // Clear local data to prevent leaking state to the next user
+            await hybridStorage.clear();
             await supabase.auth.signOut();
         } catch (error) {
             console.error('Sign-out error:', error);
