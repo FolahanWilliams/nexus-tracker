@@ -7,7 +7,7 @@ import { useHootStore } from '@/store/useHootStore';
 import { motion } from 'framer-motion';
 import {
     Repeat2, Target, Flag, BookOpen, Sword, Heart,
-    Timer, Sparkles, ChevronRight, Zap,
+    Timer, Sparkles, ChevronRight, Zap, Library,
 } from 'lucide-react';
 
 interface NextAction {
@@ -28,6 +28,7 @@ export default function NextBestAction() {
         lastIntentionDate, lastReflectionDate,
         bossBattles, focusSessionsTotal,
         reflectionNotes,
+        vocabWords, vocabDailyDate, vocabStreak,
     } = useGameStore();
 
     const { setOpen: setHootOpen } = useHootStore();
@@ -183,7 +184,38 @@ export default function NextBestAction() {
             });
         }
 
-        // 9. Broken streak — comeback
+        // 9. Vocab — words due for review
+        const vocabDueCount = vocabWords.filter(w => w.nextReviewDate <= today).length;
+        if (vocabDueCount > 0 && hour >= 10) {
+            actions.push({
+                id: 'vocab-review',
+                icon: <Library size={16} />,
+                title: `${vocabDueCount} Vocab Word${vocabDueCount > 1 ? 's' : ''} Due`,
+                description: vocabStreak > 0
+                    ? `Review now to keep your ${vocabStreak}-day vocab streak alive!`
+                    : 'Review your vocabulary to strengthen retention.',
+                href: '/wordforge',
+                color: 'var(--color-blue)',
+                bg: 'rgba(96, 165, 250, 0.1)',
+                priority: vocabStreak > 3 && hour >= 18 ? 85 : 72,
+            });
+        }
+
+        // 10. Vocab — daily words not generated yet
+        if (vocabDailyDate !== today && vocabWords.length > 0) {
+            actions.push({
+                id: 'vocab-daily',
+                icon: <Library size={16} />,
+                title: 'Generate Daily Words',
+                description: 'Get today\'s new vocabulary words to expand your lexicon.',
+                href: '/wordforge',
+                color: 'var(--color-blue)',
+                bg: 'rgba(96, 165, 250, 0.1)',
+                priority: 55,
+            });
+        }
+
+        // 11. Broken streak — comeback
         if (streak === 0 && reflectionNotes.length > 0) {
             actions.push({
                 id: 'comeback',
@@ -199,7 +231,7 @@ export default function NextBestAction() {
 
         // Sort by priority and take top 2
         return actions.sort((a, b) => b.priority - a.priority).slice(0, 2);
-    }, [tasks, habits, goals, hp, maxHp, streak, lastIntentionDate, lastReflectionDate, bossBattles, focusSessionsTotal, reflectionNotes, today, hour, nextWeek]);
+    }, [tasks, habits, goals, hp, maxHp, streak, lastIntentionDate, lastReflectionDate, bossBattles, focusSessionsTotal, reflectionNotes, vocabWords, vocabDailyDate, vocabStreak, today, hour, nextWeek]);
 
     if (topActions.length === 0) return null;
 
