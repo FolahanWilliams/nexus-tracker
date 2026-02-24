@@ -235,10 +235,16 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
           // Timeout cloud load so the app doesn't hang if Supabase is slow/down.
           // Falls back to local IndexedDB data if cloud is unreachable.
           const CLOUD_TIMEOUT_MS = 8000;
+          let timeoutId: ReturnType<typeof setTimeout> | null = null;
           const cloudData = await Promise.race([
-            loadFromSupabase(uid),
+            loadFromSupabase(uid).then((result) => {
+              // Cloud load won the race — cancel the timeout so it doesn't
+              // log a spurious "timed out" warning after we've already succeeded.
+              if (timeoutId) clearTimeout(timeoutId);
+              return result;
+            }),
             new Promise<null>((resolve) => {
-              setTimeout(() => {
+              timeoutId = setTimeout(() => {
                 console.warn('[zustandStorage] Cloud load timed out after', CLOUD_TIMEOUT_MS, 'ms');
                 resolve(null);
               }, CLOUD_TIMEOUT_MS);
@@ -274,7 +280,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
 
       // Block ALL persistence until rehydration has completed.
       if (!_hasHydrated) {
-        console.log('[zustandStorage] setItem: skipping ALL saves (not yet hydrated)');
+        console.debug('[zustandStorage] setItem: skipping ALL saves (not yet hydrated)');
         return;
       }
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 
 // Sound effect types
@@ -175,15 +175,18 @@ export const useSoundEffects = () => {
   const { settings } = useGameStore();
   const initialized = useRef(false);
 
-  useEffect(() => {
+  const playSound = useCallback((type: SoundType) => {
+    if (!settings.soundEnabled) return;
+
+    // Lazily initialize AudioContext + sounds on first user-triggered play.
+    // This avoids Chrome's autoplay policy which blocks AudioContext creation
+    // before a user gesture.
     if (!initialized.current) {
       initSounds();
       initialized.current = true;
     }
-  }, []);
 
-  const playSound = useCallback((type: SoundType) => {
-    if (!settings.soundEnabled || !audioContext || !sounds[type]) return;
+    if (!audioContext || !sounds[type]) return;
 
     try {
       if (audioContext.state === 'suspended') {
