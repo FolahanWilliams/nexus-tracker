@@ -9,9 +9,41 @@ import { useSyncStore } from './syncStatus';
 // Debounce Supabase writes to avoid excessive calls
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 3000;
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1000, 3000, 9000]; // exponential backoff
 
-// Track the last UID so the beforeunload handler can flush without async getUid
-let _lastKnownUid: string | null = null;
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function saveWithRetry(uid: string, state: Record<string, unknown>): Promise<boolean> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const ok = await saveToSupabase(uid, state);
+      if (ok) {
+        if (attempt > 0) console.log('[zustandStorage] Save succeeded on retry', attempt);
+        return true;
+      }
+      // saveToSupabase returned false (partial failure) — retry
+    } catch (err) {
+      console.error('[zustandStorage] saveToSupabase threw on attempt', attempt, ':', err);
+    }
+
+    if (attempt < MAX_RETRIES) {
+      const delay = RETRY_DELAYS[attempt];
+      console.log('[zustandStorage] Retrying save in', delay, 'ms (attempt', attempt + 1, ')');
+      await sleep(delay);
+
+      // Abort retry if we went offline or started rehydrating
+      if (!navigator.onLine || !_hasHydrated) {
+        console.log('[zustandStorage] Aborting retry (offline or rehydrating)');
+        return false;
+      }
+    }
+  }
+  console.error('[zustandStorage] Save failed after', MAX_RETRIES, 'retries');
+  return false;
+}
 
 // Cancel any pending debounced save. Called when entering rehydration
 // to prevent stale (pre-hydration) data from being flushed to Supabase.
@@ -20,12 +52,6 @@ function cancelPendingSave() {
     clearTimeout(saveTimeout);
     saveTimeout = null;
   }
-}
-
-// Flag to suppress Supabase saves when applying incoming remote snapshots.
-export let _isRemoteUpdate = false;
-export function setRemoteUpdateFlag(value: boolean) {
-  _isRemoteUpdate = value;
 }
 
 // Hydration guard: prevents saving to IndexedDB AND Supabase before getItem
@@ -47,9 +73,7 @@ export function setHasHydrated(value: boolean) {
 async function getUid(): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const uid = session?.user?.id || null;
-    _lastKnownUid = uid;
-    return uid;
+    return session?.user?.id || null;
   } catch (e) {
     console.error('[zustandStorage] getUid error:', e);
     return null;
@@ -59,105 +83,93 @@ async function getUid(): Promise<string | null> {
 /**
  * Merges Supabase cloud data with local IndexedDB data.
  *
- * Supabase is authoritative for the fields it manages (profile, tasks,
- * habits, inventory, bossBattles, AND extra_state).  Everything else
- * (if anything) is preserved from the local IndexedDB snapshot.
+ * Uses timestamps to decide which source is authoritative:
+ * - If local is newer (e.g. unsaved changes from a previous session),
+ *   local fields take priority so unsaved work isn't lost.
+ * - Otherwise, cloud takes priority (the normal case on fresh load).
  *
- * With extra_state JSONB, Supabase now stores virtually all non-transient
+ * With extra_state JSONB, Supabase stores virtually all non-transient
  * fields, so the merge mainly serves as a safety net.
  */
 function mergeCloudAndLocal(
   cloudData: CloudSnapshot,
   localData: { state: Record<string, unknown>; version?: number } | null,
+  localUpdatedAt: string | null,
 ): { state: Record<string, unknown>; version?: number } {
   if (!localData || !localData.state) {
     return cloudData;
   }
 
-  const merged = {
-    ...localData,
-    state: {
-      // Start with the full local state (safety net for any fields not yet in cloud)
-      ...localData.state,
-      // Overlay all cloud fields (authoritative — includes extra_state contents)
-      ...cloudData.state,
-    },
-  };
+  // Determine which source is newer
+  const cloudTime = cloudData.updatedAt ? new Date(cloudData.updatedAt).getTime() : 0;
+  const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
+  const localIsNewer = localTime > cloudTime;
+
+  const merged = localIsNewer
+    ? {
+        ...localData,
+        state: {
+          // Cloud first as safety net, local overrides (local is newer)
+          ...cloudData.state,
+          ...localData.state,
+        },
+      }
+    : {
+        ...localData,
+        state: {
+          // Local first as safety net, cloud overrides (cloud is newer)
+          ...localData.state,
+          ...cloudData.state,
+        },
+      };
 
   console.log('[zustandStorage] Merged cloud + local state.',
     'Cloud fields:', Object.keys(cloudData.state).length,
     'Local fields:', Object.keys(localData.state).length,
     'Merged fields:', Object.keys(merged.state).length,
+    'Winner:', localIsNewer ? 'LOCAL (newer)' : 'CLOUD (newer)',
   );
 
   return merged;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// BEFORE-UNLOAD FLUSH
+// VISIBILITY-CHANGE FLUSH
 // ──────────────────────────────────────────────────────────────────────────────
-// When the user closes the tab, try to flush any pending debounced save.
-// We use fetch({keepalive:true}) so the browser keeps the request alive
-// after the page is destroyed.  This only flushes the profile (including
-// extra_state JSONB) since keepalive has a 64 KB body limit and profile
-// captures the most data.  IndexedDB is always up to date, so local data
-// is never lost — this only matters for cross-device sync.
+// When the tab becomes hidden (user switches tabs, closes tab, navigates away),
+// immediately flush any pending debounced save so data reaches Supabase before
+// the page may be destroyed. Unlike beforeunload, visibilitychange fires
+// reliably and allows async work in most browsers.
 // ──────────────────────────────────────────────────────────────────────────────
 
-let _beforeUnloadRegistered = false;
+let _visibilityListenerRegistered = false;
 
-function registerBeforeUnload() {
-  if (_beforeUnloadRegistered || typeof window === 'undefined') return;
-  _beforeUnloadRegistered = true;
+function registerVisibilityFlush() {
+  if (_visibilityListenerRegistered || typeof document === 'undefined') return;
+  _visibilityListenerRegistered = true;
 
-  window.addEventListener('beforeunload', () => {
-    // Only flush if there's a pending save and we know the user
-    if (!saveTimeout || !_lastKnownUid || !_hasHydrated) return;
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'hidden') return;
+    if (!saveTimeout || !_hasHydrated) return;
 
+    // Cancel the pending debounce — we'll fire it now
     clearTimeout(saveTimeout);
     saveTimeout = null;
 
-    // Read the last-known state from hybridStorage synchronously isn't possible
-    // (IndexedDB is async).  Instead, we'll do a best-effort save of the profile
-    // with whatever the Supabase client can do with keepalive.
-    // The full state was already written to IndexedDB by setItem, so local data
-    // is always safe.  This flush only helps cross-device freshness.
+    const uid = await getUid();
+    if (!uid) return;
+
     try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+      const latestData = await hybridStorage.load();
+      if (!latestData) return;
 
-      if (!supabaseUrl || !supabaseKey) return;
+      const parsed = JSON.parse(latestData) as { state?: Record<string, unknown> };
+      const latestState = parsed.state || parsed as unknown as Record<string, unknown>;
 
-      // Get the access token from the Supabase client's stored session
-      const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return;
-      let accessToken: string;
-      try {
-        const parsed = JSON.parse(raw);
-        accessToken = parsed?.access_token || parsed?.currentSession?.access_token;
-      } catch {
-        return;
-      }
-      if (!accessToken) return;
-
-      // Update profiles.updated_at so other devices know this device had pending changes.
-      // The full data was already saved to IndexedDB; next load will pick it up and sync.
-      const url = `${supabaseUrl}/rest/v1/profiles?id=eq.${_lastKnownUid}`;
-      fetch(url, {
-        method: 'PATCH',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({ updated_at: new Date().toISOString() }),
-        keepalive: true,
-      });
-      console.log('[zustandStorage] beforeunload: flushed updated_at');
-    } catch {
-      // Best effort — ignore errors during unload
+      console.log('[zustandStorage] visibilitychange: flushing pending save');
+      await saveToSupabase(uid, latestState);
+    } catch (err) {
+      console.error('[zustandStorage] visibilitychange flush error:', err);
     }
   });
 }
@@ -197,7 +209,7 @@ function registerOnlineListeners() {
 
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
   // Register listeners on first call (client-side only)
-  registerBeforeUnload();
+  registerVisibilityFlush();
   registerOnlineListeners();
 
   return {
@@ -206,9 +218,11 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
       try {
         // ── 1. Load local data from IndexedDB (fast, has FULL state) ──
         let localData: StorageValue<T> | null = null;
+        let localUpdatedAt: string | null = null;
         try {
           const raw = await hybridStorage.load();
           if (raw) localData = JSON.parse(raw) as StorageValue<T>;
+          localUpdatedAt = await hybridStorage.getUpdatedAt();
         } catch (e) {
           console.warn('[zustandStorage] Failed to parse local data:', e);
         }
@@ -218,12 +232,24 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
         console.log('[zustandStorage] getItem: uid =', uid, ', local data found:', !!localData);
 
         if (uid) {
-          const cloudData = await loadFromSupabase(uid);
+          // Timeout cloud load so the app doesn't hang if Supabase is slow/down.
+          // Falls back to local IndexedDB data if cloud is unreachable.
+          const CLOUD_TIMEOUT_MS = 8000;
+          const cloudData = await Promise.race([
+            loadFromSupabase(uid),
+            new Promise<null>((resolve) => {
+              setTimeout(() => {
+                console.warn('[zustandStorage] Cloud load timed out after', CLOUD_TIMEOUT_MS, 'ms');
+                resolve(null);
+              }, CLOUD_TIMEOUT_MS);
+            }),
+          ]);
           if (cloudData) {
-            // ── 3. Merge: Supabase fields override local, everything else preserved ──
+            // ── 3. Merge using timestamps to pick the newer source ──
             const merged = mergeCloudAndLocal(
               cloudData,
               localData as { state: Record<string, unknown>; version?: number } | null,
+              localUpdatedAt,
             );
 
             // Save the merged (complete) state back to IndexedDB
@@ -256,12 +282,6 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
       try {
         // Save locally first (fast, safe)
         await hybridStorage.save(serialized);
-
-        // Don't echo remote updates back to Supabase
-        if (_isRemoteUpdate) {
-          console.log('[zustandStorage] setItem: skipping Supabase (remote update)');
-          return;
-        }
 
         const uid = await getUid();
         if (!uid) {
@@ -301,12 +321,8 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
             'tasks:', (latestState.tasks as unknown[] | undefined)?.length ?? 0,
             'level:', latestState.level);
 
-          try {
-            const ok = await saveToSupabase(uid, latestState);
-            console.log('[zustandStorage] saveToSupabase result:', ok ? 'SUCCESS' : 'FAILED');
-          } catch (err) {
-            console.error('[zustandStorage] saveToSupabase threw:', err);
-          }
+          const ok = await saveWithRetry(uid, latestState);
+          console.log('[zustandStorage] saveToSupabase result:', ok ? 'SUCCESS' : 'FAILED');
         }, DEBOUNCE_MS);
       } catch (error) {
         console.error('[zustandStorage] setItem error:', error);

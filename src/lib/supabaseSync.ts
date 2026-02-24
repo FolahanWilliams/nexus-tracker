@@ -26,6 +26,7 @@ interface SyncableState {
 /** Shape returned by loadFromSupabase — a plain state snapshot. */
 export interface CloudSnapshot {
     state: Record<string, unknown>;
+    updatedAt: string | null;
 }
 
 /**
@@ -33,6 +34,32 @@ export interface CloudSnapshot {
  */
 function isUUID(id: string): boolean {
     return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// DELETION TRACKING
+// ──────────────────────────────────────────────────────────────────────────────
+// Instead of re-querying every remote ID on each save to find stale rows,
+// track deletions as they happen and prune only those specific IDs.
+// ──────────────────────────────────────────────────────────────────────────────
+
+const pendingDeletes: Record<string, Set<string>> = {
+    tasks: new Set(),
+    habits: new Set(),
+    inventory: new Set(),
+    boss_battles: new Set(),
+};
+
+/** Call from Zustand store actions when an item is removed. */
+export function trackDeletion(table: 'tasks' | 'habits' | 'inventory' | 'boss_battles', id: string) {
+    pendingDeletes[table].add(id);
+}
+
+/** Flush and clear pending deletes for a table. Returns IDs to delete (or empty set). */
+function consumeDeletes(table: string): string[] {
+    const ids = Array.from(pendingDeletes[table] || []);
+    if (pendingDeletes[table]) pendingDeletes[table].clear();
+    return ids;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -62,14 +89,6 @@ const TABLE_MANAGED_FIELDS = new Set([
     'tasks', 'habits', 'inventory', 'bossBattles',
 ]);
 
-/**
- * Fields that Supabase manages authoritatively (loaded in loadFromSupabase).
- * getItem uses this conceptually to know which local fields to override.
- */
-export const SUPABASE_MANAGED_FIELDS = [
-    ...TABLE_MANAGED_FIELDS,
-    // extra_state covers everything else that isn't transient
-] as const;
 
 // ──────────────────────────────────────────────────────────────────────────────
 // SAVE
@@ -201,25 +220,15 @@ async function saveTasks(uid: string, state: SyncableState): Promise<boolean> {
             console.log('[supabaseSync] Tasks upserted OK:', localTasks.length);
         }
 
-        // Prune deleted tasks
-        const localTaskIds = localTasks.map((t: Task) => t.id);
-        const { data: remoteTasks } = await supabase
-            .from('tasks')
-            .select('id')
-            .eq('user_id', uid);
-
-        if (remoteTasks) {
-            const staleIds = remoteTasks
-                .map((r: { id: string }) => r.id)
-                .filter((id: string) => !localTaskIds.includes(id));
-            if (staleIds.length > 0) {
-                const { error: pruneErr } = await supabase
-                    .from('tasks')
-                    .delete()
-                    .in('id', staleIds);
-                if (pruneErr) console.error('[supabaseSync] Task prune error:', pruneErr);
-                else console.log('[supabaseSync] Pruned stale tasks:', staleIds.length);
-            }
+        // Prune tracked deletions
+        const deletedTaskIds = consumeDeletes('tasks');
+        if (deletedTaskIds.length > 0) {
+            const { error: pruneErr } = await supabase
+                .from('tasks')
+                .delete()
+                .in('id', deletedTaskIds);
+            if (pruneErr) console.error('[supabaseSync] Task prune error:', pruneErr);
+            else console.log('[supabaseSync] Pruned deleted tasks:', deletedTaskIds.length);
         }
     }
     return ok;
@@ -252,103 +261,105 @@ async function saveHabits(uid: string, state: SyncableState): Promise<boolean> {
             console.log('[supabaseSync] Habits upserted OK:', localHabits.length);
         }
 
-        // Prune deleted habits
-        const localHabitIds = localHabits.map((h: Habit) => h.id);
-        const { data: remoteHabits } = await supabase
-            .from('habits')
-            .select('id')
-            .eq('user_id', uid);
-
-        if (remoteHabits) {
-            const staleIds = remoteHabits
-                .map((r: { id: string }) => r.id)
-                .filter((id: string) => !localHabitIds.includes(id));
-            if (staleIds.length > 0) {
-                const { error: pruneErr } = await supabase
-                    .from('habits')
-                    .delete()
-                    .in('id', staleIds);
-                if (pruneErr) console.error('[supabaseSync] Habit prune error:', pruneErr);
-                else console.log('[supabaseSync] Pruned stale habits:', staleIds.length);
-            }
+        // Prune tracked deletions
+        const deletedHabitIds = consumeDeletes('habits');
+        if (deletedHabitIds.length > 0) {
+            const { error: pruneErr } = await supabase
+                .from('habits')
+                .delete()
+                .in('id', deletedHabitIds);
+            if (pruneErr) console.error('[supabaseSync] Habit prune error:', pruneErr);
+            else console.log('[supabaseSync] Pruned deleted habits:', deletedHabitIds.length);
         }
     }
     return ok;
 }
 
 async function saveInventory(uid: string, state: SyncableState): Promise<boolean> {
-    if (!state.inventory || state.inventory.length === 0) return true;
+    const localItems = (state.inventory || []).filter((i: InventoryItem) => i && i.id);
+    let ok = true;
 
-    const { error: delErr } = await supabase
-        .from('inventory')
-        .delete()
-        .eq('user_id', uid);
+    if (localItems.length > 0) {
+        const { error } = await supabase
+            .from('inventory')
+            .upsert(localItems.map((i: InventoryItem) => ({
+                user_id: uid,
+                item_id: i.id,
+                name: i.name,
+                description: i.description || '',
+                type: i.type,
+                rarity: i.rarity,
+                icon: i.icon,
+                quantity: i.quantity ?? 1,
+                equipped: i.equipped ?? false,
+                stats: i.stats || {},
+            })), { onConflict: 'user_id,item_id' });
 
-    if (delErr) {
-        console.error('[supabaseSync] Inventory delete error:', delErr);
-        return false;
+        if (error) {
+            console.error('[supabaseSync] Inventory upsert FAILED:', error);
+            ok = false;
+        } else {
+            console.log('[supabaseSync] Inventory upserted OK:', localItems.length);
+        }
+
+        // Prune tracked deletions
+        const deletedItemIds = consumeDeletes('inventory');
+        if (deletedItemIds.length > 0) {
+            const { error: pruneErr } = await supabase
+                .from('inventory')
+                .delete()
+                .eq('user_id', uid)
+                .in('item_id', deletedItemIds);
+            if (pruneErr) console.error('[supabaseSync] Inventory prune error:', pruneErr);
+            else console.log('[supabaseSync] Pruned deleted inventory:', deletedItemIds.length);
+        }
     }
-
-    const { error: insErr } = await supabase
-        .from('inventory')
-        .insert(state.inventory.map((i: InventoryItem) => ({
-            user_id: uid,
-            item_id: i.id,
-            name: i.name,
-            description: i.description || '',
-            type: i.type,
-            rarity: i.rarity,
-            icon: i.icon,
-            quantity: i.quantity ?? 1,
-            equipped: i.equipped ?? false,
-            stats: i.stats || {},
-        })));
-
-    if (insErr) {
-        console.error('[supabaseSync] Inventory insert FAILED:', insErr);
-        return false;
-    }
-    console.log('[supabaseSync] Inventory saved OK:', state.inventory.length);
-    return true;
+    return ok;
 }
 
 async function saveBossBattles(uid: string, state: SyncableState): Promise<boolean> {
-    if (!state.bossBattles || state.bossBattles.length === 0) return true;
+    const localBosses = (state.bossBattles || []).filter((b: BossBattle) => b && b.id);
+    let ok = true;
 
-    const { error: delErr } = await supabase
-        .from('boss_battles')
-        .delete()
-        .eq('user_id', uid);
+    if (localBosses.length > 0) {
+        const { error } = await supabase
+            .from('boss_battles')
+            .upsert(localBosses.map((b: BossBattle) => ({
+                user_id: uid,
+                boss_id: b.id,
+                name: b.name,
+                description: b.description || '',
+                difficulty: b.difficulty || 'Medium',
+                hp: b.hp,
+                max_hp: b.maxHp,
+                xp_reward: b.xpReward ?? 100,
+                gold_reward: b.goldReward ?? 50,
+                starts_at: b.startsAt || null,
+                expires_at: b.expiresAt || null,
+                completed: b.completed ?? false,
+                failed: b.failed ?? false,
+            })), { onConflict: 'user_id,boss_id' });
 
-    if (delErr) {
-        console.error('[supabaseSync] Boss delete error:', delErr);
-        return false;
+        if (error) {
+            console.error('[supabaseSync] Boss upsert FAILED:', error);
+            ok = false;
+        } else {
+            console.log('[supabaseSync] Boss battles upserted OK:', localBosses.length);
+        }
+
+        // Prune tracked deletions
+        const deletedBossIds = consumeDeletes('boss_battles');
+        if (deletedBossIds.length > 0) {
+            const { error: pruneErr } = await supabase
+                .from('boss_battles')
+                .delete()
+                .eq('user_id', uid)
+                .in('boss_id', deletedBossIds);
+            if (pruneErr) console.error('[supabaseSync] Boss prune error:', pruneErr);
+            else console.log('[supabaseSync] Pruned deleted bosses:', deletedBossIds.length);
+        }
     }
-
-    const { error: insErr } = await supabase
-        .from('boss_battles')
-        .insert(state.bossBattles.map((b: BossBattle) => ({
-            user_id: uid,
-            boss_id: b.id,
-            name: b.name,
-            description: b.description || '',
-            difficulty: b.difficulty || 'Medium',
-            hp: b.hp,
-            max_hp: b.maxHp,
-            xp_reward: b.xpReward ?? 100,
-            gold_reward: b.goldReward ?? 50,
-            starts_at: b.startsAt || null,
-            expires_at: b.expiresAt || null,
-            completed: b.completed ?? false,
-            failed: b.failed ?? false,
-        })));
-
-    if (insErr) {
-        console.error('[supabaseSync] Boss insert FAILED:', insErr);
-        return false;
-    }
-    console.log('[supabaseSync] Boss battles saved OK:', state.bossBattles.length);
-    return true;
+    return ok;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -389,6 +400,7 @@ export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | nul
         const extra: Record<string, unknown> = (profile.extra_state as Record<string, unknown>) || {};
 
         const result: CloudSnapshot = {
+            updatedAt: profile.updated_at || null,
             state: {
                 // ── extra_state fields (spread first, so table columns override) ──
                 ...extra,
@@ -487,50 +499,3 @@ export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | nul
     }
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// REALTIME SUBSCRIPTION
-// ──────────────────────────────────────────────────────────────────────────────
-
-/**
- * Subscribe to Supabase Realtime changes for the current user's profile.
- * When another device updates the profile's `updated_at`, we reload.
- */
-export function subscribeToSupabase(
-    uid: string,
-    callback: (snapshot: CloudSnapshot) => void,
-): () => void {
-    const channel = supabase
-        .channel(`profile-sync-${uid}`)
-        .on(
-            'postgres_changes',
-            {
-                event: 'UPDATE',
-                schema: 'public',
-                table: 'profiles',
-                filter: `id=eq.${uid}`,
-            },
-            async (payload) => {
-                // Compare the remote updated_at with our last sync time.
-                // If the remote timestamp is newer, another device pushed changes.
-                const remoteUpdatedAt = payload.new?.updated_at;
-                const lastSynced = useSyncStore.getState().lastSyncedAt;
-
-                if (remoteUpdatedAt && lastSynced && remoteUpdatedAt > lastSynced) {
-                    console.log('[supabaseSync] Realtime: remote change detected, reloading...');
-                    const data = await loadFromSupabase(uid);
-                    if (data) {
-                        callback(data);
-                    }
-                } else {
-                    console.log('[supabaseSync] Realtime: ignoring own echo');
-                }
-            },
-        )
-        .subscribe((status) => {
-            console.log('[supabaseSync] Realtime channel status:', status);
-        });
-
-    return () => {
-        supabase.removeChannel(channel);
-    };
-}
