@@ -8,6 +8,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X, ExternalLink, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import useSoundEffects from '@/hooks/useSoundEffects';
 
 interface Nudge {
@@ -938,10 +939,41 @@ export default function HootFAB() {
                                             <div className="max-w-[85%] space-y-2">
                                                 <div className="flex gap-2 items-start">
                                                     <span className="text-lg mt-0.5 shrink-0">🦉</span>
-                                                    <div className="rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed"
+                                                    <div className="rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed hoot-markdown"
                                                         style={{ background: 'var(--color-bg-dark)', color: 'var(--color-text-secondary)' }}
                                                     >
-                                                        {msg.text}
+                                                        <ReactMarkdown
+                                                            components={{
+                                                                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                                                                strong: ({ children }) => <strong className="font-bold text-[var(--color-text-primary)]">{children}</strong>,
+                                                                em: ({ children }) => <em className="italic">{children}</em>,
+                                                                ul: ({ children }) => <ul className="list-disc list-inside mb-1.5 space-y-0.5">{children}</ul>,
+                                                                ol: ({ children }) => <ol className="list-decimal list-inside mb-1.5 space-y-0.5">{children}</ol>,
+                                                                li: ({ children }) => <li className="text-sm">{children}</li>,
+                                                                code: ({ children }) => (
+                                                                    <code className="text-xs bg-[var(--color-bg-primary)] px-1 py-0.5 rounded font-mono text-[var(--color-purple)]">
+                                                                        {children}
+                                                                    </code>
+                                                                ),
+                                                                a: ({ href, children }) => (
+                                                                    <a href={href} target="_blank" rel="noopener noreferrer"
+                                                                        className="text-[var(--color-blue)] underline decoration-[var(--color-blue)]/30 hover:decoration-[var(--color-blue)] transition-colors">
+                                                                        {children}
+                                                                    </a>
+                                                                ),
+                                                                h1: ({ children }) => <p className="font-bold text-base text-[var(--color-text-primary)] mb-1">{children}</p>,
+                                                                h2: ({ children }) => <p className="font-bold text-sm text-[var(--color-text-primary)] mb-1">{children}</p>,
+                                                                h3: ({ children }) => <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-0.5">{children}</p>,
+                                                                blockquote: ({ children }) => (
+                                                                    <blockquote className="border-l-2 border-[var(--color-purple)]/40 pl-2.5 my-1.5 text-[var(--color-text-muted)] italic">
+                                                                        {children}
+                                                                    </blockquote>
+                                                                ),
+                                                                hr: () => <hr className="border-[var(--color-border)] my-2" />,
+                                                            }}
+                                                        >
+                                                            {msg.text}
+                                                        </ReactMarkdown>
                                                     </div>
                                                 </div>
 

@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
 import NextBestAction from '@/components/NextBestAction';
+import RecentActivityFeed from '@/components/RecentActivityFeed';
 
 import { useAuth } from '@/components/AuthProvider';
 import LoginScreen from '@/components/LoginScreen';
@@ -359,6 +360,11 @@ function DashboardContent() {
           </motion.div>
 
 
+
+          {/* Recent Activity Feed */}
+          <motion.div className="mb-4" variants={fadeUp}>
+            <RecentActivityFeed />
+          </motion.div>
 
           {/* Next Best Action */}
           <motion.div className="mb-4" variants={fadeUp}>
