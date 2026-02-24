@@ -206,6 +206,17 @@ export interface Goal {
     manualProgress?: number; // 0-100, used when goal has no milestones
 }
 
+export type ActivityType = 'quest_complete' | 'habit_complete' | 'item_drop' | 'level_up' | 'achievement' | 'reflection' | 'xp_earned' | 'boss_damage' | 'goal_milestone' | 'purchase';
+
+export interface ActivityEntry {
+    id: string;
+    type: ActivityType;
+    icon: string;
+    text: string;
+    detail?: string;
+    timestamp: string; // ISO string
+}
+
 export interface Settings {
     soundEnabled: boolean;
     theme: 'dark' | 'light';
@@ -305,6 +316,10 @@ export interface GameState {
 
     // Buffs/Effects
     activeBuffs: { type: string; value: number; expiresAt: string }[];
+
+    // Activity Feed
+    activityLog: ActivityEntry[];
+    logActivity: (type: ActivityType, icon: string, text: string, detail?: string) => void;
 
     // Character Actions
     setCharacterClass: (characterClass: CharacterClass) => void;
@@ -581,6 +596,7 @@ export const useGameStore = create<GameState>()(
             habits: [],
             goals: [],
             activeBuffs: [],
+            activityLog: [],
             isMusicDucked: false,
 
             // Character defaults
@@ -790,6 +806,21 @@ export const useGameStore = create<GameState>()(
                 }));
             },
 
+            // Activity Log
+            logActivity: (type, icon, text, detail) => {
+                const entry: ActivityEntry = {
+                    id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                    type,
+                    icon,
+                    text,
+                    detail,
+                    timestamp: new Date().toISOString(),
+                };
+                set((state) => ({
+                    activityLog: [entry, ...state.activityLog].slice(0, 20),
+                }));
+            },
+
             // Settings Actions
             updateSettings: (newSettings) => {
                 set((state) => ({
@@ -825,6 +856,7 @@ export const useGameStore = create<GameState>()(
                         }
                     }
 
+                    const prevLevel = get().level;
                     set((state) => {
                         const newXP = Math.max(0, state.xp + finalAmount);
                         const newLevel = levelFromXP(newXP);
@@ -837,6 +869,10 @@ export const useGameStore = create<GameState>()(
                             lastCriticalHit: isCritical ? finalAmount : state.lastCriticalHit,
                         };
                     });
+                    const newLevel = get().level;
+                    if (newLevel > prevLevel) {
+                        get().logActivity('level_up', '🎉', `Reached Level ${newLevel}!`, `Leveled up from ${prevLevel}`);
+                    }
                     get().checkAchievements();
                     get().updateTitle();
                 } catch (error) {
@@ -915,6 +951,7 @@ export const useGameStore = create<GameState>()(
                         gold: state.gold - item.cost,
                         purchasedRewards: [...state.purchasedRewards, { ...item, purchased: true }]
                     }));
+                    get().logActivity('purchase', '🛒', `Purchased "${item.name}"`, `-${item.cost}g`);
                 }
             },
 
@@ -1090,12 +1127,14 @@ export const useGameStore = create<GameState>()(
                         get().addItem(boss.itemReward);
                     }
                     get().unlockAchievement('BOSS_SLAYER');
+                    get().logActivity('boss_damage', '💀', `Defeated ${boss.name}!`, `+${boss.xpReward} XP, +${boss.goldReward}g`);
                 } else {
                     set((state) => ({
                         bossBattles: state.bossBattles.map(b =>
                             b.id === bossId ? { ...b, hp: newHp } : b
                         )
                     }));
+                    get().logActivity('boss_damage', '⚔️', `Dealt ${damage} damage to ${boss.name}`, `${newHp}/${boss.maxHp} HP remaining`);
                 }
             },
 
@@ -1316,6 +1355,7 @@ export const useGameStore = create<GameState>()(
                         ...state.dynamicAchievements
                     ]
                 }));
+                get().logActivity('achievement', achievement.icon || '🏆', `Earned "${achievement.name}"`, achievement.description);
             },
 
             checkAchievements: () => {
@@ -1390,6 +1430,7 @@ export const useGameStore = create<GameState>()(
                                             : undefined
                             };
                             set((s) => ({ inventory: [...s.inventory, newItem], lastDroppedItem: `${randomItem.icon} ${randomItem.name}` }));
+                            get().logActivity('item_drop', randomItem.icon, `Found ${randomItem.name}`, `${randomItem.rarity} drop from "${task.title}"`);
                         }
                     } else {
                         state.addXP(-task.xpReward);
@@ -1411,6 +1452,11 @@ export const useGameStore = create<GameState>()(
                             q.id === id ? { ...q, completed: !q.completed } : q
                         )
                     }));
+
+                    if (!task.completed) {
+                        const goldReward = Math.floor(task.xpReward / 2);
+                        get().logActivity('quest_complete', '⚔️', `Completed "${task.title}"`, `+${task.xpReward} XP, +${goldReward}g`);
+                    }
 
                     // Reset recurring tasks after a delay.
                     // We cancel any previously pending timer for this task before starting
@@ -1688,6 +1734,7 @@ export const useGameStore = create<GameState>()(
 
                 get().addXP(habit.xpReward);
                 get().addGold(Math.ceil(habit.xpReward / 5));
+                get().logActivity('habit_complete', habit.icon || '✅', `Completed habit "${habit.name}"`, `${newStreak}-day streak, +${habit.xpReward} XP`);
             },
 
             deleteHabit: (habitId) => {
@@ -1767,6 +1814,12 @@ export const useGameStore = create<GameState>()(
                 if (updatedGoal?.completed) {
                     get().addXP(updatedGoal.xpReward);
                     get().addGold(Math.ceil(updatedGoal.xpReward / 2));
+                    get().logActivity('goal_milestone', '🎯', `Goal completed: "${updatedGoal.title}"`, `+${updatedGoal.xpReward} XP`);
+                } else {
+                    const milestone = goal.milestones.find(m => m.id === milestoneId);
+                    const done = (updatedGoal?.milestones.filter(m => m.completed).length ?? 0);
+                    const total = updatedGoal?.milestones.length ?? 0;
+                    get().logActivity('goal_milestone', '🏁', `Milestone "${milestone?.title}" done`, `${done}/${total} on "${goal.title}"`);
                 }
             },
 
@@ -1813,6 +1866,7 @@ export const useGameStore = create<GameState>()(
                     ]
                 }));
                 if (safeBonus > 0) get().addXP(safeBonus);
+                get().logActivity('reflection', '📝', `Daily reflection (${safeStars}★)`, safeBonus > 0 ? `+${safeBonus} XP` : undefined);
             },
 
             // RPG Actions - Quest Chains
@@ -1973,6 +2027,7 @@ export const useGameStore = create<GameState>()(
                     habits: [],
                     goals: [],
                     activeBuffs: [],
+                    activityLog: [],
                     isMusicDucked: false,
                     gems: 0,
                     hp: 100,
