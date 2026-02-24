@@ -303,7 +303,8 @@ export default function HootFAB() {
                         break;
                     }
                     case 'complete_task': {
-                        const taskName = (params.taskName as string).toLowerCase();
+                        const taskName = (params.taskName as string | undefined)?.toLowerCase();
+                        if (!taskName) { results.push(`⚠️ No task name provided`); break; }
                         const task = state.tasks.find(t =>
                             !t.completed && t.title.toLowerCase().includes(taskName)
                         );
@@ -327,7 +328,8 @@ export default function HootFAB() {
                         break;
                     }
                     case 'complete_habit': {
-                        const habitName = (params.habitName as string).toLowerCase();
+                        const habitName = (params.habitName as string | undefined)?.toLowerCase();
+                        if (!habitName) { results.push(`⚠️ No habit name provided`); break; }
                         const today = new Date().toISOString().split('T')[0];
                         const habit = state.habits.find(h =>
                             h.name.toLowerCase().includes(habitName) && !h.completedDates.includes(today)
@@ -377,7 +379,8 @@ export default function HootFAB() {
                     }
                     // ── Power Actions ──────────────────────────────────────
                     case 'equip_item': {
-                        const itemName = (params.itemName as string).toLowerCase();
+                        const itemName = (params.itemName as string | undefined)?.toLowerCase();
+                        if (!itemName) { results.push(`⚠️ No item name provided`); break; }
                         const act = (params.action as string) || 'equip';
                         const item = state.inventory.find(i => i.name.toLowerCase().includes(itemName));
                         if (!item) {
@@ -402,7 +405,8 @@ export default function HootFAB() {
                         break;
                     }
                     case 'buy_item': {
-                        const itemName = (params.itemName as string).toLowerCase();
+                        const itemName = (params.itemName as string | undefined)?.toLowerCase();
+                        if (!itemName) { results.push(`⚠️ No item name provided`); break; }
                         const shopItem = state.shopItems.find(r => !r.purchased && r.name.toLowerCase().includes(itemName));
                         if (!shopItem) {
                             results.push(`⚠️ Couldn't find "${params.itemName}" in the shop`);
@@ -416,8 +420,9 @@ export default function HootFAB() {
                         break;
                     }
                     case 'complete_milestone': {
-                        const goalName = (params.goalName as string).toLowerCase();
-                        const msName = (params.milestoneName as string).toLowerCase();
+                        const goalName = (params.goalName as string | undefined)?.toLowerCase();
+                        const msName = (params.milestoneName as string | undefined)?.toLowerCase();
+                        if (!goalName || !msName) { results.push(`⚠️ Missing goal or milestone name`); break; }
                         const goal = state.goals.find(g => !g.completed && g.title.toLowerCase().includes(goalName));
                         if (!goal) {
                             results.push(`⚠️ Couldn't find an active goal matching "${params.goalName}"`);
@@ -441,7 +446,8 @@ export default function HootFAB() {
                         break;
                     }
                     case 'suggest_quest_tags': {
-                        const taskName = (params.taskName as string).toLowerCase();
+                        const taskName = (params.taskName as string | undefined)?.toLowerCase();
+                        if (!taskName) { results.push(`⚠️ No task name provided`); break; }
                         const task = state.tasks.find(t => t.title.toLowerCase().includes(taskName));
                         if (!task) {
                             results.push(`⚠️ Couldn't find a quest matching "${params.taskName}"`);
