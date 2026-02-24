@@ -608,6 +608,7 @@ export default function QuestsPage() {
             <label htmlFor="ai-prompt" className="sr-only">Describe what you want to achieve</label>
             <input
               id="ai-prompt"
+              name="ai-prompt"
               type="text"
               value={generatePrompt}
               onChange={(e) => setGeneratePrompt(e.target.value)}
@@ -650,8 +651,11 @@ export default function QuestsPage() {
             <span className="font-bold text-sm">Quest Command</span>
             <span className="text-xs text-[var(--color-text-muted)]">— Edit quests with natural language</span>
           </div>
+          <label htmlFor="quest-command" className="sr-only">Quest command</label>
           <div className="flex gap-2">
             <input
+              id="quest-command"
+              name="quest-command"
               type="text"
               value={nlCommand}
               onChange={(e) => { setNlCommand(e.target.value); setCommandResult(null); }}
