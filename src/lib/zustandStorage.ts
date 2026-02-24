@@ -10,9 +10,6 @@ import { useSyncStore } from './syncStatus';
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 3000;
 
-// Track the last UID so the beforeunload handler can flush without async getUid
-let _lastKnownUid: string | null = null;
-
 // Cancel any pending debounced save. Called when entering rehydration
 // to prevent stale (pre-hydration) data from being flushed to Supabase.
 function cancelPendingSave() {
@@ -20,12 +17,6 @@ function cancelPendingSave() {
     clearTimeout(saveTimeout);
     saveTimeout = null;
   }
-}
-
-// Flag to suppress Supabase saves when applying incoming remote snapshots.
-export let _isRemoteUpdate = false;
-export function setRemoteUpdateFlag(value: boolean) {
-  _isRemoteUpdate = value;
 }
 
 // Hydration guard: prevents saving to IndexedDB AND Supabase before getItem
@@ -47,9 +38,7 @@ export function setHasHydrated(value: boolean) {
 async function getUid(): Promise<string | null> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
-    const uid = session?.user?.id || null;
-    _lastKnownUid = uid;
-    return uid;
+    return session?.user?.id || null;
   } catch (e) {
     console.error('[zustandStorage] getUid error:', e);
     return null;
@@ -94,75 +83,6 @@ function mergeCloudAndLocal(
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// BEFORE-UNLOAD FLUSH
-// ──────────────────────────────────────────────────────────────────────────────
-// When the user closes the tab, try to flush any pending debounced save.
-// We use fetch({keepalive:true}) so the browser keeps the request alive
-// after the page is destroyed.  This only flushes the profile (including
-// extra_state JSONB) since keepalive has a 64 KB body limit and profile
-// captures the most data.  IndexedDB is always up to date, so local data
-// is never lost — this only matters for cross-device sync.
-// ──────────────────────────────────────────────────────────────────────────────
-
-let _beforeUnloadRegistered = false;
-
-function registerBeforeUnload() {
-  if (_beforeUnloadRegistered || typeof window === 'undefined') return;
-  _beforeUnloadRegistered = true;
-
-  window.addEventListener('beforeunload', () => {
-    // Only flush if there's a pending save and we know the user
-    if (!saveTimeout || !_lastKnownUid || !_hasHydrated) return;
-
-    clearTimeout(saveTimeout);
-    saveTimeout = null;
-
-    // Read the last-known state from hybridStorage synchronously isn't possible
-    // (IndexedDB is async).  Instead, we'll do a best-effort save of the profile
-    // with whatever the Supabase client can do with keepalive.
-    // The full state was already written to IndexedDB by setItem, so local data
-    // is always safe.  This flush only helps cross-device freshness.
-    try {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !supabaseKey) return;
-
-      // Get the access token from the Supabase client's stored session
-      const storageKey = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`;
-      const raw = localStorage.getItem(storageKey);
-      if (!raw) return;
-      let accessToken: string;
-      try {
-        const parsed = JSON.parse(raw);
-        accessToken = parsed?.access_token || parsed?.currentSession?.access_token;
-      } catch {
-        return;
-      }
-      if (!accessToken) return;
-
-      // Update profiles.updated_at so other devices know this device had pending changes.
-      // The full data was already saved to IndexedDB; next load will pick it up and sync.
-      const url = `${supabaseUrl}/rest/v1/profiles?id=eq.${_lastKnownUid}`;
-      fetch(url, {
-        method: 'PATCH',
-        headers: {
-          'apikey': supabaseKey,
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({ updated_at: new Date().toISOString() }),
-        keepalive: true,
-      });
-      console.log('[zustandStorage] beforeunload: flushed updated_at');
-    } catch {
-      // Best effort — ignore errors during unload
-    }
-  });
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // ONLINE/OFFLINE TRACKING
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -197,7 +117,6 @@ function registerOnlineListeners() {
 
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
   // Register listeners on first call (client-side only)
-  registerBeforeUnload();
   registerOnlineListeners();
 
   return {
@@ -256,12 +175,6 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
       try {
         // Save locally first (fast, safe)
         await hybridStorage.save(serialized);
-
-        // Don't echo remote updates back to Supabase
-        if (_isRemoteUpdate) {
-          console.log('[zustandStorage] setItem: skipping Supabase (remote update)');
-          return;
-        }
 
         const uid = await getUid();
         if (!uid) {

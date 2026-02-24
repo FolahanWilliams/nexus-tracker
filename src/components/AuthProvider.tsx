@@ -3,8 +3,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { subscribeToSupabase } from '@/lib/supabaseSync';
-import { setRemoteUpdateFlag } from '@/lib/zustandStorage';
 import { useToastStore } from '@/components/ToastContainer';
 import { useGameStore } from '@/store/useGameStore';
 
@@ -30,9 +28,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const prevUidRef = useRef<string | null | undefined>(undefined);
-    const unsubRef = useRef<(() => void) | null>(null);
 
-    // Single unified effect: handles initial hydration, auth changes, and realtime.
+    // Single unified effect: handles initial hydration and auth changes.
     //
     // With skipHydration: true, getItem is NOT called during store creation
     // (which happens during SSR).  We call rehydrate() from onAuthStateChange
@@ -47,12 +44,6 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             setUser(currentUser);
             setLoading(false);
 
-            // Tear down previous realtime subscription
-            if (unsubRef.current) {
-                unsubRef.current();
-                unsubRef.current = null;
-            }
-
             // Rehydrate on:
             // 1. First auth event (prevUid === undefined) — handles both
             //    logged-in users AND anonymous users on initial page load.
@@ -62,27 +53,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
             if (isFirstEvent || isNewLogin) {
                 await useGameStore.persist.rehydrate();
-
-                // Set up realtime subscription for logged-in users.
-                // When another device pushes changes to Supabase, the callback
-                // receives the full cloud state and merges it into the store.
-                if (currentUser) {
-                    unsubRef.current = subscribeToSupabase(currentUser.id, (remoteState) => {
-                        if (!remoteState) return;
-                        setRemoteUpdateFlag(true);
-                        try {
-                            useGameStore.setState(remoteState.state || remoteState, false);
-                        } finally {
-                            setRemoteUpdateFlag(false);
-                        }
-                    });
-                }
             }
         });
 
         return () => {
             subscription.unsubscribe();
-            if (unsubRef.current) unsubRef.current();
         };
     }, []);
 
