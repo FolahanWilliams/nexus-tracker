@@ -7,6 +7,7 @@ import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, Chevr
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
+import NextBestAction from '@/components/NextBestAction';
 
 import { useAuth } from '@/components/AuthProvider';
 import LoginScreen from '@/components/LoginScreen';
@@ -358,6 +359,11 @@ function DashboardContent() {
           </motion.div>
 
 
+
+          {/* Next Best Action */}
+          <motion.div className="mb-4" variants={fadeUp}>
+            <NextBestAction />
+          </motion.div>
 
           {/* Weekly Strategy Planner */}
           <motion.div className="mb-4" variants={fadeUp}>

@@ -3,29 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/useGameStore';
+import { useHootStore, QuickReply, HootAction } from '@/store/useHootStore';
 import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ExternalLink, Loader2, Sparkles } from 'lucide-react';
+import { Send, X, ExternalLink, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import useSoundEffects from '@/hooks/useSoundEffects';
-
-interface HootSource {
-    title: string;
-    url: string;
-}
-
-interface HootAction {
-    action: string;
-    params: Record<string, unknown>;
-}
-
-interface HootMessage {
-    role: 'user' | 'hoot';
-    text: string;
-    actions?: HootAction[];
-    sources?: HootSource[] | null;
-    actionResults?: string[];
-}
 
 interface Nudge {
     id: string;
@@ -36,14 +19,102 @@ interface Nudge {
     type: 'quest' | 'habit' | 'hp' | 'celebration';
 }
 
+// ── Quick-reply generation ───────────────────────────────────────────────
+function generateQuickReplies(
+    actions: HootAction[],
+    pathname: string,
+    state: ReturnType<typeof useGameStore.getState>,
+): QuickReply[] {
+    const chips: QuickReply[] = [];
+    const today = new Date().toISOString().split('T')[0];
+
+    // Action-based follow-ups
+    for (const { action } of actions) {
+        switch (action) {
+            case 'add_task':
+                chips.push({ label: '➕ Add another quest', message: 'Add another quest for me' });
+                chips.push({ label: '📊 My progress', message: 'How am I doing this week?' });
+                break;
+            case 'complete_task':
+                chips.push({ label: '🎉 What\'s next?', message: 'What should I work on next?' });
+                chips.push({ label: '📊 My progress', message: 'How am I doing this week?' });
+                break;
+            case 'add_habit':
+            case 'complete_habit':
+                chips.push({ label: '🔥 Streak check', message: 'How are my habit streaks looking?' });
+                break;
+            case 'add_goal':
+                chips.push({ label: '📋 View goals', message: 'Show me my active goals' });
+                break;
+            case 'navigate':
+                break;
+            case 'get_productivity_summary':
+                chips.push({ label: '💡 Tips', message: 'Any productivity tips for me?' });
+                break;
+            case 'perform_web_search':
+                chips.push({ label: '🔍 Tell me more', message: 'Tell me more about that' });
+                break;
+        }
+    }
+
+    // If no action-based chips yet, add context-based ones
+    if (chips.length === 0) {
+        switch (pathname) {
+            case '/':
+                chips.push({ label: '📊 Weekly summary', message: 'Give me a productivity summary' });
+                break;
+            case '/quests':
+                chips.push({ label: '✨ Add a quest', message: 'Help me create a new quest' });
+                break;
+            case '/habits':
+                chips.push({ label: '🔥 Streak check', message: 'How are my habit streaks?' });
+                break;
+            case '/goals':
+                chips.push({ label: '🎯 New goal', message: 'Help me set a new goal' });
+                break;
+            case '/reflection':
+                chips.push({ label: '📝 Coach me', message: 'Give me coaching based on my reflections' });
+                break;
+            case '/bosses':
+                chips.push({ label: '⚔️ Strategy', message: 'What\'s my boss battle strategy?' });
+                break;
+            case '/focus':
+                chips.push({ label: '⏱️ Start focus', message: 'Start a 25-minute focus session' });
+                break;
+            default:
+                chips.push({ label: '📊 How am I doing?', message: 'How am I doing this week?' });
+                break;
+        }
+    }
+
+    // State-based universal follow-ups (add if room)
+    if (chips.length < 3) {
+        const undoneHabits = state.habits.filter(h => !h.completedDates.includes(today));
+        if (undoneHabits.length > 0 && pathname !== '/habits') {
+            chips.push({ label: `✅ ${undoneHabits.length} habits left`, message: 'Which habits should I do next?' });
+        }
+    }
+
+    if (chips.length < 3 && state.hp < 40) {
+        chips.push({ label: '❤️ Heal up', message: 'Use a health potion' });
+    }
+
+    // Cap at 3 chips
+    return chips.slice(0, 3);
+}
+
 export default function HootFAB() {
     const { user } = useAuth();
     const pathname = usePathname();
     const router = useRouter();
     const { addToast } = useToastStore();
 
-    const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<HootMessage[]>([]);
+    // Hoot persistent store
+    const {
+        messages, addMessage, updateLastHootMessage, clearMessages,
+        isOpen, setOpen,
+    } = useHootStore();
+
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -54,7 +125,7 @@ export default function HootFAB() {
     const store = useGameStore();
     const {
         tasks, habits, hp, isFocusTimerRunning,
-        setMusicDucked
+        setMusicDucked, reflectionNotes
     } = store;
 
     const { playQuest } = useSoundEffects();
@@ -63,6 +134,9 @@ export default function HootFAB() {
     const [activeNudge, setActiveNudge] = useState<Nudge | null>(null);
     const lastTriggerTimeRef = useRef<Record<string, number>>({});
     const activeNudgeRef = useRef<Nudge | null>(null);
+
+    // Track reflection count for auto-coaching
+    const lastReflectionCountRef = useRef(reflectionNotes.length);
 
     // Keep ref in sync with state for use inside effects without causing re-renders
     useEffect(() => { activeNudgeRef.current = activeNudge; }, [activeNudge]);
@@ -83,6 +157,16 @@ export default function HootFAB() {
         }
     }, [isOpen]);
 
+    // Escape key to close
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setOpen(false);
+        };
+        document.addEventListener('keydown', handleKey);
+        return () => document.removeEventListener('keydown', handleKey);
+    }, [isOpen, setOpen]);
+
     // Periodic subtle animation on the FAB
     useEffect(() => {
         if (isOpen || activeNudge) return;
@@ -93,17 +177,42 @@ export default function HootFAB() {
         return () => clearInterval(interval);
     }, [isOpen, activeNudge]);
 
+    // ── AI Coach Unification: Auto-coach on new reflection ─────────────────
+    useEffect(() => {
+        if (reflectionNotes.length <= lastReflectionCountRef.current) {
+            lastReflectionCountRef.current = reflectionNotes.length;
+            return;
+        }
+        lastReflectionCountRef.current = reflectionNotes.length;
+
+        // A new reflection was added — auto-trigger coaching via Hoot
+        const latest = reflectionNotes[reflectionNotes.length - 1];
+        if (!latest) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        if (latest.date !== today) return;
+
+        // Auto-open Hoot and send coaching request
+        setOpen(true);
+        const coachPrompt = latest.note
+            ? `I just wrote my evening reflection: "${latest.note}" (${latest.stars}/5 stars). Give me some coaching advice.`
+            : `I just finished my evening reflection (${latest.stars}/5 stars). Any coaching tips for me?`;
+
+        // Small delay so the panel opens first
+        setTimeout(() => sendMessage(coachPrompt, true), 500);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reflectionNotes.length]);
+
     // -- Guardian Mode: Trigger Engine --
-    // Runs on an interval instead of reactive deps to prevent infinite re-render loops.
     useEffect(() => {
         if (isOpen || isFocusTimerRunning) return;
 
         const runTriggerCheck = () => {
-            if (activeNudgeRef.current) return; // Already showing a nudge
+            if (activeNudgeRef.current) return;
 
             const now = Date.now();
-            const COOLDOWN = 60000; // 1 minute per specific trigger type
-            const GLOBAL_COOLDOWN = 15000; // 15 seconds between any nudge
+            const COOLDOWN = 60000;
+            const GLOBAL_COOLDOWN = 15000;
             const times = lastTriggerTimeRef.current;
 
             const lastGlobal = Math.max(...Object.values(times), 0);
@@ -119,7 +228,6 @@ export default function HootFAB() {
                 return false;
             };
 
-            // 1. Critical HP Check
             if (checkTrigger('critical_hp', () => hp < 30, {
                 text: "Your health is low! Use a potion before your next quest?",
                 actionLabel: "Heal Me",
@@ -128,7 +236,6 @@ export default function HootFAB() {
                 type: 'hp'
             })) return;
 
-            // 2. Urgent Quest (Due soon/Hard difficulty but incomplete)
             const incomplete = tasks.filter(t => !t.completed);
             if (incomplete.length > 0 && checkTrigger('urgent_quest', () => incomplete.some(t => t.difficulty === 'Hard'), {
                 text: "That Hard quest looks tough. Want to break it down?",
@@ -138,7 +245,6 @@ export default function HootFAB() {
                 type: 'quest'
             })) return;
 
-            // 3. Habit Streak Risk (Late in the day, habit not done)
             const today = new Date().toISOString().split('T')[0];
             const hour = new Date().getHours();
             const undoneHabit = habits.find(h => !h.completedDates.includes(today));
@@ -151,7 +257,6 @@ export default function HootFAB() {
             })) return;
         };
 
-        // Run once immediately then on a 10-second interval
         runTriggerCheck();
         const interval = setInterval(runTriggerCheck, 10000);
         return () => clearInterval(interval);
@@ -162,47 +267,24 @@ export default function HootFAB() {
         if (activeNudge) {
             playQuestRef.current();
             setMusicDucked(true);
-
-            // Auto-unduck after 8 seconds if not dismissed/accepted
-            const timer = setTimeout(() => {
-                setMusicDucked(false);
-            }, 8000);
-            return () => {
-                clearTimeout(timer);
-                setMusicDucked(false);
-            };
+            const timer = setTimeout(() => { setMusicDucked(false); }, 8000);
+            return () => { clearTimeout(timer); setMusicDucked(false); };
         } else {
             setMusicDucked(false);
         }
     }, [activeNudge, setMusicDucked]);
 
-    const handleNudgeDismiss = () => {
-        setActiveNudge(null);
-    };
+    const handleNudgeDismiss = () => { setActiveNudge(null); };
 
     const handleNudgeAccept = async () => {
         if (!activeNudge) return;
-        setIsOpen(true);
+        setOpen(true);
         const nudge = activeNudge;
         setActiveNudge(null);
 
-        // Add a message from hoot mimicking the nudge
-        setMessages(prev => [...prev, {
-            role: 'hoot',
-            text: nudge.text,
-            actions: nudge.actions,
-        }]);
-
-        // Automatically execute the actions
+        addMessage({ role: 'hoot', text: nudge.text, actions: nudge.actions });
         const results = await executeActions(nudge.actions);
-
-        setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === 'hoot') {
-                return [...prev.slice(0, -1), { ...last, actionResults: results }];
-            }
-            return prev;
-        });
+        updateLastHootMessage({ actionResults: results });
     };
 
     // Build context snapshot for the current page
@@ -241,6 +323,9 @@ export default function HootFAB() {
                 const recent = state.reflectionNotes.slice(-3);
                 parts.push(`Recent reflections: ${recent.map(r => `${r.date}: ${r.stars}★`).join(', ') || 'None yet'}`);
                 parts.push(`Today's energy: ${state.todayEnergyRating || 'Not set'}`);
+                if (state.reflectionNotes.length >= 3) {
+                    parts.push(`Reflection history (last ${Math.min(state.reflectionNotes.length, 7)}): ${state.reflectionNotes.slice(-7).map(r => `${r.date}: ${r.stars}★ "${r.note}"`).join(' | ')}`);
+                }
                 break;
             }
             case '/focus':
@@ -283,7 +368,7 @@ export default function HootFAB() {
         }
 
         return parts.join('\n');
-    }, [pathname, store]);
+    }, [pathname]);
 
     // Execute actions returned by the API
     async function executeActions(actions: HootAction[]): Promise<string[]> {
@@ -377,7 +462,6 @@ export default function HootFAB() {
                         results.push(`🧭 Navigating to ${page}${reason ? ` — ${reason}` : ''}`);
                         break;
                     }
-                    // ── Power Actions ──────────────────────────────────────
                     case 'equip_item': {
                         const itemName = (params.itemName as string | undefined)?.toLowerCase();
                         if (!itemName) { results.push(`⚠️ No item name provided`); break; }
@@ -439,7 +523,6 @@ export default function HootFAB() {
                         }
                         break;
                     }
-                    // ── Strategic Intelligence ────────────────────────────
                     case 'get_productivity_summary': {
                         const summary = buildProductivitySummary(state);
                         results.push(summary);
@@ -500,23 +583,19 @@ export default function HootFAB() {
         const weekAgoStr = weekAgo.toISOString().split('T')[0];
         const todayStr = today.toISOString().split('T')[0];
 
-        // Tasks completed this week
         const completedThisWeek = state.tasks.filter(t =>
             t.completed && t.completedAt && t.completedAt >= weekAgoStr
         ).length;
 
-        // Habits at risk (have a streak but not done today)
         const habitsAtRisk = state.habits.filter(h =>
             h.streak > 0 && !h.completedDates.includes(todayStr)
         );
 
-        // Goals nearing deadline (within 7 days)
         const nextWeekStr = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
         const urgentGoals = state.goals.filter(g =>
             !g.completed && g.targetDate <= nextWeekStr
         );
 
-        // Active tasks
         const activeTasks = state.tasks.filter(t => !t.completed);
 
         const lines: string[] = [
@@ -568,13 +647,11 @@ export default function HootFAB() {
             lines.push(`  No active quests — create some to damage the boss!`);
         }
 
-        // Check equipped items
         const weapon = state.equippedItems?.weapon;
         if (weapon) {
             lines.push(`\n🗡️ Equipped weapon: ${weapon.name}${weapon.stats?.xpBonus ? ` (+${weapon.stats.xpBonus} XP bonus)` : ''}`);
         }
 
-        // Check for usable consumables
         const consumables = state.inventory.filter(i => i.usable || i.consumableEffect);
         if (consumables.length > 0) {
             lines.push(`🧪 Available consumables: ${consumables.map(c => `${c.name} x${c.quantity}`).join(', ')}`);
@@ -583,85 +660,89 @@ export default function HootFAB() {
         return lines.join('\n');
     }
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        const trimmed = input.trim();
-        if (!trimmed || isLoading) return;
+    // ── Core send function ──────────────────────────────────────────────
+    async function sendMessage(text: string, isAutoCoach = false) {
+        if (!text.trim() || isLoading) return;
 
-        setInput('');
-        setMessages(prev => [...prev, { role: 'user', text: trimmed }]);
+        addMessage({ role: 'user', text });
         setIsLoading(true);
 
         try {
             const context = buildContext();
 
-            // ── Pass 1: Initial Action/Intent Detection ──────────────────────
             const res = await fetch('/api/hoot-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    message: trimmed,
+                    message: text,
                     currentPage: pathname,
-                    context,
+                    context: isAutoCoach
+                        ? context + `\n\n--- COACHING MODE ---\nThis is an auto-coaching request after the user submitted a daily reflection. Include a trend insight if you see patterns in their reflection history. Be encouraging and give one actionable tip.`
+                        : context,
                 }),
             });
 
             let data = await res.json();
 
-            // Execute any actions the AI requested
             let actionResults: string[] = [];
             if (data.actions && data.actions.length > 0) {
                 actionResults = await executeActions(data.actions);
             }
 
-            // ── Detection: Did Hoot perform a web search? ───────────────────
+            // Detect web search and do a synthesis pass
             const searchResult = actionResults.find(r => r.startsWith('🌐 Search Result:'));
-
             if (searchResult) {
-                // ── Pass 2: Synthesis Loop ──────────────────────────────────
-                // Feed the search result back to Hoot for a final grounded summary
                 const synthesisRes = await fetch('/api/hoot-action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        message: trimmed, // Keep original message as intent
+                        message: text,
                         currentPage: pathname,
                         context,
-                        grounding: searchResult, // Pass the search result as grounding
+                        grounding: searchResult,
                     }),
                 });
-
                 const synthesisData = await synthesisRes.json();
-
-                // Update data with synthesized response
-                data = {
-                    ...synthesisData,
-                    // Keep the original actions if they were successful, 
-                    // but we might want to hide the raw search result from Pass 1 
-                    // if Pass 2 is successful.
-                    actions: data.actions,
-                };
-
-                // Remove the raw search result from actionResults so it doesn't double-print
+                data = { ...synthesisData, actions: data.actions };
                 actionResults = actionResults.filter(r => !r.startsWith('🌐 Search Result:'));
             }
 
-            setMessages(prev => [...prev, {
+            // Generate quick-reply chips
+            const quickReplies = generateQuickReplies(
+                data.actions || [],
+                pathname,
+                useGameStore.getState(),
+            );
+
+            addMessage({
                 role: 'hoot',
-                text: data.message,
+                text: data.message || "Hoo! I'm here but words escaped me. Try again? 🦉",
                 actions: data.actions,
                 sources: data.sources,
                 actionResults,
-            }]);
+                quickReplies,
+            });
         } catch (error) {
             console.error('Hoot error:', error);
-            setMessages(prev => [...prev, {
+            addMessage({
                 role: 'hoot',
                 text: "Hoo! Something went wrong. Try again in a moment! 🦉",
-            }]);
+            });
         } finally {
             setIsLoading(false);
         }
+    }
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        const trimmed = input.trim();
+        if (!trimmed) return;
+        setInput('');
+        await sendMessage(trimmed);
+    }
+
+    function handleQuickReply(reply: QuickReply) {
+        sendMessage(reply.message);
     }
 
     // Don't show if not logged in
@@ -704,7 +785,6 @@ export default function HootFAB() {
                                 <Sparkles size={12} className="group-hover:animate-pulse" />
                             </button>
 
-                            {/* Speech bubble tail */}
                             <div className="absolute -bottom-2 right-8 w-4 h-4 bg-[var(--color-bg-secondary)] border-r border-b border-[var(--color-border)] rotate-45" />
                         </div>
                     </motion.div>
@@ -724,7 +804,7 @@ export default function HootFAB() {
                         exit={{ scale: 0, opacity: 0 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsOpen(true)}
+                        onClick={() => setOpen(true)}
                         className={`fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${activeNudge ? 'ring-2 ring-[var(--color-purple)]' : 'shadow-[var(--color-purple)]/30'}`}
                         style={{
                             background: 'linear-gradient(135deg, var(--color-purple), var(--color-blue))',
@@ -739,7 +819,6 @@ export default function HootFAB() {
                             🦉
                         </motion.span>
 
-                        {/* Notification dot when there's no messages yet */}
                         {messages.length === 0 && (
                             <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-green)] border-2 border-[var(--color-bg-primary)]" />
                         )}
@@ -757,7 +836,7 @@ export default function HootFAB() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none lg:pointer-events-none"
-                            onClick={() => setIsOpen(false)}
+                            onClick={() => setOpen(false)}
                         />
 
                         {/* Panel */}
@@ -785,17 +864,29 @@ export default function HootFAB() {
                                         <p className="text-sm font-bold text-[var(--color-text-primary)]">Hoot</p>
                                         <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-green)] inline-block" />
-                                            {pathname === '/' ? 'Dashboard' : pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)} • Search Grounded
+                                            {pathname === '/' ? 'Dashboard' : pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)} • AI Coach
                                         </p>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => setIsOpen(false)}
-                                    className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
-                                    aria-label="Close Hoot"
-                                >
-                                    <X size={18} className="text-[var(--color-text-muted)]" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    {messages.length > 0 && (
+                                        <button
+                                            onClick={clearMessages}
+                                            className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
+                                            aria-label="Clear chat"
+                                            title="Clear conversation"
+                                        >
+                                            <Trash2 size={14} className="text-[var(--color-text-muted)]" />
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setOpen(false)}
+                                        className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
+                                        aria-label="Close Hoot"
+                                    >
+                                        <X size={18} className="text-[var(--color-text-muted)]" />
+                                    </button>
+                                </div>
                             </div>
 
                             {/* Messages */}
@@ -807,7 +898,7 @@ export default function HootFAB() {
                                             Hey{store.characterName && store.characterName !== 'Your Name' ? `, ${store.characterName}` : ''}! I&apos;m Hoot.
                                         </p>
                                         <p className="text-xs text-[var(--color-text-muted)] mb-4 max-w-[280px] mx-auto">
-                                            I can help you manage quests, track habits, set goals, and give you real-time advice — all from right here.
+                                            Your AI assistant and coach. I can manage quests, track habits, give advice, and coach you through reflections.
                                         </p>
                                         <div className="flex flex-wrap justify-center gap-1.5">
                                             {[
@@ -816,11 +907,11 @@ export default function HootFAB() {
                                                 '⚔️ Boss strategy',
                                                 '🎯 Set a goal',
                                                 '🎒 Equip my best gear',
-                                                '⏱️ Start a focus session',
+                                                '📝 Coach me',
                                             ].map(suggestion => (
                                                 <button
                                                     key={suggestion}
-                                                    onClick={() => { setInput(suggestion.slice(2).trim()); inputRef.current?.focus(); }}
+                                                    onClick={() => sendMessage(suggestion.slice(2).trim())}
                                                     className="text-[11px] px-2.5 py-1.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]/50 hover:text-[var(--color-purple)] transition-colors"
                                                 >
                                                     {suggestion}
@@ -830,9 +921,9 @@ export default function HootFAB() {
                                     </div>
                                 )}
 
-                                {messages.map((msg, i) => (
+                                {messages.map((msg) => (
                                     <motion.div
-                                        key={i}
+                                        key={msg.id}
                                         initial={{ opacity: 0, y: 6 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -884,6 +975,22 @@ export default function HootFAB() {
                                                                 <ExternalLink size={9} className="shrink-0 opacity-60 group-hover:opacity-100" />
                                                                 <span className="truncate underline decoration-[var(--color-blue)]/30">{src.title}</span>
                                                             </a>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Quick-reply chips */}
+                                                {msg.quickReplies && msg.quickReplies.length > 0 && (
+                                                    <div className="ml-7 flex flex-wrap gap-1.5 mt-1">
+                                                        {msg.quickReplies.map((reply, j) => (
+                                                            <button
+                                                                key={j}
+                                                                onClick={() => handleQuickReply(reply)}
+                                                                disabled={isLoading}
+                                                                className="text-[11px] px-2.5 py-1.5 rounded-full border border-[var(--color-purple)]/30 text-[var(--color-purple)] hover:bg-[var(--color-purple)]/10 hover:border-[var(--color-purple)]/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                                            >
+                                                                {reply.label}
+                                                            </button>
                                                         ))}
                                                     </div>
                                                 )}
@@ -941,7 +1048,7 @@ export default function HootFAB() {
                                 <div className="flex items-center gap-1.5 mt-1.5 px-1">
                                     <Sparkles size={9} className="text-[var(--color-purple)]/60" />
                                     <p className="text-[9px] text-[var(--color-text-muted)]">
-                                        Gemini 3 Flash + Google Search • Can take actions
+                                        Gemini 3 Flash + Google Search • Actions + Coaching
                                     </p>
                                 </div>
                             </form>
