@@ -182,6 +182,40 @@ export interface Habit {
     lastCompletedDate: string | null;
 }
 
+// Vocabulary / WordForge
+export type VocabDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert';
+export type VocabStatus = 'new' | 'learning' | 'reviewing' | 'mastered';
+
+export interface VocabWord {
+    id: string;
+    word: string;
+    definition: string;
+    partOfSpeech: string;
+    examples: string[];
+    mnemonic: string;
+    pronunciation: string;
+    difficulty: VocabDifficulty;
+    category: string; // e.g. "SAT", "academic", "literary", "technical"
+
+    // Spaced repetition fields (SM-2)
+    nextReviewDate: string; // ISO date YYYY-MM-DD
+    easeFactor: number;     // default 2.5
+    interval: number;       // days until next review
+    repetitions: number;    // consecutive correct reviews
+    status: VocabStatus;
+
+    // Tracking
+    dateAdded: string;      // ISO date
+    lastReviewed: string | null;
+    totalReviews: number;
+    correctReviews: number;
+}
+
+export interface VocabReviewResult {
+    wordId: string;
+    quality: 0 | 1 | 2 | 3 | 4 | 5; // SM-2 quality: 0=blackout, 5=perfect
+}
+
 export type GoalTimeframe = 'week' | 'month' | 'quarter' | 'year' | 'lifetime';
 
 export interface GoalMilestone {
@@ -314,6 +348,13 @@ export interface GameState {
     // Goals
     goals: Goal[];
 
+    // Vocabulary / WordForge
+    vocabWords: VocabWord[];
+    vocabDailyDate: string | null;       // date when today's words were generated
+    vocabCurrentLevel: VocabDifficulty;  // auto-adjusting difficulty
+    vocabStreak: number;                 // consecutive days with reviews
+    vocabLastReviewDate: string | null;  // last review date for streak tracking
+
     // Buffs/Effects
     activeBuffs: { type: string; value: number; expiresAt: string }[];
 
@@ -429,6 +470,14 @@ export interface GameState {
 
     // Streak Freeze
     buyStreakFreeze: () => void;
+
+    // Vocabulary / WordForge Actions
+    addVocabWords: (words: Omit<VocabWord, 'id' | 'dateAdded' | 'lastReviewed' | 'totalReviews' | 'correctReviews' | 'nextReviewDate' | 'easeFactor' | 'interval' | 'repetitions' | 'status'>[]) => void;
+    reviewVocabWord: (wordId: string, quality: 0 | 1 | 2 | 3 | 4 | 5) => void;
+    setVocabDailyDate: (date: string) => void;
+    updateVocabLevel: () => void;
+    deleteVocabWord: (wordId: string) => void;
+    checkVocabStreak: () => void;
 }
 
 const DIFFICULTY_XP = {
@@ -557,6 +606,10 @@ const ACHIEVEMENTS = [
     { id: 'SCHOLAR_ELITE', name: 'Scholar Elite', description: 'Complete 25 Study quests', icon: '📚', condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Study').length >= 25 },
     { id: 'HEALTH_WARRIOR', name: 'Health Warrior', description: 'Complete 25 Health quests', icon: '💪', condition: (state: GameState) => state.tasks.filter(t => t.completed && t.category === 'Health').length >= 25 },
     { id: 'REFLECTOR', name: 'Self Reflector', description: 'Submit 7 evening reflections', icon: '🌙', condition: (state: GameState) => state.reflectionNotes.length >= 7 },
+    // Vocabulary achievements
+    { id: 'WORDSMITH', name: 'Wordsmith', description: 'Master 10 vocabulary words', icon: '📖', condition: (state: GameState) => state.vocabWords.filter(w => w.status === 'mastered').length >= 10 },
+    { id: 'LEXICON_LORD', name: 'Lexicon Lord', description: 'Master 50 vocabulary words', icon: '📚', condition: (state: GameState) => state.vocabWords.filter(w => w.status === 'mastered').length >= 50 },
+    { id: 'VOCAB_STREAK_7', name: 'Word Warrior', description: 'Maintain a 7-day vocab review streak', icon: '🔤', condition: (state: GameState) => state.vocabStreak >= 7 },
 ];
 
 const DAILY_REWARDS = [
@@ -595,6 +648,11 @@ export const useGameStore = create<GameState>()(
             activeFocusTaskId: null,
             habits: [],
             goals: [],
+            vocabWords: [],
+            vocabDailyDate: null,
+            vocabCurrentLevel: 'intermediate' as VocabDifficulty,
+            vocabStreak: 0,
+            vocabLastReviewDate: null,
             activeBuffs: [],
             activityLog: [],
             isMusicDucked: false,
@@ -1990,6 +2048,156 @@ export const useGameStore = create<GameState>()(
                 set({ gems: state.gems - 10, streakFreezes: state.streakFreezes + 1 });
             },
 
+            // ---- Vocabulary / WordForge Actions ----
+            addVocabWords: (words) => {
+                const today = new Date().toISOString().split('T')[0];
+                const newWords: VocabWord[] = words.map(w => ({
+                    ...w,
+                    id: crypto.randomUUID(),
+                    dateAdded: today,
+                    lastReviewed: null,
+                    totalReviews: 0,
+                    correctReviews: 0,
+                    nextReviewDate: today, // available for review immediately
+                    easeFactor: 2.5,
+                    interval: 0,
+                    repetitions: 0,
+                    status: 'new' as VocabStatus,
+                }));
+                set(state => ({ vocabWords: [...state.vocabWords, ...newWords] }));
+            },
+
+            reviewVocabWord: (wordId, quality) => {
+                const today = new Date().toISOString().split('T')[0];
+                set(state => {
+                    const words = state.vocabWords.map(w => {
+                        if (w.id !== wordId) return w;
+                        // SM-2 algorithm
+                        let { easeFactor, interval, repetitions } = w;
+                        const isCorrect = quality >= 3;
+
+                        if (isCorrect) {
+                            if (repetitions === 0) {
+                                interval = 1;
+                            } else if (repetitions === 1) {
+                                interval = 3;
+                            } else {
+                                interval = Math.round(interval * easeFactor);
+                            }
+                            repetitions += 1;
+                        } else {
+                            // Failed — reset
+                            repetitions = 0;
+                            interval = 0; // review again today/tomorrow
+                        }
+
+                        // Update ease factor (minimum 1.3)
+                        easeFactor = Math.max(1.3,
+                            easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+                        );
+
+                        // Determine status
+                        let status: VocabStatus = w.status;
+                        if (repetitions === 0) {
+                            status = 'learning';
+                        } else if (repetitions >= 1 && repetitions < 3) {
+                            status = 'learning';
+                        } else if (repetitions >= 3 && interval < 21) {
+                            status = 'reviewing';
+                        } else if (interval >= 21) {
+                            status = 'mastered';
+                        }
+
+                        const nextDate = new Date();
+                        nextDate.setDate(nextDate.getDate() + Math.max(interval, 1));
+                        const nextReviewDate = nextDate.toISOString().split('T')[0];
+
+                        return {
+                            ...w,
+                            easeFactor,
+                            interval,
+                            repetitions,
+                            status,
+                            nextReviewDate,
+                            lastReviewed: today,
+                            totalReviews: w.totalReviews + 1,
+                            correctReviews: w.correctReviews + (isCorrect ? 1 : 0),
+                        };
+                    });
+                    return { vocabWords: words };
+                });
+
+                // Award XP for review
+                const xpGain = quality >= 4 ? 15 : quality >= 3 ? 10 : 5;
+                get().addXP(xpGain);
+                const goldGain = quality >= 3 ? 3 : 1;
+                get().addGold(goldGain);
+
+                // Check if word just became mastered
+                const updated = get().vocabWords.find(w => w.id === wordId);
+                if (updated?.status === 'mastered' && updated.repetitions === 3 && updated.interval >= 21) {
+                    get().addXP(50); // mastery bonus
+                    get().addGold(20);
+                    get().logActivity('achievement', '📖', `Mastered "${updated.word}"!`, 'WordForge mastery bonus: +50 XP');
+                }
+            },
+
+            setVocabDailyDate: (date) => set({ vocabDailyDate: date }),
+
+            updateVocabLevel: () => {
+                const state = get();
+                const words = state.vocabWords;
+                if (words.length < 10) return; // need enough data
+
+                // Calculate recent accuracy from last 20 reviews
+                const reviewed = words
+                    .filter(w => w.totalReviews > 0)
+                    .sort((a, b) => (b.lastReviewed || '').localeCompare(a.lastReviewed || ''))
+                    .slice(0, 20);
+
+                if (reviewed.length < 5) return;
+
+                const totalReviews = reviewed.reduce((s, w) => s + w.totalReviews, 0);
+                const totalCorrect = reviewed.reduce((s, w) => s + w.correctReviews, 0);
+                const accuracy = totalCorrect / totalReviews;
+
+                const levels: VocabDifficulty[] = ['beginner', 'intermediate', 'advanced', 'expert'];
+                const currentIdx = levels.indexOf(state.vocabCurrentLevel);
+
+                // Ramp up if accuracy > 80% and mastered at least 5 at current level
+                const masteredAtLevel = words.filter(
+                    w => w.status === 'mastered' && w.difficulty === state.vocabCurrentLevel
+                ).length;
+
+                if (accuracy > 0.80 && masteredAtLevel >= 5 && currentIdx < levels.length - 1) {
+                    set({ vocabCurrentLevel: levels[currentIdx + 1] });
+                } else if (accuracy < 0.50 && currentIdx > 0) {
+                    // Drop down if struggling
+                    set({ vocabCurrentLevel: levels[currentIdx - 1] });
+                }
+            },
+
+            deleteVocabWord: (wordId) => {
+                set(state => ({
+                    vocabWords: state.vocabWords.filter(w => w.id !== wordId),
+                }));
+            },
+
+            checkVocabStreak: () => {
+                const state = get();
+                const today = new Date().toISOString().split('T')[0];
+                const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+
+                if (state.vocabLastReviewDate === today) return; // already counted
+
+                if (state.vocabLastReviewDate === yesterday) {
+                    set({ vocabStreak: state.vocabStreak + 1, vocabLastReviewDate: today });
+                } else if (state.vocabLastReviewDate !== today) {
+                    // Streak broken or first review
+                    set({ vocabStreak: 1, vocabLastReviewDate: today });
+                }
+            },
+
             addFocusSession: (minutesCompleted: number) => {
                 const safeMins = Math.max(0, Math.floor(minutesCompleted));
                 set((state) => ({
@@ -2031,7 +2239,12 @@ export const useGameStore = create<GameState>()(
                     isMusicDucked: false,
                     gems: 0,
                     hp: 100,
-                    maxHp: 100
+                    maxHp: 100,
+                    vocabWords: [],
+                    vocabDailyDate: null,
+                    vocabCurrentLevel: 'intermediate' as VocabDifficulty,
+                    vocabStreak: 0,
+                    vocabLastReviewDate: null,
                 });
             },
         }),
