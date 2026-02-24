@@ -75,15 +75,17 @@ For EACH word, generate ONE question. Alternate between these types:
 1. "multiple_choice" — "What does [word] mean?" with 4 options (1 correct, 3 plausible wrong)
 2. "reverse_choice" — Show the definition, ask which word matches, with 4 word options
 3. "fill_blank" — A sentence with a blank where the word fits, with 4 word options
+4. "use_in_sentence" — Show the word and ask "Which sentence uses [word] correctly?" with 4 sentence options (1 correct usage, 3 plausible but incorrect usages)
 
 Rules:
 - Wrong options must be plausible (same part of speech, similar difficulty level)
 - For fill_blank, the sentence must make the meaning clear from context
+- For use_in_sentence, the wrong sentences should misuse the word in a subtle way (wrong context, wrong meaning, wrong grammar)
 - correctIndex is the 0-based index of the correct answer in the options array
 - Include a brief hint for each question
 - Shuffle the correct answer position (don't always put it first)
 
-Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "multiple_choice"|"reverse_choice"|"fill_blank", "question": "...", "options": ["A", "B", "C", "D"], "correctIndex": 0-3, "hint": "..." }] }`;
+Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "multiple_choice"|"reverse_choice"|"fill_blank"|"use_in_sentence", "question": "...", "options": ["A", "B", "C", "D"], "correctIndex": 0-3, "hint": "..." }] }`;
 
         const result = await model.generateContent(prompt);
         const text = result.response.text();
