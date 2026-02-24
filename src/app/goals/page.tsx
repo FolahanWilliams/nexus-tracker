@@ -5,7 +5,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronLeft, Plus, Trash2, CheckCircle, Circle, Flag, Target,
+  ChevronLeft, Plus, Trash2, CheckCircle, Circle, Flag,
   ChevronDown, ChevronUp, Trophy
 } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';

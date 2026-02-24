@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ChevronLeft, Play, Pause, RotateCcw, Coffee, Zap, Target, CheckCircle } from 'lucide-react';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { useToastStore } from '@/components/ToastContainer';
@@ -35,8 +35,6 @@ export default function FocusPage() {
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number>(0);
-  const elapsedRef = useRef<number>(0);
 
   const incompleteTasks = tasks.filter(t => !t.completed);
 

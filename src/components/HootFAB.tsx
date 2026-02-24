@@ -53,8 +53,8 @@ export default function HootFAB() {
     // Zustand store actions
     const store = useGameStore();
     const {
-        tasks, habits, hp, maxHp, isFocusTimerRunning,
-        setFocusTimerRunning, setMusicDucked, gold, level
+        tasks, habits, hp, isFocusTimerRunning,
+        setMusicDucked
     } = store;
 
     const { playQuest } = useSoundEffects();

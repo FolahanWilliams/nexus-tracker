@@ -5,7 +5,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
 export async function POST(request: Request) {
     try {
-        const { tasks, chains, reflections, habits, streaks, playerContext } = await request.json();
+        const { tasks, chains, reflections, habits, playerContext } = await request.json();
 
         if (!process.env.GOOGLE_API_KEY) {
             return NextResponse.json({
