@@ -10,16 +10,38 @@ concurrency:
   cancel-in-progress: false  # Never cancel in-progress deploys
 
 jobs:
+  # Detect whether any commit in the push touched supabase/ files.
+  # github.event.head_commit only inspects the tip commit, so multi-commit
+  # pushes (e.g. merged PRs) were silently skipping migrations.
+  check-migrations:
+    name: Check for migration changes
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.diff.outputs.has_changes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Diff supabase/ against previous push
+        id: diff
+        run: |
+          if git diff --name-only ${{ github.event.before }} ${{ github.sha }} -- 'supabase/' | grep -q .; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          fi
+
   migrate:
     name: Run Supabase Migrations
+    needs: check-migrations
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # Only run if migration files changed, OR if manually triggered
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.modified, 'supabase/') ||
-      contains(github.event.head_commit.added, 'supabase/')
+      needs.check-migrations.outputs.has_changes == 'true'
 
     steps:
       - name: Checkout code
