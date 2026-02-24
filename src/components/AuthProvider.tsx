@@ -38,7 +38,16 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     // so that auth state is known before getItem runs — this allows getItem to
     // load from Supabase when the user is logged in.
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        // IMPORTANT: This callback must be synchronous (no async/await).
+        // Supabase v2.97 AWAITS onAuthStateChange callbacks while holding
+        // the Navigator Lock.  If this callback returns a slow promise
+        // (e.g. cloud data fetch via rehydrate), the lock is held for the
+        // entire duration, and any concurrent auth operation (token refresh,
+        // visibility change) times out after 10 s.
+        //
+        // By keeping the callback sync and deferring rehydrate via
+        // setTimeout(0), the lock is released immediately.
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             const currentUser = session?.user ?? null;
             const prevUid = prevUidRef.current;
             prevUidRef.current = currentUser?.id ?? null;
@@ -59,7 +68,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             const isNewLogin = currentUser != null && currentUser.id !== prevUid;
 
             if (isFirstEvent || isNewLogin) {
-                await useGameStore.persist.rehydrate();
+                // Defer to next macrotask so Supabase releases the
+                // Navigator Lock before rehydrate touches the network.
+                setTimeout(() => {
+                    useGameStore.persist.rehydrate();
+                }, 0);
             }
         });
 
