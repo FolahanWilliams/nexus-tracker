@@ -66,19 +66,22 @@ export async function saveToSupabase(uid: string, state: Record<string, unknown>
 
 export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | null> {
     try {
+        // Use maybeSingle() instead of single() so that zero rows returns
+        // null data without a 406 HTTP error polluting the browser console.
         const { data, error } = await supabase
             .from('user_state')
             .select('state, updated_at')
             .eq('user_id', uid)
-            .single();
+            .maybeSingle();
 
         if (error) {
-            // PGRST116 = no rows found — normal for first-time users
-            if (error.code === 'PGRST116') return null;
             console.error('[supabaseSync] Load failed:', error.message);
             useSyncStore.getState().setError('Load failed');
             return null;
         }
+
+        // No row yet — first load for this user (will be created on first save)
+        if (!data) return null;
 
         useSyncStore.getState().setSynced();
         return {
