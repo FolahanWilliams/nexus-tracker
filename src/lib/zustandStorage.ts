@@ -1,212 +1,118 @@
-// Custom Zustand storage: IndexedDB (fast local) + Supabase (cloud sync)
+// Custom Zustand storage: IndexedDB (local cache) + Supabase (source of truth)
+//
+// Simplified approach:
+//   getItem  → load from Supabase if logged in, fall back to local cache
+//   setItem  → write to local cache immediately, debounce save to Supabase
 import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
 import { saveToSupabase, loadFromSupabase } from './supabaseSync';
-import type { CloudSnapshot } from './supabaseSync';
-import { useSyncStore } from './syncStatus';
 
-// ── Debounce & retry config ───────────────────────────────────────────────
+// ── Debounce ─────────────────────────────────────────────────────────────
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
 const DEBOUNCE_MS = 3000;
-const MAX_RETRIES = 3;
-const RETRY_DELAYS = [1000, 3000, 9000];
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
-async function saveWithRetry(uid: string, state: Record<string, unknown>): Promise<boolean> {
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      if (await saveToSupabase(uid, state)) return true;
-    } catch (err) {
-      console.error('[sync] save attempt', attempt, 'threw:', err);
-    }
-    if (attempt < MAX_RETRIES) {
-      await sleep(RETRY_DELAYS[attempt]);
-      if (!navigator.onLine || !_hasHydrated) return false;
-    }
-  }
-  console.error('[sync] save failed after', MAX_RETRIES, 'retries');
-  return false;
-}
-
-function cancelPendingSave() {
-  if (saveTimeout) {
+// ── Hydration guard ──────────────────────────────────────────────────────
+// Prevents setItem from flushing stale state while getItem is in-flight.
+let _hasHydrated = false;
+export function setHasHydrated(value: boolean) {
+  _hasHydrated = value;
+  if (!value && saveTimeout) {
     clearTimeout(saveTimeout);
     saveTimeout = null;
   }
 }
 
-// ── Hydration guard ───────────────────────────────────────────────────────
-let _hasHydrated = false;
-export function setHasHydrated(value: boolean) {
-  _hasHydrated = value;
-  if (!value) cancelPendingSave();
-}
-
-// ── Cached UID ────────────────────────────────────────────────────────────
-// Avoids calling supabase.auth.getSession() inside the storage adapter.
-// getSession() acquires a Navigator Lock internally; if getItem() is invoked
-// from an onAuthStateChange callback (which already holds the same lock) the
-// second acquisition deadlocks until the 10 s timeout fires.
-//
-// AuthProvider pushes the UID here synchronously from the auth event, so we
-// can read it without touching the lock.
+// ── Cached UID ───────────────────────────────────────────────────────────
+// AuthProvider pushes the UID here synchronously from onAuthStateChange so
+// the storage adapter never needs to call supabase.auth.getSession() (which
+// would deadlock when called inside the auth callback's Navigator Lock).
 let _cachedUid: string | null = null;
 export function setCachedUid(uid: string | null) {
   _cachedUid = uid;
 }
 
-function getUid(): string | null {
-  return _cachedUid;
-}
-
-// ── Merge: pick the newer source, use the other as fallback ───────────────
-function mergeCloudAndLocal(
-  cloud: CloudSnapshot,
-  local: { state: Record<string, unknown>; version?: number } | null,
-  localUpdatedAt: string | null,
-): { state: Record<string, unknown>; version?: number } {
-  if (!local?.state) return cloud;
-
-  const cloudTime = cloud.updatedAt ? new Date(cloud.updatedAt).getTime() : 0;
-  const localTime = localUpdatedAt ? new Date(localUpdatedAt).getTime() : 0;
-
-  return localTime > cloudTime
-    ? { ...local, state: { ...cloud.state, ...local.state } }
-    : { ...local, state: { ...local.state, ...cloud.state } };
-}
-
-// ── Visibility-change flush ───────────────────────────────────────────────
-let _visibilityRegistered = false;
-function registerVisibilityFlush() {
-  if (_visibilityRegistered || typeof document === 'undefined') return;
-  _visibilityRegistered = true;
-
-  document.addEventListener('visibilitychange', async () => {
-    if (document.visibilityState !== 'hidden' || !saveTimeout || !_hasHydrated) return;
-    clearTimeout(saveTimeout);
-    saveTimeout = null;
-
-    const uid = getUid();
-    if (!uid) return;
+// ── Storage adapter ──────────────────────────────────────────────────────
+export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
+  getItem: async (): Promise<StorageValue<T> | null> => {
+    if (typeof window === 'undefined') return null;
 
     try {
+      // 1. If logged in, Supabase is the source of truth
+      const uid = _cachedUid;
+      if (uid) {
+        const TIMEOUT_MS = 8000;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const cloudData = await Promise.race([
+          loadFromSupabase(uid).finally(() => {
+            if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+          }),
+          new Promise<null>((resolve) => {
+            timeoutId = setTimeout(() => {
+              timeoutId = null;
+              console.warn('[sync] Cloud load timed out');
+              resolve(null);
+            }, TIMEOUT_MS);
+          }),
+        ]);
+
+        if (cloudData) {
+          // Cache cloud data locally for offline / fast next load
+          const value = { state: cloudData.state } as StorageValue<T>;
+          await hybridStorage.save(JSON.stringify(value));
+          return value;
+        }
+      }
+
+      // 2. Fall back to local cache (offline or anonymous user)
       const raw = await hybridStorage.load();
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as { state?: Record<string, unknown> };
-      await saveToSupabase(uid, parsed.state || parsed as unknown as Record<string, unknown>);
-    } catch (err) {
-      console.error('[sync] visibility flush error:', err);
+      return raw ? (JSON.parse(raw) as StorageValue<T>) : null;
+    } catch (error) {
+      console.error('[sync] getItem error:', error);
+      return null;
     }
-  });
-}
+  },
 
-// ── Online/offline tracking ───────────────────────────────────────────────
-let _onlineRegistered = false;
-function registerOnlineListeners() {
-  if (_onlineRegistered || typeof window === 'undefined') return;
-  _onlineRegistered = true;
+  setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
+    if (typeof window === 'undefined' || !_hasHydrated) return;
 
-  window.addEventListener('online', () => {
-    if (useSyncStore.getState().status === 'offline') useSyncStore.getState().setStatus('idle');
-  });
-  window.addEventListener('offline', () => useSyncStore.getState().setStatus('offline'));
-  if (!navigator.onLine) useSyncStore.getState().setStatus('offline');
-}
+    const serialized = JSON.stringify(value);
+    try {
+      // Always write to local cache first (fast, offline-safe)
+      await hybridStorage.save(serialized);
 
-// ── Storage adapter ───────────────────────────────────────────────────────
-export const createIndexedDBStorage = <T>(): PersistStorage<T> => {
-  registerVisibilityFlush();
-  registerOnlineListeners();
+      const uid = _cachedUid;
+      if (!uid || !navigator.onLine) return;
 
-  return {
-    getItem: async (): Promise<StorageValue<T> | null> => {
-      if (typeof window === 'undefined') return null;
-      try {
-        // 1. Load local (fast)
-        let localData: StorageValue<T> | null = null;
-        let localUpdatedAt: string | null = null;
+      // Debounced cloud save
+      if (saveTimeout) clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(async () => {
+        if (!_hasHydrated) return;
+        saveTimeout = null;
+
+        // Read latest local state (may have changed during debounce)
+        const latestRaw = await hybridStorage.load();
+        if (!latestRaw) return;
+
         try {
-          const raw = await hybridStorage.load();
-          if (raw) localData = JSON.parse(raw) as StorageValue<T>;
-          localUpdatedAt = await hybridStorage.getUpdatedAt();
-        } catch (e) {
-          console.warn('[sync] Failed to parse local data:', e);
+          const parsed = JSON.parse(latestRaw) as { state?: Record<string, unknown> };
+          const state = parsed.state || (parsed as unknown as Record<string, unknown>);
+          await saveToSupabase(uid, state);
+        } catch {
+          // Save failed — will be retried on next state change
         }
+      }, DEBOUNCE_MS);
+    } catch (error) {
+      console.error('[sync] setItem error:', error);
+      localStorage.setItem(name, serialized);
+    }
+  },
 
-        // 2. Load cloud (with timeout)
-        const uid = getUid();
-        if (uid) {
-          const TIMEOUT_MS = 8000;
-          let timeoutId: ReturnType<typeof setTimeout> | null = null;
-          const cloudData = await Promise.race([
-            loadFromSupabase(uid).finally(() => { if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; } }),
-            new Promise<null>((resolve) => {
-              timeoutId = setTimeout(() => { timeoutId = null; console.warn('[sync] Cloud load timed out'); resolve(null); }, TIMEOUT_MS);
-            }),
-          ]);
-
-          if (cloudData) {
-            // 3. Merge by timestamp
-            const merged = mergeCloudAndLocal(
-              cloudData,
-              localData as { state: Record<string, unknown>; version?: number } | null,
-              localUpdatedAt,
-            );
-            await hybridStorage.save(JSON.stringify(merged));
-            return merged as StorageValue<T>;
-          }
-        }
-
-        // 4. Fallback to local
-        return localData;
-      } catch (error) {
-        console.error('[sync] getItem error:', error);
-        return null;
-      }
-    },
-
-    setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
-      if (typeof window === 'undefined' || !_hasHydrated) return;
-
-      const serialized = JSON.stringify(value);
-      try {
-        await hybridStorage.save(serialized);
-
-        const uid = getUid();
-        if (!uid || !navigator.onLine) return;
-
-        // Debounced cloud sync
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(async () => {
-          if (!_hasHydrated) return;
-
-          const latestRaw = await hybridStorage.load();
-          if (!latestRaw) return;
-
-          let state: Record<string, unknown>;
-          try {
-            const parsed = JSON.parse(latestRaw) as { state?: Record<string, unknown> };
-            state = parsed.state || parsed as unknown as Record<string, unknown>;
-          } catch {
-            return;
-          }
-
-          await saveWithRetry(uid, state);
-        }, DEBOUNCE_MS);
-      } catch (error) {
-        console.error('[sync] setItem error:', error);
-        localStorage.setItem(name, serialized);
-      }
-    },
-
-    removeItem: async (name: string): Promise<void> => {
-      if (typeof window === 'undefined') return;
-      try {
-        await hybridStorage.clear();
-      } catch {
-        localStorage.removeItem(name);
-      }
-    },
-  };
-};
+  removeItem: async (name: string): Promise<void> => {
+    if (typeof window === 'undefined') return;
+    try {
+      await hybridStorage.clear();
+    } catch {
+      localStorage.removeItem(name);
+    }
+  },
+});

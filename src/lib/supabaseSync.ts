@@ -1,12 +1,6 @@
 import { supabase } from './supabase';
 import { useSyncStore } from './syncStatus';
 
-/** Shape returned by loadFromSupabase — the raw state blob + timestamp. */
-export interface CloudSnapshot {
-    state: Record<string, unknown>;
-    updatedAt: string | null;
-}
-
 // Transient UI fields that should never be persisted to the cloud.
 const TRANSIENT_FIELDS = new Set([
     'isMusicDucked',
@@ -64,13 +58,11 @@ export async function saveToSupabase(uid: string, state: Record<string, unknown>
 
 // ─── LOAD ──────────────────────────────────────────────────────────────────
 
-export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | null> {
+export async function loadFromSupabase(uid: string): Promise<{ state: Record<string, unknown> } | null> {
     try {
-        // Use maybeSingle() instead of single() so that zero rows returns
-        // null data without a 406 HTTP error polluting the browser console.
         const { data, error } = await supabase
             .from('user_state')
-            .select('state, updated_at')
+            .select('state')
             .eq('user_id', uid)
             .maybeSingle();
 
@@ -80,14 +72,10 @@ export async function loadFromSupabase(uid: string): Promise<CloudSnapshot | nul
             return null;
         }
 
-        // No row yet — first load for this user (will be created on first save)
         if (!data) return null;
 
         useSyncStore.getState().setSynced();
-        return {
-            state: (data.state as Record<string, unknown>) || {},
-            updatedAt: data.updated_at || null,
-        };
+        return { state: (data.state as Record<string, unknown>) || {} };
     } catch (error) {
         console.error('[supabaseSync] Unexpected load error:', error);
         useSyncStore.getState().setError('Load failed');
