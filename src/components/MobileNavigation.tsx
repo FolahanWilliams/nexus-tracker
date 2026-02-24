@@ -18,6 +18,7 @@ import {
   Map,
   User,
   BookOpen,
+  Library,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -30,6 +31,7 @@ const mainNavItems = [
 
 const secondaryNavItems = [
   { href: '/goals', label: 'Goals', icon: Flag },
+  { href: '/wordforge', label: 'WordForge', icon: Library },
   { href: '/chains', label: 'Chains', icon: Map },
   { href: '/bosses', label: 'Boss', icon: Sword },
   { href: '/character', label: 'Character', icon: User },
