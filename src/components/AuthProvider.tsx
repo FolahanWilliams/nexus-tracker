@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { hybridStorage } from '@/lib/indexedDB';
 import { useToastStore } from '@/components/ToastContainer';
 import { useGameStore } from '@/store/useGameStore';
+import { setCachedUid } from '@/lib/zustandStorage';
 
 interface AuthContext {
     user: User | null;
@@ -41,6 +42,11 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             const currentUser = session?.user ?? null;
             const prevUid = prevUidRef.current;
             prevUidRef.current = currentUser?.id ?? null;
+
+            // Push UID into the storage cache BEFORE rehydrate so getItem()
+            // can read it without calling getSession() (which would deadlock
+            // because onAuthStateChange already holds the Navigator Lock).
+            setCachedUid(currentUser?.id ?? null);
 
             setUser(currentUser);
             setLoading(false);
@@ -80,7 +86,8 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
 
     const signOut = async () => {
         try {
-            // Clear local data to prevent leaking state to the next user
+            // Clear cached UID and local data to prevent leaking state
+            setCachedUid(null);
             await hybridStorage.clear();
             await supabase.auth.signOut();
         } catch (error) {
