@@ -29,6 +29,9 @@ const MOCK_WORDS = [
         pronunciation: '/ɪˈfɛm.ər.əl/',
         difficulty: 'intermediate',
         category: 'SAT',
+        etymology: 'From Greek ephemeros "lasting only a day" (epi "on" + hemera "day")',
+        relatedWords: ['transient', 'fleeting', 'evanescent', 'momentary'],
+        antonym: 'permanent',
     },
     {
         word: 'Sycophant',
@@ -42,6 +45,9 @@ const MOCK_WORDS = [
         pronunciation: '/ˈsɪk.ə.fænt/',
         difficulty: 'advanced',
         category: 'SAT',
+        etymology: 'From Greek sykophantes "informer, slanderer" (sykon "fig" + phainein "to show")',
+        relatedWords: ['toady', 'flatterer', 'fawner', 'obsequious'],
+        antonym: 'critic',
     },
     {
         word: 'Ubiquitous',
@@ -55,6 +61,9 @@ const MOCK_WORDS = [
         pronunciation: '/juːˈbɪk.wɪ.təs/',
         difficulty: 'intermediate',
         category: 'academic',
+        etymology: 'From Latin ubique "everywhere" (ubi "where" + -que "and, also")',
+        relatedWords: ['omnipresent', 'pervasive', 'universal', 'prevalent'],
+        antonym: 'rare',
     },
 ];
 
@@ -101,6 +110,9 @@ For each word, provide:
 - pronunciation: IPA pronunciation
 - difficulty: "${currentLevel || 'intermediate'}"
 - category: One of "SAT", "academic", "literary", "technical", "rhetorical"
+- etymology: Brief word origin (language roots, historical derivation, max 1-2 sentences)
+- relatedWords: Array of 3-5 synonyms, near-synonyms, or closely related terms
+- antonym: A single clear antonym or contrasting word (if applicable, otherwise "none")
 
 Output ONLY a valid JSON object: { "words": [...] }`;
 

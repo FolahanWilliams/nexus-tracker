@@ -197,12 +197,24 @@ export interface VocabWord {
     difficulty: VocabDifficulty;
     category: string; // e.g. "SAT", "academic", "literary", "technical"
 
+    // Enrichment fields
+    etymology?: string;          // word origin/history
+    relatedWords?: string[];     // synonyms, antonyms, related terms
+    antonym?: string;
+
+    // User-generated mnemonic (optional active recall aid)
+    userMnemonic?: string;
+
     // Spaced repetition fields (SM-2)
     nextReviewDate: string; // ISO date YYYY-MM-DD
     easeFactor: number;     // default 2.5
     interval: number;       // days until next review
     repetitions: number;    // consecutive correct reviews
     status: VocabStatus;
+
+    // Confidence tracking (metacognition)
+    confidenceRating?: number;   // 1-5, user self-assessment before quiz
+    lastConfidenceCorrect?: boolean; // was last quiz answer actually correct?
 
     // Tracking
     dateAdded: string;      // ISO date
@@ -478,6 +490,8 @@ export interface GameState {
     updateVocabLevel: () => void;
     deleteVocabWord: (wordId: string) => void;
     checkVocabStreak: () => void;
+    setUserMnemonic: (wordId: string, mnemonic: string) => void;
+    setWordConfidence: (wordId: string, confidence: number) => void;
 }
 
 const DIFFICULTY_XP = {
@@ -2122,6 +2136,7 @@ export const useGameStore = create<GameState>()(
                             lastReviewed: today,
                             totalReviews: w.totalReviews + 1,
                             correctReviews: w.correctReviews + (isCorrect ? 1 : 0),
+                            lastConfidenceCorrect: isCorrect,
                         };
                     });
                     return { vocabWords: words };
@@ -2196,6 +2211,22 @@ export const useGameStore = create<GameState>()(
                     // Streak broken or first review
                     set({ vocabStreak: 1, vocabLastReviewDate: today });
                 }
+            },
+
+            setUserMnemonic: (wordId, mnemonic) => {
+                set(state => ({
+                    vocabWords: state.vocabWords.map(w =>
+                        w.id === wordId ? { ...w, userMnemonic: mnemonic } : w
+                    ),
+                }));
+            },
+
+            setWordConfidence: (wordId, confidence) => {
+                set(state => ({
+                    vocabWords: state.vocabWords.map(w =>
+                        w.id === wordId ? { ...w, confidenceRating: confidence } : w
+                    ),
+                }));
             },
 
             addFocusSession: (minutesCompleted: number) => {

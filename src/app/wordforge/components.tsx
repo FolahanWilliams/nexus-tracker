@@ -6,6 +6,8 @@ import {
   Sparkles, RefreshCw, Volume2, CheckCircle, XCircle,
   ChevronDown, ChevronUp, Eye, EyeOff, Trash2, Brain,
   TrendingUp, Award, BookOpen, BarChart3, HelpCircle,
+  Layers, PenLine, ThumbsUp, ThumbsDown, Minus, ArrowRight,
+  GitBranch, Lightbulb,
 } from 'lucide-react';
 import { useGameStore, VocabWord, VocabDifficulty } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
@@ -131,8 +133,11 @@ export function DailyWordsTab() {
 function WordCard({ word, index, expanded, onToggle }: {
   word: VocabWord; index: number; expanded: boolean; onToggle: () => void;
 }) {
-  const { deleteVocabWord } = useGameStore();
+  const { deleteVocabWord, setUserMnemonic } = useGameStore();
   const statusInfo = STATUS_LABELS[word.status] || STATUS_LABELS.new;
+  const [showAIMnemonic, setShowAIMnemonic] = useState(false);
+  const [userMnemonicInput, setUserMnemonicInput] = useState(word.userMnemonic || '');
+  const [editingMnemonic, setEditingMnemonic] = useState(false);
 
   return (
     <motion.div
@@ -183,6 +188,30 @@ function WordCard({ word, index, expanded, onToggle }: {
               {/* Definition */}
               <p className="text-sm text-[var(--color-text-primary)]">{word.definition}</p>
 
+              {/* Etymology */}
+              {word.etymology && (
+                <div className="flex items-start gap-2 text-xs text-[var(--color-text-secondary)]">
+                  <GitBranch size={13} className="shrink-0 mt-0.5 text-[var(--color-orange)]" />
+                  <span><span className="font-bold text-[var(--color-orange)]">Origin:</span> {word.etymology}</span>
+                </div>
+              )}
+
+              {/* Related words + Antonym */}
+              {(word.relatedWords?.length || word.antonym) && (
+                <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                  {word.relatedWords?.map((rw, i) => (
+                    <span key={i} className="px-1.5 py-0.5 rounded bg-[var(--color-blue)]/10 text-[var(--color-blue)] border border-[var(--color-blue)]/20">
+                      {rw}
+                    </span>
+                  ))}
+                  {word.antonym && word.antonym !== 'none' && (
+                    <span className="px-1.5 py-0.5 rounded bg-[var(--color-red)]/10 text-[var(--color-red)] border border-[var(--color-red)]/20">
+                      ≠ {word.antonym}
+                    </span>
+                  )}
+                </div>
+              )}
+
               {/* Examples */}
               <div className="space-y-1.5">
                 <p className="text-[10px] uppercase font-bold text-[var(--color-text-secondary)] tracking-wider">Examples</p>
@@ -193,12 +222,72 @@ function WordCard({ word, index, expanded, onToggle }: {
                 ))}
               </div>
 
-              {/* Mnemonic */}
+              {/* User Mnemonic (active recall) */}
               <div className="p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
-                <p className="text-[10px] uppercase font-bold text-[var(--color-purple)] tracking-wider mb-1 flex items-center gap-1">
-                  <Brain size={12} /> Memory Aid
+                <p className="text-[10px] uppercase font-bold text-[var(--color-green)] tracking-wider mb-1.5 flex items-center gap-1">
+                  <PenLine size={12} /> Your Memory Aid <span className="font-normal text-[var(--color-text-muted)]">(optional)</span>
                 </p>
-                <p className="text-xs text-[var(--color-text-primary)]">{word.mnemonic}</p>
+                {editingMnemonic ? (
+                  <div className="space-y-2">
+                    <input
+                      value={userMnemonicInput}
+                      onChange={e => setUserMnemonicInput(e.target.value)}
+                      placeholder="Create your own memory trick..."
+                      className="w-full p-2 rounded text-xs bg-[var(--color-bg-dark)] border border-[var(--color-border)] text-white focus:outline-none focus:border-[var(--color-green)]"
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          setUserMnemonic(word.id, userMnemonicInput);
+                          setEditingMnemonic(false);
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setUserMnemonic(word.id, userMnemonicInput); setEditingMnemonic(false); }}
+                        className="text-[10px] font-bold text-[var(--color-green)] hover:underline"
+                      >Save</button>
+                      <button
+                        onClick={() => { setUserMnemonicInput(word.userMnemonic || ''); setEditingMnemonic(false); }}
+                        className="text-[10px] text-[var(--color-text-muted)] hover:underline"
+                      >Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {word.userMnemonic ? (
+                      <p className="text-xs text-[var(--color-text-primary)] cursor-pointer hover:text-[var(--color-green)] transition-colors"
+                        onClick={() => setEditingMnemonic(true)}>
+                        {word.userMnemonic}
+                      </p>
+                    ) : (
+                      <button
+                        onClick={() => setEditingMnemonic(true)}
+                        className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-green)] transition-colors italic"
+                      >
+                        + Write your own mnemonic (self-created aids stick better!)
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* AI Mnemonic (reveal toggle) */}
+              <div className="p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                <button
+                  onClick={() => setShowAIMnemonic(!showAIMnemonic)}
+                  className="w-full text-left text-[10px] uppercase font-bold text-[var(--color-purple)] tracking-wider flex items-center gap-1"
+                >
+                  <Brain size={12} /> AI Memory Aid
+                  {showAIMnemonic ? <ChevronUp size={10} className="ml-auto" /> : <ChevronDown size={10} className="ml-auto" />}
+                </button>
+                {showAIMnemonic && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="text-xs text-[var(--color-text-primary)] mt-1.5"
+                  >{word.mnemonic}</motion.p>
+                )}
               </div>
 
               {/* Stats row */}
@@ -206,6 +295,11 @@ function WordCard({ word, index, expanded, onToggle }: {
                 <span>Reviews: {word.totalReviews} | Correct: {word.correctReviews}</span>
                 <span>Category: {word.category}</span>
               </div>
+              {word.nextReviewDate && (
+                <div className="text-[10px] text-[var(--color-text-muted)]">
+                  Next review: {word.nextReviewDate === new Date().toISOString().split('T')[0] ? 'Today' : word.nextReviewDate}
+                </div>
+              )}
 
               <button
                 onClick={() => deleteVocabWord(word.id)}
@@ -269,7 +363,7 @@ function PreviousWordsSection({ words }: { words: VocabWord[] }) {
 // ─── REVIEW SESSION TAB ──────────────────────────────────────────
 interface QuizQuestion {
   word: string;
-  type: 'multiple_choice' | 'reverse_choice' | 'fill_blank' | 'free_recall';
+  type: 'multiple_choice' | 'reverse_choice' | 'fill_blank' | 'free_recall' | 'use_in_sentence';
   question: string;
   options?: string[];
   correctIndex?: number;
@@ -279,18 +373,27 @@ interface QuizQuestion {
 export function ReviewTab() {
   const {
     vocabWords, reviewVocabWord, checkVocabStreak,
-    updateVocabLevel, vocabStreak, logActivity,
+    updateVocabLevel, vocabStreak, logActivity, setWordConfidence,
   } = useGameStore();
   const { addToast } = useToastStore();
 
-  const [mode, setMode] = useState<'idle' | 'loading' | 'quiz' | 'recall' | 'done'>('idle');
+  const [mode, setMode] = useState<'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done'>('idle');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [recallInput, setRecallInput] = useState('');
   const [showAnswer, setShowAnswer] = useState(false);
-  const [sessionResults, setSessionResults] = useState<{ word: string; correct: boolean }[]>([]);
+  const [sessionResults, setSessionResults] = useState<{ word: string; correct: boolean; confidence?: number }[]>([]);
   const [showHint, setShowHint] = useState(false);
+
+  // Study Cards state
+  const [studyCardIdx, setStudyCardIdx] = useState(0);
+  const [studyCardFlipped, setStudyCardFlipped] = useState(false);
+  const [studyBatch, setStudyBatch] = useState<VocabWord[]>([]);
+  const [pendingQuizType, setPendingQuizType] = useState<'quiz' | 'recall'>('quiz');
+
+  // Confidence tracking state
+  const [confidenceRatings, setConfidenceRatings] = useState<Record<string, number>>({});
 
   const today = new Date().toISOString().split('T')[0];
   const dueWords = useMemo(
@@ -298,11 +401,48 @@ export function ReviewTab() {
     [vocabWords, today]
   );
 
-  const startMultipleChoice = useCallback(async () => {
+  const startStudyCards = useCallback((nextMode: 'quiz' | 'recall') => {
     if (dueWords.length === 0) {
       addToast('No words due for review!', 'info');
       return;
     }
+    const batch = dueWords.slice(0, 10);
+    setStudyBatch(batch);
+    setStudyCardIdx(0);
+    setStudyCardFlipped(false);
+    setPendingQuizType(nextMode);
+    setConfidenceRatings({});
+    setMode('study');
+  }, [dueWords, addToast]);
+
+  const handleStudyConfidence = (wordId: string, confidence: number) => {
+    setConfidenceRatings(prev => ({ ...prev, [wordId]: confidence }));
+    setWordConfidence(wordId, confidence);
+  };
+
+  const advanceStudyCard = () => {
+    if (studyCardIdx < studyBatch.length - 1) {
+      setStudyCardIdx(prev => prev + 1);
+      setStudyCardFlipped(false);
+    } else {
+      // Done studying — transition to quiz or recall
+      if (pendingQuizType === 'quiz') {
+        launchQuiz();
+      } else {
+        launchFreeRecall();
+      }
+    }
+  };
+
+  const skipStudyCards = () => {
+    if (pendingQuizType === 'quiz') {
+      launchQuiz();
+    } else {
+      launchFreeRecall();
+    }
+  };
+
+  const launchQuiz = useCallback(async () => {
     setMode('loading');
     setSessionResults([]);
     setCurrentIdx(0);
@@ -338,11 +478,7 @@ export function ReviewTab() {
     }
   }, [dueWords, vocabWords, addToast]);
 
-  const startFreeRecall = useCallback(() => {
-    if (dueWords.length === 0) {
-      addToast('No words due for review!', 'info');
-      return;
-    }
+  const launchFreeRecall = useCallback(() => {
     const batch = dueWords.slice(0, 10).map(w => ({
       word: w.word,
       type: 'free_recall' as const,
@@ -356,7 +492,7 @@ export function ReviewTab() {
     setRecallInput('');
     setShowAnswer(false);
     setShowHint(false);
-  }, [dueWords, addToast]);
+  }, [dueWords]);
 
   const handleMCAnswer = (optionIdx: number) => {
     if (showAnswer) return;
@@ -369,7 +505,8 @@ export function ReviewTab() {
       const quality = correct ? 4 : 1;
       reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5);
     }
-    setSessionResults(prev => [...prev, { word: q.word, correct }]);
+    const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
+    setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
     if (correct) {
       triggerXPFloat('+15 XP', '#4ade80');
     }
@@ -382,7 +519,8 @@ export function ReviewTab() {
       reviewVocabWord(wordObj.id, quality);
     }
     const correct = quality >= 3;
-    setSessionResults(prev => [...prev, { word: q.word, correct }]);
+    const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
+    setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
     if (correct) triggerXPFloat('+15 XP', '#4ade80');
     advanceQuestion();
   };
@@ -438,14 +576,14 @@ export function ReviewTab() {
 
           <div className="flex gap-3">
             <button
-              onClick={startMultipleChoice}
+              onClick={() => startStudyCards('quiz')}
               disabled={dueWords.length === 0}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-blue)] text-white transition-all hover:brightness-110 disabled:opacity-40"
             >
               <BarChart3 size={16} /> Multiple Choice
             </button>
             <button
-              onClick={startFreeRecall}
+              onClick={() => startStudyCards('recall')}
               disabled={dueWords.length === 0}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-purple)] text-white transition-all hover:brightness-110 disabled:opacity-40"
             >
@@ -464,6 +602,123 @@ export function ReviewTab() {
     );
   }
 
+  // ── Study Cards phase ──
+  if (mode === 'study') {
+    const card = studyBatch[studyCardIdx];
+    const studyProgress = ((studyCardIdx + 1) / studyBatch.length) * 100;
+    const currentConfidence = card ? confidenceRatings[card.id] : undefined;
+
+    return (
+      <div className="space-y-4">
+        {/* Progress + skip */}
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-1.5 rounded-full bg-[var(--color-bg-hover)]">
+            <div className="h-full rounded-full bg-[var(--color-green)] transition-all" style={{ width: `${studyProgress}%` }} />
+          </div>
+          <span className="text-xs text-[var(--color-text-secondary)] font-mono">{studyCardIdx + 1}/{studyBatch.length}</span>
+          <button
+            onClick={skipStudyCards}
+            className="text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors underline"
+          >
+            Skip to quiz
+          </button>
+        </div>
+
+        <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1">
+          <Layers size={12} /> Study Cards — review before your quiz
+        </p>
+
+        {/* Flashcard */}
+        {card && (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={studyCardIdx}
+              initial={{ opacity: 0, rotateY: -10 }}
+              animate={{ opacity: 1, rotateY: 0 }}
+              exit={{ opacity: 0, rotateY: 10 }}
+              transition={{ duration: 0.25 }}
+              onClick={() => setStudyCardFlipped(!studyCardFlipped)}
+              className="cursor-pointer min-h-[200px] p-5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] flex flex-col justify-center hover:border-[var(--color-green)] transition-colors"
+            >
+              {!studyCardFlipped ? (
+                <div className="text-center space-y-3">
+                  <p className="text-2xl font-bold text-white">{card.word}</p>
+                  <p className="text-xs italic text-[var(--color-text-secondary)]">{card.partOfSpeech} &middot; {card.pronunciation}</p>
+                  <p className="text-[10px] text-[var(--color-text-muted)] mt-4">Tap to reveal definition</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-lg font-bold text-white text-center">{card.word}</p>
+                  <p className="text-sm text-[var(--color-text-primary)]">{card.definition}</p>
+                  {card.etymology && (
+                    <p className="text-xs text-[var(--color-text-secondary)]">
+                      <span className="text-[var(--color-orange)] font-bold">Origin:</span> {card.etymology}
+                    </p>
+                  )}
+                  {card.examples[0] && (
+                    <p className="text-xs text-[var(--color-text-secondary)] pl-3 border-l-2 border-[var(--color-border)]">
+                      &ldquo;{card.examples[0]}&rdquo;
+                    </p>
+                  )}
+                  {card.relatedWords && card.relatedWords.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {card.relatedWords.map((rw, i) => (
+                        <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-blue)]/10 text-[var(--color-blue)]">{rw}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
+
+        {/* Confidence rating */}
+        {card && (
+          <div className="p-3 rounded-lg bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] mb-2 flex items-center gap-1">
+              <Lightbulb size={11} /> How confident are you on this word?
+            </p>
+            <div className="flex gap-2">
+              {[
+                { val: 1, label: 'No clue', color: 'var(--color-red)' },
+                { val: 2, label: 'Shaky', color: 'var(--color-orange)' },
+                { val: 3, label: 'Okay', color: 'var(--color-blue)' },
+                { val: 4, label: 'Good', color: 'var(--color-purple)' },
+                { val: 5, label: 'Know it', color: 'var(--color-green)' },
+              ].map(opt => (
+                <button
+                  key={opt.val}
+                  onClick={() => handleStudyConfidence(card.id, opt.val)}
+                  className="flex-1 py-1.5 rounded text-[10px] font-bold transition-all border"
+                  style={{
+                    background: currentConfidence === opt.val ? `${opt.color}20` : 'transparent',
+                    borderColor: currentConfidence === opt.val ? opt.color : 'var(--color-border)',
+                    color: currentConfidence === opt.val ? opt.color : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Next / Start Quiz */}
+        <button
+          onClick={advanceStudyCard}
+          className="w-full py-2.5 rounded-lg text-sm font-bold bg-[var(--color-green)] text-white hover:brightness-110 transition-all flex items-center justify-center gap-2"
+        >
+          {studyCardIdx < studyBatch.length - 1 ? (
+            <>Next Card <ArrowRight size={14} /></>
+          ) : (
+            <>Start {pendingQuizType === 'quiz' ? 'Quiz' : 'Recall'} <ArrowRight size={14} /></>
+          )}
+        </button>
+      </div>
+    );
+  }
+
   // ── Loading ──
   if (mode === 'loading') {
     return (
@@ -478,6 +733,13 @@ export function ReviewTab() {
   if (mode === 'done') {
     const correctCount = sessionResults.filter(r => r.correct).length;
     const accuracy = sessionResults.length > 0 ? Math.round((correctCount / sessionResults.length) * 100) : 0;
+
+    // Metacognitive insights: compare confidence vs actual correctness
+    const hasConfidenceData = sessionResults.some(r => r.confidence != null);
+    const overconfidentWords = sessionResults.filter(r => r.confidence != null && r.confidence >= 4 && !r.correct);
+    const underconfidentWords = sessionResults.filter(r => r.confidence != null && r.confidence <= 2 && r.correct);
+    const calibratedWords = sessionResults.filter(r => r.confidence != null && ((r.confidence >= 3 && r.correct) || (r.confidence <= 2 && !r.correct)));
+
     return (
       <div className="space-y-4">
         <div className="text-center py-8 p-6 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]">
@@ -489,11 +751,65 @@ export function ReviewTab() {
           <p className="text-xs text-[var(--color-text-secondary)]">{correctCount}/{sessionResults.length} correct</p>
         </div>
 
+        {/* Metacognitive insight panel */}
+        {hasConfidenceData && (
+          <div className="p-4 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] space-y-3">
+            <p className="text-xs uppercase font-bold text-[var(--color-purple)] tracking-wider flex items-center gap-1">
+              <Lightbulb size={13} /> Confidence vs Reality
+            </p>
+
+            {overconfidentWords.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-[var(--color-orange)] flex items-center gap-1">
+                  <ThumbsDown size={10} /> Overconfident — felt sure, got wrong
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {overconfidentWords.map((r, i) => (
+                    <span key={i} className="text-xs px-2 py-0.5 rounded bg-[var(--color-orange)]/15 text-[var(--color-orange)] border border-[var(--color-orange)]/20">
+                      {r.word}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {underconfidentWords.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-[var(--color-green)] flex items-center gap-1">
+                  <ThumbsUp size={10} /> Underconfident — doubted yourself, got right!
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {underconfidentWords.map((r, i) => (
+                    <span key={i} className="text-xs px-2 py-0.5 rounded bg-[var(--color-green)]/15 text-[var(--color-green)] border border-[var(--color-green)]/20">
+                      {r.word}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {calibratedWords.length > 0 && (
+              <p className="text-[10px] text-[var(--color-text-secondary)] flex items-center gap-1">
+                <Minus size={10} /> Well-calibrated on {calibratedWords.length} word{calibratedWords.length !== 1 ? 's' : ''}
+              </p>
+            )}
+
+            {overconfidentWords.length === 0 && underconfidentWords.length === 0 && (
+              <p className="text-xs text-[var(--color-green)]">Your confidence matched your performance perfectly!</p>
+            )}
+          </div>
+        )}
+
         <div className="space-y-1.5">
           {sessionResults.map((r, i) => (
             <div key={i} className="flex items-center gap-2 p-2 rounded bg-[var(--color-bg-hover)] text-sm">
               {r.correct ? <CheckCircle size={14} className="text-[var(--color-green)]" /> : <XCircle size={14} className="text-[var(--color-red)]" />}
               <span className={r.correct ? 'text-white' : 'text-[var(--color-text-secondary)]'}>{r.word}</span>
+              {r.confidence != null && (
+                <span className="ml-auto text-[10px] text-[var(--color-text-muted)]">
+                  conf: {r.confidence}/5
+                </span>
+              )}
             </div>
           ))}
         </div>
@@ -533,7 +849,7 @@ export function ReviewTab() {
           className="p-5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]"
         >
           <p className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wider mb-2">
-            {mode === 'recall' ? 'Free Recall' : (q?.type || 'multiple choice').replace('_', ' ')}
+            {mode === 'recall' ? 'Free Recall' : (q?.type || 'multiple choice').replace(/_/g, ' ')}
           </p>
           <p className="text-base font-bold text-white mb-4">{q?.question}</p>
 
