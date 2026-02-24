@@ -22,15 +22,19 @@ CREATE POLICY "Users can manage own state"
 
 -- Auto-create a row when a new user signs up (alongside the existing
 -- handle_new_user trigger that creates profiles).
-CREATE OR REPLACE FUNCTION handle_new_user_state()
-RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION public.handle_new_user_state()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
 BEGIN
-    INSERT INTO user_state (user_id, state)
+    INSERT INTO public.user_state (user_id, state)
     VALUES (NEW.id, '{}')
     ON CONFLICT (user_id) DO NOTHING;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Only create trigger if it doesn't already exist
 DO $$
