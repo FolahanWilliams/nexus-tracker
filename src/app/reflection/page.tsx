@@ -5,7 +5,7 @@ import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import Link from 'next/link';
 import { useState } from 'react';
-import { ChevronLeft, Sun, Moon, Star, Zap } from 'lucide-react';
+import { ChevronLeft, Sun, Moon, Star, Zap, Library } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const ENERGY_LABELS = ['Exhausted', 'Low', 'Okay', 'Good', 'Legendary'];
@@ -20,6 +20,7 @@ export default function ReflectionPage() {
     todayIntention, todayEnergyRating,
     setDailyIntention, addReflectionNote,
     tasks, reflectionNotes,
+    vocabWords, vocabStreak,
   } = useGameStore();
   const { addToast } = useToastStore();
 
@@ -150,6 +151,26 @@ export default function ReflectionPage() {
                   Today&apos;s intention: &ldquo;{todayIntention}&rdquo;
                 </p>
               )}
+
+              {/* Vocab progress summary for the day */}
+              {vocabWords.length > 0 && (() => {
+                const reviewedToday = vocabWords.filter(w => w.lastReviewed === today).length;
+                const newToday = vocabWords.filter(w => w.dateAdded === today).length;
+                if (reviewedToday === 0 && newToday === 0) return null;
+                return (
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-[var(--color-blue)]/10 border border-[var(--color-blue)]/20">
+                    <Library size={16} className="text-[var(--color-blue)] shrink-0" />
+                    <div className="text-xs text-[var(--color-text-secondary)]">
+                      <span className="font-semibold text-white">WordForge today: </span>
+                      {newToday > 0 && <span>{newToday} new word{newToday !== 1 ? 's' : ''} learned</span>}
+                      {newToday > 0 && reviewedToday > 0 && <span> &middot; </span>}
+                      {reviewedToday > 0 && <span>{reviewedToday} word{reviewedToday !== 1 ? 's' : ''} reviewed</span>}
+                      {vocabStreak > 1 && <span> &middot; 🔥 {vocabStreak}d streak</span>}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div>
                 <label className="text-sm font-semibold block mb-3">How did today go?</label>
                 <div className="flex gap-3 justify-center">

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useGameStore, xpForLevel } from '@/store/useGameStore';
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight, Sword, User, Backpack, BarChart3, Settings, Map, BookOpen } from 'lucide-react';
+import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight, Sword, User, Backpack, BarChart3, Settings, Map, BookOpen, Library } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
@@ -44,12 +44,17 @@ function getProductivityScore(params: {
   habitsCompletedToday: number;
   totalHabits: number;
   streak: number;
+  vocabReviewedToday: boolean;
+  vocabGeneratedToday: boolean;
 }): number {
-  const { tasksCompletedToday, habitsCompletedToday, totalHabits, streak } = params;
+  const { tasksCompletedToday, habitsCompletedToday, totalHabits, streak, vocabReviewedToday, vocabGeneratedToday } = params;
   let score = 0;
-  score += Math.min(tasksCompletedToday * 12, 40); // up to 40 pts for tasks
-  score += totalHabits > 0 ? Math.round((habitsCompletedToday / totalHabits) * 30) : 0; // up to 30 pts habits
-  score += Math.min(streak * 2, 30); // up to 30 pts streak
+  score += Math.min(tasksCompletedToday * 10, 30); // up to 30 pts for tasks
+  score += totalHabits > 0 ? Math.round((habitsCompletedToday / totalHabits) * 25) : 0; // up to 25 pts habits
+  score += Math.min(streak * 2, 25); // up to 25 pts streak
+  // Vocab bonus: up to 20 pts (10 for generating, 10 for reviewing)
+  if (vocabGeneratedToday) score += 10;
+  if (vocabReviewedToday) score += 10;
   return Math.min(score, 100);
 }
 
@@ -60,6 +65,7 @@ const menuItems = [
   { href: '/focus', icon: Timer, label: 'Focus Timer', color: 'var(--color-blue)' },
   { href: '/goals', icon: Flag, label: 'Goals', color: 'var(--color-orange)' },
   { href: '/reflection', icon: BookOpen, label: 'Daily Check-In', color: 'var(--color-yellow)' },
+  { href: '/wordforge', icon: Library, label: 'WordForge', color: 'var(--color-blue)' },
   { href: '/chains', icon: Map, label: 'Quest Chains', color: 'var(--color-blue)' },
   { href: '/bosses', icon: Sword, label: 'Boss Battles', color: 'var(--color-red)' },
   { href: '/character', icon: User, label: 'Character & Skills', color: 'var(--color-purple-light)' },
@@ -95,7 +101,8 @@ function DashboardContent() {
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
     tasks, habits, goals,
     completeHabit, streakFreezes, lastFreezedDate,
-    comebackBonusAmount, clearComebackBonus
+    comebackBonusAmount, clearComebackBonus,
+    vocabWords, vocabStreak, vocabDailyDate,
   } = useGameStore();
   const { addToast } = useToastStore();
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -130,11 +137,34 @@ function DashboardContent() {
   const completedDailyQuests = dailyQuests.filter(q => q.completed).length;
   const canClaimDaily = lastDailyRewardClaim !== today;
 
+  const vocabDueCount = useMemo(
+    () => vocabWords.filter(w => w.nextReviewDate <= today).length,
+    [vocabWords, today]
+  );
+  const vocabMastered = useMemo(
+    () => vocabWords.filter(w => w.status === 'mastered').length,
+    [vocabWords]
+  );
+  const wordOfTheDay = useMemo(() => {
+    if (vocabWords.length === 0) return null;
+    // Pick most recently added word that isn't mastered, or fallback to last added
+    const candidates = vocabWords.filter(w => w.status !== 'mastered');
+    const pool = candidates.length > 0 ? candidates : vocabWords;
+    return pool[pool.length - 1];
+  }, [vocabWords]);
+  const vocabWordsGeneratedToday = vocabDailyDate === today;
+
+  const vocabReviewedToday = useMemo(
+    () => vocabWords.some(w => w.lastReviewed === today),
+    [vocabWords, today]
+  );
   const productivityScore = getProductivityScore({
     tasksCompletedToday,
     habitsCompletedToday,
     totalHabits: habits.length,
     streak,
+    vocabReviewedToday,
+    vocabGeneratedToday: vocabWordsGeneratedToday,
   });
 
   const xpToNext = xpForLevel(level + 1);
@@ -430,6 +460,73 @@ function DashboardContent() {
                     </motion.button>
                   );
                 })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* WordForge Widget — Vocab Card + Word of the Day */}
+          {vocabWords.length > 0 && (
+            <motion.div className="mb-4" variants={fadeUp}>
+              <div className="rpg-card !p-0 overflow-hidden !border-[var(--color-blue)]/20"
+                style={{ background: 'linear-gradient(135deg, rgba(96, 165, 250, 0.06), rgba(167, 139, 250, 0.04))' }}>
+                <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-md bg-[var(--color-blue)]/15 flex items-center justify-center">
+                      <Library size={13} className="text-[var(--color-blue)]" />
+                    </div>
+                    <h3 className="text-sm font-bold">WordForge</h3>
+                  </div>
+                  <Link href="/wordforge" className="text-[11px] font-semibold text-[var(--color-purple)] hover:text-[var(--color-purple-light)] transition-colors">
+                    Open
+                  </Link>
+                </div>
+
+                <div className="px-4 pb-3 grid grid-cols-3 gap-2">
+                  <div className="text-center p-2 rounded-lg bg-[var(--color-bg-dark)]/50">
+                    <p className="text-lg font-bold text-[var(--color-blue)]">{vocabWords.length}</p>
+                    <p className="text-[9px] text-[var(--color-text-muted)] font-semibold uppercase">Words</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-[var(--color-bg-dark)]/50">
+                    <p className="text-lg font-bold text-[var(--color-green)]">{vocabMastered}</p>
+                    <p className="text-[9px] text-[var(--color-text-muted)] font-semibold uppercase">Mastered</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-[var(--color-bg-dark)]/50">
+                    <p className="text-lg font-bold" style={{ color: vocabDueCount > 0 ? 'var(--color-orange)' : 'var(--color-green)' }}>
+                      {vocabDueCount}
+                    </p>
+                    <p className="text-[9px] text-[var(--color-text-muted)] font-semibold uppercase">Due</p>
+                  </div>
+                </div>
+
+                {/* Word of the Day flashcard */}
+                {wordOfTheDay && (
+                  <div className="mx-4 mb-3 p-3 rounded-lg bg-[var(--color-bg-dark)]/60 border border-[var(--color-border)]/50">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[9px] font-bold text-[var(--color-purple)] uppercase tracking-wider">Word of the Day</span>
+                      {vocabStreak > 0 && (
+                        <span className="text-[10px] font-bold text-[var(--color-orange)]">🔥 {vocabStreak}d streak</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-bold text-white">{wordOfTheDay.word} <span className="text-[10px] font-normal italic text-[var(--color-text-secondary)]">{wordOfTheDay.partOfSpeech}</span></p>
+                    <p className="text-xs text-[var(--color-text-secondary)] mt-0.5 line-clamp-2">{wordOfTheDay.definition}</p>
+                  </div>
+                )}
+
+                {/* Quick action */}
+                {!vocabWordsGeneratedToday && (
+                  <div className="px-4 pb-3">
+                    <Link href="/wordforge" className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-[var(--color-blue)]/15 text-[var(--color-blue)] hover:bg-[var(--color-blue)]/25 transition-colors">
+                      Generate Today&apos;s Words
+                    </Link>
+                  </div>
+                )}
+                {vocabDueCount > 0 && vocabWordsGeneratedToday && (
+                  <div className="px-4 pb-3">
+                    <Link href="/wordforge" className="block w-full text-center py-2 rounded-lg text-xs font-bold bg-[var(--color-orange)]/15 text-[var(--color-orange)] hover:bg-[var(--color-orange)]/25 transition-colors">
+                      Review {vocabDueCount} Due Word{vocabDueCount !== 1 ? 's' : ''}
+                    </Link>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

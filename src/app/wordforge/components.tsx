@@ -30,7 +30,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 export function DailyWordsTab() {
   const {
     vocabWords, vocabDailyDate, vocabCurrentLevel,
-    addVocabWords, setVocabDailyDate,
+    addVocabWords, setVocabDailyDate, logActivity, addXP,
   } = useGameStore();
   const { addToast } = useToastStore();
 
@@ -58,8 +58,10 @@ export function DailyWordsTab() {
       if (data.words && data.words.length > 0) {
         addVocabWords(data.words);
         setVocabDailyDate(today);
+        addXP(20);
         triggerXPFloat('+20 XP', '#4ade80');
         addToast(`${data.words.length} new words unlocked! +20 XP`, 'success');
+        logActivity('xp_earned', '📚', `Generated ${data.words.length} new vocab words`, '+20 XP');
         if (data.isMock) addToast('Using sample words (no API key)', 'info');
       }
     } catch {
@@ -67,7 +69,7 @@ export function DailyWordsTab() {
     } finally {
       setLoading(false);
     }
-  }, [vocabWords, vocabCurrentLevel, addVocabWords, setVocabDailyDate, today, addToast]);
+  }, [vocabWords, vocabCurrentLevel, addVocabWords, setVocabDailyDate, today, addToast, addXP, logActivity]);
 
   return (
     <div className="space-y-4">
@@ -277,7 +279,7 @@ interface QuizQuestion {
 export function ReviewTab() {
   const {
     vocabWords, reviewVocabWord, checkVocabStreak,
-    updateVocabLevel, vocabStreak,
+    updateVocabLevel, vocabStreak, logActivity,
   } = useGameStore();
   const { addToast } = useToastStore();
 
@@ -399,7 +401,9 @@ export function ReviewTab() {
       const correctCount = sessionResults.length > 0
         ? sessionResults.filter(r => r.correct).length + (selectedAnswer === questions[currentIdx]?.correctIndex ? 1 : 0)
         : 0;
+      const acc = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
       addToast(`Review complete! ${correctCount}/${questions.length} correct`, 'success');
+      logActivity('xp_earned', '🧠', `Vocab review: ${correctCount}/${questions.length} correct (${acc}%)`, `WordForge review session`);
     }
   };
 
