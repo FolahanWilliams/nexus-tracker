@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { GameState, TaskSlice, DailyQuest, BossBattle, InventoryItem } from '../types';
 import { DIFFICULTY_XP, CLASS_BONUSES, DAILY_REWARDS, DAILY_QUEST_TEMPLATES } from '@/lib/constants';
+import { VOCAB_MASTERY_BOSS_STEP, VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS } from '@/lib/rewardCalculator';
 import { validateTaskTitle, ValidationError } from '@/lib/validation';
 import { logger } from '@/lib/logger';
 
@@ -258,6 +259,16 @@ export const createTaskSlice: StateCreator<GameState, [], [], TaskSlice> = (set,
         const bossSlayerSkill = state.skills.find(s => s.id === 'boss-slayer');
         if (bossSlayerSkill && bossSlayerSkill.currentLevel > 0) {
             damage = Math.floor(damage * (1 + bossSlayerSkill.currentLevel * 0.05 * bossSlayerSkill.currentLevel));
+        }
+
+        // Cross-domain reward: vocab mastery buffs boss damage
+        const vocabMastered = state.vocabWords.filter(w => w.status === 'mastered').length;
+        if (vocabMastered > 0) {
+            const steps = Math.floor(vocabMastered / VOCAB_MASTERY_BOSS_STEP);
+            const bonus = Math.min(steps * VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS);
+            if (bonus > 0) {
+                damage = Math.floor(damage * (1 + bonus));
+            }
         }
 
         const newHp = boss.hp - damage;

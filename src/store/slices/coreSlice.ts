@@ -6,6 +6,7 @@ import {
     TITLE_REQUIREMENTS,
     ACTIVITY_LOG_MAX_ENTRIES,
 } from '@/lib/constants';
+import { CLASS_RESPEC_GOLD_COST } from '@/lib/rewardCalculator';
 import {
     validateCharacterName,
     validateMotto,
@@ -140,6 +141,23 @@ export const createCoreSlice: StateCreator<GameState, [], [], CoreSlice> = (set,
     addGems: (amount) => set((state) => ({ gems: state.gems + amount })),
 
     setCharacterClass: (characterClass) => set({ characterClass }),
+
+    respecClass: (newClass) => {
+        const state = get();
+        if (state.characterClass === null) {
+            // First-time selection is free
+            set({ characterClass: newClass });
+            return true;
+        }
+        if (state.gold < CLASS_RESPEC_GOLD_COST) return false;
+        const oldClass = state.characterClass;
+        set(s => ({
+            gold: s.gold - CLASS_RESPEC_GOLD_COST,
+            characterClass: newClass,
+        }));
+        get().logActivity('purchase', '🔄', `Class respec: ${oldClass} → ${newClass}`, `-${CLASS_RESPEC_GOLD_COST}g`);
+        return true;
+    },
 
     updateCharacterInfo: (info) => {
         try {
