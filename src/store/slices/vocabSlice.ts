@@ -139,6 +139,30 @@ export const createVocabSlice: StateCreator<GameState, [], [], VocabSlice> = (se
         set(state => ({ vocabWords: [...state.vocabWords, word] }));
     },
 
+    batchDeleteVocabWords: (wordIds) => {
+        const idSet = new Set(wordIds);
+        set(state => ({ vocabWords: state.vocabWords.filter(w => !idSet.has(w.id)) }));
+    },
+
+    batchRescheduleVocabWords: (wordIds) => {
+        const today = new Date().toISOString().split('T')[0];
+        const idSet = new Set(wordIds);
+        set(state => ({
+            vocabWords: state.vocabWords.map(w =>
+                idSet.has(w.id) ? { ...w, nextReviewDate: today } : w
+            ),
+        }));
+    },
+
+    batchSetVocabDifficulty: (wordIds, difficulty) => {
+        const idSet = new Set(wordIds);
+        set(state => ({
+            vocabWords: state.vocabWords.map(w =>
+                idSet.has(w.id) ? { ...w, difficulty } : w
+            ),
+        }));
+    },
+
     checkVocabStreak: () => {
         const state = get();
         const today = new Date().toISOString().split('T')[0];

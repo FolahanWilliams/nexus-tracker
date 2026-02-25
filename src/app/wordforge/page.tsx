@@ -3,16 +3,17 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ChevronLeft, BookOpen, Brain, TrendingUp } from 'lucide-react';
+import { ChevronLeft, BookOpen, Brain, TrendingUp, Library } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
-import { DailyWordsTab, ReviewTab, ProgressTab } from './components';
+import { DailyWordsTab, ReviewTab, ProgressTab, CollectionTab } from './components';
 import PulseInsightStrip from '@/components/PulseInsightStrip';
 
-type Tab = 'daily' | 'review' | 'progress';
+type Tab = 'daily' | 'review' | 'collection' | 'progress';
 
 const TABS: { id: Tab; label: string; icon: typeof BookOpen }[] = [
   { id: 'daily', label: 'Daily Words', icon: BookOpen },
   { id: 'review', label: 'Review', icon: Brain },
+  { id: 'collection', label: 'Collection', icon: Library },
   { id: 'progress', label: 'Progress', icon: TrendingUp },
 ];
 
@@ -88,6 +89,7 @@ export default function WordForgePage() {
 
         {tab === 'daily' && <DailyWordsTab />}
         {tab === 'review' && <ReviewTab />}
+        {tab === 'collection' && <CollectionTab />}
         {tab === 'progress' && <ProgressTab />}
       </div>
     </motion.div>

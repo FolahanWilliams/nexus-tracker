@@ -407,6 +407,9 @@ export interface VocabSlice {
     updateVocabLevel: () => void;
     deleteVocabWord: (wordId: string) => void;
     restoreVocabWord: (word: VocabWord) => void;
+    batchDeleteVocabWords: (wordIds: string[]) => void;
+    batchRescheduleVocabWords: (wordIds: string[]) => void;
+    batchSetVocabDifficulty: (wordIds: string[], difficulty: VocabDifficulty) => void;
     checkVocabStreak: () => void;
     setUserMnemonic: (wordId: string, mnemonic: string) => void;
     setWordConfidence: (wordId: string, confidence: number) => void;
