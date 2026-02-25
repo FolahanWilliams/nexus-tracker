@@ -9,6 +9,24 @@ import { persist } from 'zustand/middleware';
 const recurringTaskTimers = new Map<string, ReturnType<typeof setTimeout>>();
 import { createIndexedDBStorage, setHasHydrated } from '@/lib/zustandStorage';
 import {
+    VOCAB_REVIEW_XP,
+    VOCAB_REVIEW_GOLD,
+    VOCAB_MASTERY_BONUS,
+    SM2_MIN_EASE,
+    SM2_MAX_EASE,
+    SM2_DEFAULT_EASE,
+    SM2_MAX_INTERVAL,
+    SM2_REVIEWING_REPS,
+    SM2_MASTERY_INTERVAL,
+    VOCAB_LEVEL_UP_ACCURACY,
+    VOCAB_LEVEL_DOWN_ACCURACY,
+    VOCAB_LEVEL_UP_MASTERED_MIN,
+    VOCAB_LEVEL_EVAL_MIN_REVIEWED,
+    VOCAB_LEVEL_EVAL_SAMPLE_SIZE,
+    VOCAB_LEVEL_EVAL_MIN_WORDS,
+    ACTIVITY_LOG_MAX_ENTRIES,
+} from '@/lib/constants';
+import {
     validateTaskTitle,
     validateCharacterName,
     validateMotto,
@@ -893,7 +911,7 @@ export const useGameStore = create<GameState>()(
                     timestamp: new Date().toISOString(),
                 };
                 set((state) => ({
-                    activityLog: [entry, ...state.activityLog].slice(0, 20),
+                    activityLog: [entry, ...state.activityLog].slice(0, ACTIVITY_LOG_MAX_ENTRIES),
                 }));
             },
 
@@ -2095,7 +2113,7 @@ export const useGameStore = create<GameState>()(
                     totalReviews: 0,
                     correctReviews: 0,
                     nextReviewDate: today, // available for review immediately
-                    easeFactor: 2.5,
+                    easeFactor: SM2_DEFAULT_EASE,
                     interval: 0,
                     repetitions: 0,
                     status: 'new' as VocabStatus,
@@ -2118,7 +2136,7 @@ export const useGameStore = create<GameState>()(
                             } else if (repetitions === 1) {
                                 interval = 3;
                             } else {
-                                interval = Math.min(365, Math.round(interval * easeFactor));
+                                interval = Math.min(SM2_MAX_INTERVAL, Math.round(interval * easeFactor));
                             }
                             repetitions += 1;
                         } else {
@@ -2127,20 +2145,18 @@ export const useGameStore = create<GameState>()(
                             interval = repetitions === 0 ? 0 : 1; // near-immediate re-review
                         }
 
-                        // Update ease factor (clamped to 1.3–3.0)
-                        easeFactor = Math.min(3.0, Math.max(1.3,
+                        // Update ease factor (clamped)
+                        easeFactor = Math.min(SM2_MAX_EASE, Math.max(SM2_MIN_EASE,
                             easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
                         ));
 
                         // Determine status
                         let status: VocabStatus = w.status;
-                        if (repetitions === 0) {
+                        if (repetitions < SM2_REVIEWING_REPS) {
                             status = 'learning';
-                        } else if (repetitions >= 1 && repetitions < 3) {
-                            status = 'learning';
-                        } else if (repetitions >= 3 && interval < 21) {
+                        } else if (interval < SM2_MASTERY_INTERVAL) {
                             status = 'reviewing';
-                        } else if (interval >= 21) {
+                        } else {
                             status = 'mastered';
                         }
 
@@ -2165,17 +2181,17 @@ export const useGameStore = create<GameState>()(
                 });
 
                 // Award XP for review
-                const xpGain = quality >= 4 ? 15 : quality >= 3 ? 10 : 5;
+                const xpGain = quality >= 4 ? VOCAB_REVIEW_XP.high : quality >= 3 ? VOCAB_REVIEW_XP.mid : VOCAB_REVIEW_XP.low;
                 get().addXP(xpGain);
-                const goldGain = quality >= 3 ? 3 : 1;
+                const goldGain = quality >= 3 ? VOCAB_REVIEW_GOLD.correct : VOCAB_REVIEW_GOLD.incorrect;
                 get().addGold(goldGain);
 
                 // Check if word just became mastered
                 const updated = get().vocabWords.find(w => w.id === wordId);
-                if (updated?.status === 'mastered' && updated.repetitions === 3 && updated.interval >= 21) {
-                    get().addXP(50); // mastery bonus
-                    get().addGold(20);
-                    get().logActivity('achievement', '📖', `Mastered "${updated.word}"!`, 'WordForge mastery bonus: +50 XP');
+                if (updated?.status === 'mastered' && updated.repetitions === SM2_REVIEWING_REPS && updated.interval >= SM2_MASTERY_INTERVAL) {
+                    get().addXP(VOCAB_MASTERY_BONUS.xp);
+                    get().addGold(VOCAB_MASTERY_BONUS.gold);
+                    get().logActivity('achievement', '📖', `Mastered "${updated.word}"!`, `WordForge mastery bonus: +${VOCAB_MASTERY_BONUS.xp} XP`);
                 }
             },
 
@@ -2184,15 +2200,15 @@ export const useGameStore = create<GameState>()(
             updateVocabLevel: () => {
                 const state = get();
                 const words = state.vocabWords;
-                if (words.length < 10) return; // need enough data
+                if (words.length < VOCAB_LEVEL_EVAL_MIN_WORDS) return;
 
-                // Calculate recent accuracy from last 20 reviews
+                // Calculate recent accuracy from last N reviews
                 const reviewed = words
                     .filter(w => w.totalReviews > 0)
                     .sort((a, b) => (b.lastReviewed || '').localeCompare(a.lastReviewed || ''))
-                    .slice(0, 20);
+                    .slice(0, VOCAB_LEVEL_EVAL_SAMPLE_SIZE);
 
-                if (reviewed.length < 5) return;
+                if (reviewed.length < VOCAB_LEVEL_EVAL_MIN_REVIEWED) return;
 
                 const totalReviews = reviewed.reduce((s, w) => s + w.totalReviews, 0);
                 const totalCorrect = reviewed.reduce((s, w) => s + w.correctReviews, 0);
@@ -2201,15 +2217,13 @@ export const useGameStore = create<GameState>()(
                 const levels: VocabDifficulty[] = ['beginner', 'intermediate', 'advanced', 'expert'];
                 const currentIdx = levels.indexOf(state.vocabCurrentLevel);
 
-                // Ramp up if accuracy > 80% and mastered at least 5 at current level
                 const masteredAtLevel = words.filter(
                     w => w.status === 'mastered' && w.difficulty === state.vocabCurrentLevel
                 ).length;
 
-                if (accuracy > 0.80 && masteredAtLevel >= 5 && currentIdx < levels.length - 1) {
+                if (accuracy > VOCAB_LEVEL_UP_ACCURACY && masteredAtLevel >= VOCAB_LEVEL_UP_MASTERED_MIN && currentIdx < levels.length - 1) {
                     set({ vocabCurrentLevel: levels[currentIdx + 1] });
-                } else if (accuracy < 0.50 && currentIdx > 0) {
-                    // Drop down if struggling
+                } else if (accuracy < VOCAB_LEVEL_DOWN_ACCURACY && currentIdx > 0) {
                     set({ vocabCurrentLevel: levels[currentIdx - 1] });
                 }
             },
@@ -2233,10 +2247,13 @@ export const useGameStore = create<GameState>()(
 
                 if (state.vocabLastReviewDate === yesterday) {
                     set({ vocabStreak: state.vocabStreak + 1, vocabLastReviewDate: today });
-                } else if (state.vocabLastReviewDate !== today) {
+                } else {
                     // Streak broken or first review
                     set({ vocabStreak: 1, vocabLastReviewDate: today });
                 }
+
+                // Re-check achievements now that vocab streak has updated
+                get().checkAchievements();
             },
 
             setUserMnemonic: (wordId, mnemonic) => {
