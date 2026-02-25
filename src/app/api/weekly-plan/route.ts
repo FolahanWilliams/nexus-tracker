@@ -5,7 +5,7 @@ const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
 
 export async function POST(request: Request) {
     try {
-        const { tasks, chains, reflections, habits, playerContext } = await request.json();
+        const { tasks, chains, reflections, habits, playerContext, pulseData } = await request.json();
 
         if (!process.env.GOOGLE_API_KEY) {
             return NextResponse.json({
@@ -64,6 +64,14 @@ Create a strategic weekly plan. Output ONLY valid JSON with:
   - focus: String. One sentence describing the day's theme/priority.
   - tasks: Array of strings — specific quest titles or actions to do that day.
 - insight: String. One actionable insight based on their energy/reflection patterns (e.g., "Your energy dips on Thursdays — schedule lighter tasks").
+
+${pulseData ? `
+Nexus Pulse Intelligence:
+- Current Momentum: ${pulseData.momentum || 'unknown'}
+- Burnout Risk: ${pulseData.burnoutRisk ?? 'unknown'} (0=fresh, 1=severe)
+- AI Insight: ${pulseData.topInsight || 'N/A'}
+- Suggestion: ${pulseData.suggestion || 'N/A'}
+Factor this into your planning — if burnout risk is high, schedule lighter days early in the week. If momentum is rising, front-load challenging quests.` : ''}
 
 Distribute tasks intelligently based on difficulty, duration, and energy patterns.
 Prioritize Epic/Hard quests on high-energy days and Easy quests on recovery days.`;

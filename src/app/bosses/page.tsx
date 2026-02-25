@@ -4,6 +4,7 @@ import { useGameStore, BossBattle } from '@/store/useGameStore';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
 import {
   ChevronLeft,
   Sword,
@@ -120,7 +121,8 @@ export default function BossBattlesPage() {
         body: JSON.stringify({
           uncompletedTasks,
           failedHabits,
-          playerContext: { level }
+          playerContext: { level },
+          pulseData: getPulseDataForRoute()
         })
       });
       const data = await response.json();

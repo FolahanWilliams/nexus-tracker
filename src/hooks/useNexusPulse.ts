@@ -1,14 +1,14 @@
 'use client';
 
-import { useMemo, useState, useCallback, useRef } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useGameStore, Task, Habit, VocabWord } from '@/store/useGameStore';
 
 // ────────────────────────────────────────────────────────────────────────────
-// Nexus Pulse — Client-side heuristic engine
+// Nexus Pulse — Client-side heuristic engine + event-driven AI synthesis
 //
-// All "insights" below are computed from local state with ZERO API calls.
-// A single optional daily Gemini call via /api/nexus-pulse adds the
-// cross-domain narrative synthesis on top.
+// Local heuristic detectors run on every render (free, instant).
+// AI synthesis refreshes on meaningful events with a 5-minute cooldown.
+// Historical snapshots are stored for week-over-week trend analysis.
 // ────────────────────────────────────────────────────────────────────────────
 
 export type InsightSeverity = 'info' | 'warning' | 'critical' | 'celebration';
@@ -33,12 +33,31 @@ export interface AISynthesis {
     celebrationOpportunity?: string;
 }
 
+// Event types that trigger an AI refresh
+export type PulseEvent =
+    | 'quest_batch_complete'   // 3+ quests completed in a session
+    | 'reflection_submitted'   // after daily reflection
+    | 'habit_streak_broken'    // a streak was lost
+    | 'boss_resolved'          // boss battle won or lost
+    | 'vocab_quiz_done'        // after completing a quiz session
+    | 'manual_refresh';        // user clicked refresh
+
 export interface NexusPulseData {
     insights: PulseInsight[];
     aiSynthesis: AISynthesis | null;
     isLoadingAI: boolean;
     refreshAI: () => Promise<void>;
+    triggerEvent: (event: PulseEvent) => void;
     lastAIRefresh: string | null;
+    insightsForDomain: (domain: InsightDomain) => PulseInsight[];
+}
+
+// ── History types ────────────────────────────────────────────────────────────
+
+export interface PulseHistoryEntry {
+    date: string;
+    synthesis: AISynthesis;
+    snapshot: Record<string, unknown>;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -364,13 +383,16 @@ export function buildPulseSnapshot(state: ReturnType<typeof useGameStore.getStat
     };
 }
 
-// ── Cache key ────────────────────────────────────────────────────────────────
+// ── Cache & History ──────────────────────────────────────────────────────────
 
 const AI_CACHE_KEY = 'nexus-pulse-ai';
+const HISTORY_KEY = 'nexus-pulse-history';
+const COOLDOWN_MS = 5 * 60 * 1000; // 5-minute minimum between AI calls
 
 interface CachedSynthesis {
     data: AISynthesis;
     date: string;
+    timestamp: number; // epoch ms for cooldown tracking
 }
 
 function getCachedSynthesis(): AISynthesis | null {
@@ -379,16 +401,88 @@ function getCachedSynthesis(): AISynthesis | null {
         const raw = localStorage.getItem(AI_CACHE_KEY);
         if (!raw) return null;
         const cached: CachedSynthesis = JSON.parse(raw);
+        // Cache is valid within the same day
         if (cached.date === today()) return cached.data;
-        return null; // expired (different day)
+        return null;
     } catch {
         return null;
     }
 }
 
+function getCacheTimestamp(): number {
+    if (typeof window === 'undefined') return 0;
+    try {
+        const raw = localStorage.getItem(AI_CACHE_KEY);
+        if (!raw) return 0;
+        const cached: CachedSynthesis = JSON.parse(raw);
+        return cached.timestamp || 0;
+    } catch {
+        return 0;
+    }
+}
+
 function setCachedSynthesis(data: AISynthesis): void {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(AI_CACHE_KEY, JSON.stringify({ data, date: today() }));
+    localStorage.setItem(AI_CACHE_KEY, JSON.stringify({
+        data,
+        date: today(),
+        timestamp: Date.now(),
+    }));
+}
+
+function isCooldownActive(): boolean {
+    return Date.now() - getCacheTimestamp() < COOLDOWN_MS;
+}
+
+// ── History (Feature #4) ─────────────────────────────────────────────────────
+
+export function getPulseHistory(): PulseHistoryEntry[] {
+    if (typeof window === 'undefined') return [];
+    try {
+        const raw = localStorage.getItem(HISTORY_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
+    }
+}
+
+function appendHistory(synthesis: AISynthesis, snapshot: Record<string, unknown>): void {
+    if (typeof window === 'undefined') return;
+    try {
+        const history = getPulseHistory();
+        const todayDate = today();
+        // Replace today's entry if it exists, otherwise append
+        const idx = history.findIndex(h => h.date === todayDate);
+        const entry: PulseHistoryEntry = { date: todayDate, synthesis, snapshot };
+        if (idx >= 0) {
+            history[idx] = entry;
+        } else {
+            history.push(entry);
+        }
+        // Keep last 30 days
+        const trimmed = history.slice(-30);
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+    } catch { /* storage full — ignore */ }
+}
+
+// ── Exported helpers for other systems ───────────────────────────────────────
+
+/** Get the cached AI synthesis for injection into other AI routes.
+ *  Call this in fetch handlers to include pulse context in POST body. */
+export function getCachedPulseForAPI(): AISynthesis | null {
+    return getCachedSynthesis();
+}
+
+/** Convenience: get pulse data as a plain object for JSON.stringify in API calls */
+export function getPulseDataForRoute(): Record<string, unknown> | null {
+    const synthesis = getCachedSynthesis();
+    if (!synthesis) return null;
+    return {
+        topInsight: synthesis.topInsight,
+        burnoutRisk: synthesis.burnoutRisk,
+        momentum: synthesis.momentum,
+        suggestion: synthesis.suggestion,
+    };
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
@@ -398,6 +492,11 @@ export function useNexusPulse(): NexusPulseData {
     const [aiSynthesis, setAISynthesis] = useState<AISynthesis | null>(() => getCachedSynthesis());
     const [isLoadingAI, setIsLoadingAI] = useState(false);
     const fetchingRef = useRef(false);
+
+    // Track previous values for event detection
+    const prevTaskCountRef = useRef(state.tasks.filter(t => t.completed).length);
+    const prevReflectionCountRef = useRef(state.reflectionNotes.length);
+    const prevStreakRef = useRef(state.streak);
 
     // Compute local insights (runs on every render, but cheap — no API)
     const insights = useMemo(() => {
@@ -410,6 +509,11 @@ export function useNexusPulse(): NexusPulseData {
         state.goals,
     ]);
 
+    // Domain-specific insight filter for page-level components
+    const insightsForDomain = useCallback((domain: InsightDomain) => {
+        return insights.filter(i => i.domain === domain);
+    }, [insights]);
+
     const lastAIRefresh = useMemo(() => {
         if (typeof window === 'undefined') return null;
         try {
@@ -420,23 +524,28 @@ export function useNexusPulse(): NexusPulseData {
         } catch {
             return null;
         }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [aiSynthesis]);
 
-    const refreshAI = useCallback(async () => {
+    const refreshAI = useCallback(async (force = false) => {
         if (fetchingRef.current) return;
+        // Respect cooldown unless forced (manual refresh)
+        if (!force && isCooldownActive()) return;
         fetchingRef.current = true;
         setIsLoadingAI(true);
         try {
             const snapshot = buildPulseSnapshot(useGameStore.getState());
+            const history = getPulseHistory().slice(-7);
             const res = await fetch('/api/nexus-pulse', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ snapshot }),
+                body: JSON.stringify({ snapshot, history }),
             });
             if (!res.ok) throw new Error('AI unavailable');
             const data: AISynthesis = await res.json();
             setAISynthesis(data);
             setCachedSynthesis(data);
+            appendHistory(data, snapshot);
         } catch (err) {
             console.error('[NexusPulse] AI refresh failed:', err);
         } finally {
@@ -445,5 +554,38 @@ export function useNexusPulse(): NexusPulseData {
         }
     }, []);
 
-    return { insights, aiSynthesis, isLoadingAI, refreshAI, lastAIRefresh };
+    // Event-driven trigger function
+    const triggerEvent = useCallback((event: PulseEvent) => {
+        const force = event === 'manual_refresh';
+        console.log(`[NexusPulse] Event: ${event}`);
+        refreshAI(force);
+    }, [refreshAI]);
+
+    // Auto-detect meaningful state changes and trigger refresh
+    useEffect(() => {
+        const completedNow = state.tasks.filter(t => t.completed).length;
+        const delta = completedNow - prevTaskCountRef.current;
+        prevTaskCountRef.current = completedNow;
+        // Trigger on batch quest completion (3+ in this render cycle)
+        if (delta >= 3) {
+            triggerEvent('quest_batch_complete');
+        }
+    }, [state.tasks, triggerEvent]);
+
+    useEffect(() => {
+        const count = state.reflectionNotes.length;
+        if (count > prevReflectionCountRef.current) {
+            prevReflectionCountRef.current = count;
+            triggerEvent('reflection_submitted');
+        }
+    }, [state.reflectionNotes.length, triggerEvent]);
+
+    useEffect(() => {
+        if (state.streak < prevStreakRef.current && prevStreakRef.current > 0) {
+            triggerEvent('habit_streak_broken');
+        }
+        prevStreakRef.current = state.streak;
+    }, [state.streak, triggerEvent]);
+
+    return { insights, aiSynthesis, isLoadingAI, refreshAI: () => refreshAI(true), triggerEvent, lastAIRefresh, insightsForDomain };
 }

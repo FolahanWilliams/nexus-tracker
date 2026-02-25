@@ -56,6 +56,15 @@ Player Profile:
 - Current Streak: ${context.streak || 0} days
 Tailor the quests to suit a ${context.characterClass || 'general'} player at level ${context.level || 1}.` : '';
 
+        // Nexus Pulse context: AI-generated awareness of player patterns
+        const pulseSection = context?.pulseData ? `
+Nexus Pulse Intelligence:
+- Momentum: ${context.pulseData.momentum || 'unknown'}
+- Burnout Risk: ${context.pulseData.burnoutRisk ?? 'unknown'}
+- AI Insight: ${context.pulseData.topInsight || 'N/A'}
+- Suggestion: ${context.pulseData.suggestion || 'N/A'}
+Use this to calibrate quest difficulty. If burnout risk is high (>0.6), lean toward Easy/Medium quests. If momentum is rising, feel free to suggest Hard/Epic challenges.` : '';
+
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG. Break down the user's goal into 1-2 executable "quests" (tasks).
 
 You have access to Google Search. Use it to:
@@ -69,7 +78,7 @@ For each quest, output a JSON object with:
 - difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic'
 
 Scale difficulty based on effort required. Focus on quality over quantity - generate only the most essential tasks.
-${playerContext}
+${playerContext}${pulseSection}
 Output ONLY a valid JSON object with a "quests" array. No other text.`;
 
         const result = await model.generateContent(`${systemPrompt}\n\nUser Goal: ${prompt}`);

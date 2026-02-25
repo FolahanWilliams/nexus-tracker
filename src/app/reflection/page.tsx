@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ChevronLeft, Sun, Moon, Star, Zap, Library } from 'lucide-react';
 import { motion } from 'framer-motion';
+import PulseInsightStrip from '@/components/PulseInsightStrip';
 
 const ENERGY_LABELS = ['Exhausted', 'Low', 'Okay', 'Good', 'Legendary'];
 const ENERGY_COLORS = [
@@ -206,6 +207,9 @@ export default function ReflectionPage() {
             </div>
           )}
         </motion.div>
+
+        {/* Pulse Insights for Energy & Cross-Domain */}
+        <PulseInsightStrip domains={['energy', 'cross-domain']} />
 
         {/* ── Past Reflections ── */}
         {reflectionNotes.length > 0 && (

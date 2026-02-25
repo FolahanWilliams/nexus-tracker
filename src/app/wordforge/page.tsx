@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { ChevronLeft, BookOpen, Brain, TrendingUp } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import { DailyWordsTab, ReviewTab, ProgressTab } from './components';
+import PulseInsightStrip from '@/components/PulseInsightStrip';
 
 type Tab = 'daily' | 'review' | 'progress';
 
@@ -82,6 +83,9 @@ export default function WordForgePage() {
 
       {/* Tab content */}
       <div className="max-w-2xl mx-auto px-4 py-6">
+        {/* Pulse Insights for Vocab */}
+        <PulseInsightStrip domains={['vocab']} />
+
         {tab === 'daily' && <DailyWordsTab />}
         {tab === 'review' && <ReviewTab />}
         {tab === 'progress' && <ProgressTab />}

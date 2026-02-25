@@ -21,7 +21,7 @@ function extractJSON(text: string): unknown {
 
 export async function POST(request: Request) {
     try {
-        const { uncompletedTasks, failedHabits, playerContext } = await request.json();
+        const { uncompletedTasks, failedHabits, playerContext, pulseData } = await request.json();
 
         if (!process.env.GOOGLE_API_KEY) {
             console.warn("No GOOGLE_API_KEY found.");
@@ -58,6 +58,13 @@ Context:
 - Player Level: ${playerContext?.level || 1}
 - Uncompleted Tasks: ${uncompletedTasks?.map((t: { title: string }) => t.title).join(', ') || 'None'}
 - Failed/Ignored Habits: ${failedHabits?.map((h: { name: string }) => h.name).join(', ') || 'None'}
+
+${pulseData ? `
+Nexus Pulse Intelligence:
+- Momentum: ${pulseData.momentum || 'unknown'}
+- Burnout Risk: ${pulseData.burnoutRisk ?? 'unknown'}
+- Current Pattern: ${pulseData.topInsight || 'N/A'}
+If burnout risk is high, make the boss more manageable (lower HP). If momentum is rising, make it an epic challenge.` : ''}
 
 Create a boss themed around these struggles (e.g., if they struggle with fitness tasks, the boss could be "The Couch Potato Leviathan").
 

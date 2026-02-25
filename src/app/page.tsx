@@ -10,6 +10,7 @@ import WeeklyPlanner from '@/components/WeeklyPlanner';
 import NextBestAction from '@/components/NextBestAction';
 import RecentActivityFeed from '@/components/RecentActivityFeed';
 import NexusPulseCard from '@/components/NexusPulseCard';
+import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
 
 import { useAuth } from '@/components/AuthProvider';
 import LoginScreen from '@/components/LoginScreen';
@@ -190,7 +191,7 @@ function DashboardContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: 'Generate a focused daily productivity plan with 1-2 actionable tasks',
-          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak }
+          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak, pulseData: getPulseDataForRoute() }
         })
       });
       const data = await response.json();

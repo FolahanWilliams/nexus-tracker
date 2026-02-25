@@ -19,6 +19,8 @@ import {
   Terminal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import PulseInsightStrip from '@/components/PulseInsightStrip';
+import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
 
 interface GeneratedQuest {
   title: string;
@@ -134,7 +136,7 @@ export default function QuestsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: generatePrompt,
-          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak }
+          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak, pulseData: getPulseDataForRoute() }
         }),
       });
 
@@ -367,6 +369,9 @@ export default function QuestsPage() {
 
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 py-8">
+        {/* Pulse Insights for Quests */}
+        <PulseInsightStrip domains={['quests', 'energy']} />
+
         {/* Add Quest Form */}
         <motion.div
           className="rpg-card mb-8"

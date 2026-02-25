@@ -62,7 +62,7 @@ function BurnoutMeter({ risk }: { risk: number }) {
 }
 
 export default function NexusPulseCard() {
-    const { insights, aiSynthesis, isLoadingAI, refreshAI, lastAIRefresh } = useNexusPulse();
+    const { insights, aiSynthesis, isLoadingAI, refreshAI, triggerEvent, lastAIRefresh } = useNexusPulse();
     const [expanded, setExpanded] = useState(false);
 
     // Auto-fetch AI synthesis once per day if not cached
@@ -96,7 +96,7 @@ export default function NexusPulseCard() {
                     <span className="text-[9px] font-semibold text-[var(--color-text-muted)] uppercase tracking-wider">Live</span>
                 </div>
                 <motion.button
-                    onClick={refreshAI}
+                    onClick={() => triggerEvent('manual_refresh')}
                     disabled={isLoadingAI}
                     className="p-1.5 rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors disabled:opacity-40"
                     whileHover={{ scale: 1.1 }}

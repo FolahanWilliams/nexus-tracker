@@ -205,7 +205,9 @@ export default function HootFAB() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [reflectionNotes.length]);
 
-    // -- Guardian Mode: Trigger Engine --
+    // -- Guardian Mode: Pulse-Powered Trigger Engine --
+    // Uses Nexus Pulse insights for smarter, data-driven nudges instead of
+    // simple threshold checks. Falls back to basic triggers if no pulse data.
     useEffect(() => {
         if (isOpen || isFocusTimerRunning) return;
 
@@ -230,6 +232,17 @@ export default function HootFAB() {
                 return false;
             };
 
+            // Read cached pulse data for smarter triggers
+            let pulseData: { burnoutRisk?: number; momentum?: string; topInsight?: string } | null = null;
+            try {
+                const raw = localStorage.getItem('nexus-pulse-ai');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed?.data) pulseData = parsed.data;
+                }
+            } catch { /* ignore */ }
+
+            // TRIGGER 1: Critical HP (kept from original — immediate danger)
             if (checkTrigger('critical_hp', () => hp < 30, {
                 text: "Your health is low! Use a potion before your next quest?",
                 actionLabel: "Heal Me",
@@ -238,8 +251,28 @@ export default function HootFAB() {
                 type: 'hp'
             })) return;
 
+            // TRIGGER 2: Burnout warning (pulse-powered — replaces generic hard quest nudge)
+            if (pulseData && checkTrigger('burnout_warning', () => (pulseData?.burnoutRisk ?? 0) > 0.6, {
+                text: "Nexus Pulse detects high burnout risk. Consider lighter tasks or a break today.",
+                actionLabel: "Lighter tasks",
+                actions: [{ action: 'navigate', params: { path: '/quests' } }],
+                priority: 'high',
+                type: 'quest'
+            })) return;
+
+            // TRIGGER 3: Declining momentum + hard tasks available (smarter quest nudge)
             const incomplete = tasks.filter(t => !t.completed);
-            if (incomplete.length > 0 && checkTrigger('urgent_quest', () => incomplete.some(t => t.difficulty === 'Hard'), {
+            const hasHardQuest = incomplete.some(t => t.difficulty === 'Hard' || t.difficulty === 'Epic');
+            if (hasHardQuest && pulseData?.momentum === 'rising' && checkTrigger('momentum_push', () => true, {
+                text: "Your momentum is rising — perfect time to tackle a Hard quest!",
+                actionLabel: "Let's go",
+                actions: [{ action: 'navigate', params: { path: '/quests' } }],
+                priority: 'medium',
+                type: 'quest'
+            })) return;
+
+            // TRIGGER 4: Hard quest breakdown (fallback when no pulse data)
+            if (!pulseData && hasHardQuest && checkTrigger('urgent_quest', () => true, {
                 text: "That Hard quest looks tough. Want to break it down?",
                 actionLabel: "Help Me",
                 actions: [{ action: 'hoot_search', params: { query: `how to handle ${incomplete.find(t => t.difficulty === 'Hard')?.title}` } }],
@@ -247,15 +280,38 @@ export default function HootFAB() {
                 type: 'quest'
             })) return;
 
+            // TRIGGER 5: Habit streak risk (enhanced with time awareness)
             const today = new Date().toISOString().split('T')[0];
             const hour = new Date().getHours();
-            const undoneHabit = habits.find(h => !h.completedDates.includes(today));
-            if (undoneHabit && hour >= 18 && checkTrigger('habit_risk', () => true, {
-                text: `Don't lose your streak on ${undoneHabit.name}!`,
+            const habitsAtRisk = habits.filter(h => h.streak >= 3 && !h.completedDates.includes(today));
+            if (habitsAtRisk.length > 0 && hour >= 18 && checkTrigger('habit_risk', () => true, {
+                text: habitsAtRisk.length > 1
+                    ? `${habitsAtRisk.length} habit streaks at risk! ${habitsAtRisk.slice(0, 2).map(h => h.name).join(' & ')} need attention.`
+                    : `Don't lose your ${habitsAtRisk[0].streak}-day streak on ${habitsAtRisk[0].name}!`,
                 actionLabel: "Do it now",
-                actions: [{ action: 'complete_habit', params: { id: undoneHabit.id } }],
+                actions: [{ action: 'complete_habit', params: { habitName: habitsAtRisk[0].name } }],
                 priority: 'high',
                 type: 'habit'
+            })) return;
+
+            // TRIGGER 6: Vocab review pile-up (new pulse-driven trigger)
+            const state = useGameStore.getState();
+            const dueVocab = state.vocabWords.filter(w => w.nextReviewDate <= today).length;
+            if (dueVocab >= 10 && checkTrigger('vocab_pileup', () => true, {
+                text: `${dueVocab} vocab words are due for review. A quick 5-minute session can keep your memory fresh!`,
+                actionLabel: "Review now",
+                actions: [{ action: 'navigate', params: { path: '/wordforge' } }],
+                priority: 'medium',
+                type: 'quest'
+            })) return;
+
+            // TRIGGER 7: Celebration nudge (pulse-powered positive reinforcement)
+            if (pulseData?.momentum === 'rising' && (pulseData?.burnoutRisk ?? 1) < 0.3 && checkTrigger('celebration', () => true, {
+                text: pulseData?.topInsight || "You're on fire — keep this momentum going!",
+                actionLabel: "Thanks Hoot!",
+                actions: [],
+                priority: 'low',
+                type: 'celebration'
             })) return;
         };
 
