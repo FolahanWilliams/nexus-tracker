@@ -109,7 +109,19 @@ Output ONLY a valid JSON object: { "words": [...] }`;
             throw new Error('Invalid response structure');
         }
 
-        return NextResponse.json(data);
+        // Validate each word has required fields, discard malformed entries
+        const validWords = (data.words as Record<string, unknown>[]).filter(w =>
+            typeof w.word === 'string' &&
+            typeof w.definition === 'string' &&
+            typeof w.partOfSpeech === 'string' &&
+            Array.isArray(w.examples)
+        );
+
+        if (validWords.length === 0) {
+            throw new Error('All words failed validation');
+        }
+
+        return NextResponse.json({ words: validWords });
     } catch (error) {
         console.error('Vocab generation error:', error);
         return NextResponse.json({

@@ -80,7 +80,21 @@ Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "multiple_choic
             throw new Error('Invalid quiz response');
         }
 
-        return NextResponse.json(data);
+        // Validate each question has required fields
+        const validQuestions = (data.questions as Record<string, unknown>[]).filter(q =>
+            typeof q.word === 'string' &&
+            typeof q.question === 'string' &&
+            Array.isArray(q.options) &&
+            typeof q.correctIndex === 'number' &&
+            q.correctIndex >= 0 &&
+            q.correctIndex < (q.options as unknown[]).length
+        );
+
+        if (validQuestions.length === 0) {
+            throw new Error('All questions failed validation');
+        }
+
+        return NextResponse.json({ questions: validQuestions });
     } catch (error) {
         console.error('Quiz generation error:', error);
         return NextResponse.json({
