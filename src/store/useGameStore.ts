@@ -392,6 +392,7 @@ export interface GameState {
     addTask: (title: string, difficulty?: Task['difficulty'], xp?: number, category?: TaskCategory, recurring?: Task['recurring'], duration?: TaskDuration) => void;
     toggleTask: (id: string) => void;
     deleteTask: (id: string) => void;
+    restoreTask: (task: Task) => void;
     resetProgress: () => void;
     closeLevelUp: () => void;
     clearDroppedItem: () => void;
@@ -451,6 +452,7 @@ export interface GameState {
     addHabit: (name: string, icon: string, category: TaskCategory, xpReward: number) => void;
     completeHabit: (habitId: string) => void;
     deleteHabit: (habitId: string) => void;
+    restoreHabit: (habit: Habit) => void;
     checkHabitResets: () => void;
 
     // Goal Actions
@@ -458,6 +460,7 @@ export interface GameState {
     completeGoalMilestone: (goalId: string, milestoneId: string) => void;
     completeGoal: (goalId: string) => void;
     deleteGoal: (goalId: string) => void;
+    restoreGoal: (goal: Goal) => void;
 
     // Intention & Reflection Actions
     setDailyIntention: (intention: string, energyRating: number) => void;
@@ -489,6 +492,7 @@ export interface GameState {
     setVocabDailyDate: (date: string) => void;
     updateVocabLevel: () => void;
     deleteVocabWord: (wordId: string) => void;
+    restoreVocabWord: (word: VocabWord) => void;
     checkVocabStreak: () => void;
     setUserMnemonic: (wordId: string, mnemonic: string) => void;
     setWordConfidence: (wordId: string, confidence: number) => void;
@@ -1566,9 +1570,19 @@ export const useGameStore = create<GameState>()(
             },
 
             deleteTask: (id) => {
+                // Cancel any pending recurring reset timer for this task
+                const existingTimer = recurringTaskTimers.get(id);
+                if (existingTimer !== undefined) {
+                    clearTimeout(existingTimer);
+                    recurringTaskTimers.delete(id);
+                }
                 set((state) => ({
                     tasks: state.tasks.filter((t) => t.id !== id),
                 }));
+            },
+
+            restoreTask: (task) => {
+                set((state) => ({ tasks: [...state.tasks, task] }));
             },
 
             // RPG Actions - Inventory
@@ -1813,6 +1827,10 @@ export const useGameStore = create<GameState>()(
                 set((state) => ({ habits: state.habits.filter(h => h.id !== habitId) }));
             },
 
+            restoreHabit: (habit) => {
+                set((state) => ({ habits: [...state.habits, habit] }));
+            },
+
             checkHabitResets: () => {
                 const today = new Date().toISOString().split('T')[0];
                 const yesterday = new Date();
@@ -1907,6 +1925,10 @@ export const useGameStore = create<GameState>()(
 
             deleteGoal: (goalId) => {
                 set((state) => ({ goals: state.goals.filter(g => g.id !== goalId) }));
+            },
+
+            restoreGoal: (goal) => {
+                set((state) => ({ goals: [...state.goals, goal] }));
             },
 
             // Intention & Reflection Actions
@@ -2096,19 +2118,19 @@ export const useGameStore = create<GameState>()(
                             } else if (repetitions === 1) {
                                 interval = 3;
                             } else {
-                                interval = Math.round(interval * easeFactor);
+                                interval = Math.min(365, Math.round(interval * easeFactor));
                             }
                             repetitions += 1;
                         } else {
                             // Failed — reset
-                            repetitions = 0;
-                            interval = 0; // review again today/tomorrow
+                            repetitions = Math.max(0, repetitions - 1);
+                            interval = repetitions === 0 ? 0 : 1; // near-immediate re-review
                         }
 
-                        // Update ease factor (minimum 1.3)
-                        easeFactor = Math.max(1.3,
+                        // Update ease factor (clamped to 1.3–3.0)
+                        easeFactor = Math.min(3.0, Math.max(1.3,
                             easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
-                        );
+                        ));
 
                         // Determine status
                         let status: VocabStatus = w.status;
@@ -2196,6 +2218,10 @@ export const useGameStore = create<GameState>()(
                 set(state => ({
                     vocabWords: state.vocabWords.filter(w => w.id !== wordId),
                 }));
+            },
+
+            restoreVocabWord: (word) => {
+                set(state => ({ vocabWords: [...state.vocabWords, word] }));
             },
 
             checkVocabStreak: () => {

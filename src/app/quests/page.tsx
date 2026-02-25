@@ -28,8 +28,10 @@ interface GeneratedQuest {
   xp: number;
 }
 
+const QUESTS_PER_PAGE = 20;
+
 export default function QuestsPage() {
-  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, lastCriticalHit, clearCriticalHit, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
+  const { tasks, addTask, toggleTask, deleteTask, restoreTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, lastCriticalHit, clearCriticalHit, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
   const { addToast } = useToastStore();
 
   // Show toast when an item drops from the store
@@ -54,6 +56,7 @@ export default function QuestsPage() {
   const [recurring, setRecurring] = useState<'none' | 'daily' | 'weekly'>('none');
   const [duration, setDuration] = useState<TaskDuration>('1-hour');
   const [filterCategory, setFilterCategory] = useState<TaskCategory | 'All'>('All');
+  const [questsVisible, setQuestsVisible] = useState(QUESTS_PER_PAGE);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
   const [isAutoTagging, setIsAutoTagging] = useState(false);
@@ -138,6 +141,7 @@ export default function QuestsPage() {
           prompt: generatePrompt,
           context: { name: characterName, characterClass, level, totalQuestsCompleted, streak, pulseData: getPulseDataForRoute() }
         }),
+        signal: AbortSignal.timeout(30000),
       });
 
       const data = await response.json();
@@ -159,7 +163,9 @@ export default function QuestsPage() {
       setGeneratePrompt('');
     } catch (error) {
       console.error('Failed to generate quests:', error);
-      addToast('Network error. Check your connection and try again.', 'error');
+      const msg = error instanceof DOMException && error.name === 'TimeoutError'
+        ? 'AI request timed out. Try again.' : 'Network error. Check your connection and try again.';
+      addToast(msg, 'error');
     } finally {
       setIsGenerating(false);
     }
@@ -178,6 +184,7 @@ export default function QuestsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title }),
+        signal: AbortSignal.timeout(15000),
       });
 
       const data = await response.json();
@@ -213,7 +220,8 @@ export default function QuestsPage() {
       const response = await fetch('/api/quest-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: nlCommand, tasks })
+        body: JSON.stringify({ command: nlCommand, tasks }),
+        signal: AbortSignal.timeout(15000),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
@@ -734,7 +742,7 @@ export default function QuestsPage() {
           ) : (
             <div className="space-y-2">
               <AnimatePresence>
-                {filteredTasks.map((task, index) => (
+                {filteredTasks.slice(0, questsVisible).map((task, index) => (
                   <motion.div
                     key={task.id}
                     className={`flex items-center gap-4 p-4 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded transition-all hover:border-[var(--color-purple)] ${task.completed ? 'opacity-60' : ''
@@ -823,8 +831,9 @@ export default function QuestsPage() {
 
                     <motion.button
                       onClick={() => {
+                        const backup = { ...task };
                         deleteTask(task.id);
-                        addToast('Quest deleted', 'info');
+                        addToast('Quest deleted', 'info', () => restoreTask(backup));
                       }}
                       className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-red)] focus:ring-offset-2 rounded"
                       whileHover={{ scale: 1.1 }}
@@ -843,6 +852,14 @@ export default function QuestsPage() {
                   </motion.div>
                 ))}
               </AnimatePresence>
+              {filteredTasks.length > questsVisible && (
+                <button
+                  onClick={() => setQuestsVisible(prev => prev + QUESTS_PER_PAGE)}
+                  className="w-full mt-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--color-text-secondary)] hover:text-white bg-[var(--color-bg-dark)] border border-[var(--color-border)] hover:border-[var(--color-purple)] transition-all"
+                >
+                  Show more ({filteredTasks.length - questsVisible} remaining)
+                </button>
+              )}
             </div>
           )}
         </motion.div>

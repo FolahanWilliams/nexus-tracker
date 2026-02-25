@@ -10,6 +10,7 @@ import WeeklyPlanner from '@/components/WeeklyPlanner';
 import NextBestAction from '@/components/NextBestAction';
 import RecentActivityFeed from '@/components/RecentActivityFeed';
 import NexusPulseCard from '@/components/NexusPulseCard';
+import SyncStatusIndicator from '@/components/SyncStatusIndicator';
 import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
 
 import { useAuth } from '@/components/AuthProvider';
@@ -192,7 +193,8 @@ function DashboardContent() {
         body: JSON.stringify({
           prompt: 'Generate a focused daily productivity plan with 1-2 actionable tasks',
           context: { name: characterName, characterClass, level, totalQuestsCompleted, streak, pulseData: getPulseDataForRoute() }
-        })
+        }),
+        signal: AbortSignal.timeout(30000),
       });
       const data = await response.json();
       const questList = data.quests ?? data.tasks;
@@ -204,8 +206,10 @@ function DashboardContent() {
         });
         addToast(`Generated ${questList.length} AI-powered quests!`, 'success');
       }
-    } catch {
-      addToast('Failed to generate plan. Try again.', 'error');
+    } catch (err) {
+      const msg = err instanceof DOMException && err.name === 'TimeoutError'
+        ? 'AI request timed out. Try again.' : 'Failed to generate plan. Try again.';
+      addToast(msg, 'error');
     }
     setIsGeneratingPlan(false);
   };
@@ -237,14 +241,17 @@ function DashboardContent() {
         <div className="absolute bottom-0 left-4 w-24 h-24 rounded-full bg-[var(--color-blue)]/10 blur-2xl" />
         <div className="absolute inset-0 flex items-end px-4 py-5">
           <div className="max-w-3xl lg:max-w-5xl mx-auto w-full">
-            <motion.p
-              className="text-[10px] text-[var(--color-purple-light)] uppercase tracking-[0.2em] font-bold mb-1.5"
+            <motion.div
+              className="flex items-center gap-3 mb-1.5"
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
             >
-              War Room
-            </motion.p>
+              <p className="text-[10px] text-[var(--color-purple-light)] uppercase tracking-[0.2em] font-bold">
+                War Room
+              </p>
+              <SyncStatusIndicator />
+            </motion.div>
             <motion.h1
               className="text-lg font-bold leading-tight"
               initial={{ opacity: 0, y: 8 }}

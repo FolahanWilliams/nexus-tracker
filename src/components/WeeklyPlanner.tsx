@@ -41,7 +41,8 @@ export default function WeeklyPlanner() {
                     streaks: streak,
                     playerContext: { name: characterName, characterClass, level, streak },
                     pulseData: getPulseDataForRoute()
-                })
+                }),
+                signal: AbortSignal.timeout(30000),
             });
 
             const data = await response.json();

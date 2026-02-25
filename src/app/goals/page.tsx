@@ -40,7 +40,7 @@ function getDaysLeft(targetDate: string): number {
 }
 
 export default function GoalsPage() {
-  const { goals, addGoal, completeGoalMilestone, completeGoal, deleteGoal, updateGoalProgress } = useGameStore();
+  const { goals, addGoal, completeGoalMilestone, completeGoal, deleteGoal, restoreGoal, updateGoalProgress } = useGameStore();
   const { addToast } = useToastStore();
 
   const [showAdd, setShowAdd] = useState(false);
@@ -353,8 +353,9 @@ export default function GoalsPage() {
                       </button>
                       <button
                         onClick={() => {
+                          const backup = { ...goal, milestones: [...goal.milestones] };
                           deleteGoal(goal.id);
-                          addToast(`Goal "${goal.title}" removed`, 'info');
+                          addToast(`Goal "${goal.title}" removed`, 'info', () => restoreGoal(backup));
                         }}
                         className="p-1.5 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors"
                         aria-label="Delete goal"
@@ -420,7 +421,11 @@ export default function GoalsPage() {
                   <CheckCircle size={20} className="text-[var(--color-green)] flex-shrink-0" />
                   <span className="text-sm line-through flex-1 truncate">{goal.title}</span>
                   <button
-                    onClick={() => deleteGoal(goal.id)}
+                    onClick={() => {
+                      const backup = { ...goal, milestones: [...goal.milestones] };
+                      deleteGoal(goal.id);
+                      addToast(`Goal "${goal.title}" removed`, 'info', () => restoreGoal(backup));
+                    }}
                     className="p-1 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors"
                   >
                     <Trash2 size={14} />
