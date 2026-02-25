@@ -14,6 +14,17 @@ import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 
 // ─── Shared helpers ──────────────────────────────────────────────
+
+/** Fisher-Yates shuffle — returns a new shuffled copy of the array. */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 const DIFFICULTY_COLORS: Record<VocabDifficulty, string> = {
   beginner: 'var(--color-green)',
   intermediate: 'var(--color-blue)',
@@ -66,7 +77,9 @@ export function DailyWordsTab() {
         logActivity('xp_earned', '📚', `Generated ${data.words.length} new vocab words`, '+20 XP');
         if (data.isMock) addToast('Using sample words (no API key)', 'info');
       }
-    } catch {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Failed to generate vocab words:', message);
       addToast('Failed to generate words. Try again.', 'error');
     } finally {
       setLoading(false);
@@ -397,6 +410,9 @@ export function ReviewTab() {
   const [studyBatch, setStudyBatch] = useState<VocabWord[]>([]);
   const [pendingQuizType, setPendingQuizType] = useState<'quiz' | 'recall'>('quiz');
 
+  // Practice mode: quiz on all words when none are due
+  const [isPractice, setIsPractice] = useState(false);
+
   // Confidence tracking state
   const [confidenceRatings, setConfidenceRatings] = useState<Record<string, number>>({});
 
@@ -406,19 +422,21 @@ export function ReviewTab() {
     [vocabWords, today]
   );
 
-  const startStudyCards = useCallback((nextMode: 'quiz' | 'recall') => {
-    if (dueWords.length === 0) {
-      addToast('No words due for review!', 'info');
+  const startStudyCards = useCallback((nextMode: 'quiz' | 'recall', practice = false) => {
+    const pool = practice ? vocabWords : dueWords;
+    if (pool.length === 0) {
+      addToast(practice ? 'No words to practice!' : 'No words due for review!', 'info');
       return;
     }
-    const batch = dueWords.slice(0, 10);
+    setIsPractice(practice);
+    const batch = shuffleArray(pool).slice(0, 10);
     setStudyBatch(batch);
     setStudyCardIdx(0);
     setStudyCardFlipped(false);
     setPendingQuizType(nextMode);
     setConfidenceRatings({});
     setMode('study');
-  }, [dueWords, addToast]);
+  }, [dueWords, vocabWords, addToast]);
 
   const handleStudyConfidence = (wordId: string, confidence: number) => {
     setConfidenceRatings(prev => ({ ...prev, [wordId]: confidence }));
@@ -455,7 +473,8 @@ export function ReviewTab() {
     setShowAnswer(false);
     setShowHint(false);
 
-    const reviewBatch = dueWords.slice(0, 10);
+    // Use the already-shuffled study batch so question order differs each session
+    const reviewBatch = studyBatch.length > 0 ? studyBatch : shuffleArray(dueWords).slice(0, 10);
     try {
       const res = await fetch('/api/vocab/generate-quiz', {
         method: 'POST',
@@ -471,20 +490,25 @@ export function ReviewTab() {
       });
       const data = await res.json();
       if (data.questions && data.questions.length > 0) {
-        setQuestions(data.questions);
+        // Shuffle the returned questions so they don't follow input order
+        setQuestions(shuffleArray(data.questions));
         setMode('quiz');
       } else {
         addToast('Could not generate quiz. Try free recall instead.', 'error');
         setMode('idle');
       }
-    } catch {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Quiz generation failed:', message);
       addToast('Network error generating quiz.', 'error');
       setMode('idle');
     }
-  }, [dueWords, vocabWords, addToast]);
+  }, [dueWords, studyBatch, vocabWords, addToast]);
 
   const launchFreeRecall = useCallback(() => {
-    const batch = dueWords.slice(0, 10).map(w => ({
+    // Use the already-shuffled study batch, or shuffle due words as fallback
+    const pool = studyBatch.length > 0 ? studyBatch : shuffleArray(dueWords).slice(0, 10);
+    const batch = shuffleArray(pool).map(w => ({
       word: w.word,
       type: 'free_recall' as const,
       question: `What does "${w.word}" mean?`,
@@ -497,7 +521,7 @@ export function ReviewTab() {
     setRecallInput('');
     setShowAnswer(false);
     setShowHint(false);
-  }, [dueWords]);
+  }, [dueWords, studyBatch]);
 
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -508,14 +532,15 @@ export function ReviewTab() {
     const q = questions[currentIdx];
     const correct = optionIdx === q.correctIndex;
     const wordObj = vocabWords.find(w => w.word === q.word);
-    if (wordObj) {
+    // Only update SM-2 scheduling during real reviews, not practice
+    if (wordObj && !isPractice) {
       const quality = correct ? 4 : 1;
       reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5);
     }
     const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
     setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
     if (correct) {
-      triggerXPFloat('+15 XP', '#4ade80');
+      triggerXPFloat(isPractice ? '+5 XP' : '+15 XP', '#4ade80');
     }
     // Auto-advance after a brief delay so user can see the result
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
@@ -534,13 +559,14 @@ export function ReviewTab() {
   const handleRecallSelfGrade = (quality: 0 | 1 | 2 | 3 | 4 | 5) => {
     const q = questions[currentIdx];
     const wordObj = vocabWords.find(w => w.word === q.word);
-    if (wordObj) {
+    // Only update SM-2 scheduling during real reviews, not practice
+    if (wordObj && !isPractice) {
       reviewVocabWord(wordObj.id, quality);
     }
     const correct = quality >= 3;
     const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
     setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
-    if (correct) triggerXPFloat('+15 XP', '#4ade80');
+    if (correct) triggerXPFloat(isPractice ? '+5 XP' : '+15 XP', '#4ade80');
     advanceQuestion();
   };
 
@@ -553,14 +579,17 @@ export function ReviewTab() {
       setShowHint(false);
     } else {
       setMode('done');
-      checkVocabStreak();
-      updateVocabLevel();
+      if (!isPractice) {
+        checkVocabStreak();
+        updateVocabLevel();
+      }
       const correctCount = sessionResults.length > 0
         ? sessionResults.filter(r => r.correct).length + (selectedAnswer === questions[currentIdx]?.correctIndex ? 1 : 0)
         : 0;
       const acc = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
-      addToast(`Review complete! ${correctCount}/${questions.length} correct`, 'success');
-      logActivity('xp_earned', '🧠', `Vocab review: ${correctCount}/${questions.length} correct (${acc}%)`, `WordForge review session`);
+      const label = isPractice ? 'Practice' : 'Review';
+      addToast(`${label} complete! ${correctCount}/${questions.length} correct`, 'success');
+      logActivity('xp_earned', '🧠', `Vocab ${label.toLowerCase()}: ${correctCount}/${questions.length} correct (${acc}%)`, `WordForge ${label.toLowerCase()} session`);
     }
   };
 
@@ -609,6 +638,29 @@ export function ReviewTab() {
               <Brain size={16} /> Free Recall
             </button>
           </div>
+
+          {/* Practice mode — available when no words are due but words exist */}
+          {dueWords.length === 0 && vocabWords.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
+              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2 flex items-center gap-1">
+                <RefreshCw size={10} /> Practice Mode — quiz without affecting review schedule
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => startStudyCards('quiz', true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:brightness-110 border border-[var(--color-blue)]/40 text-[var(--color-blue)] bg-[var(--color-blue)]/10"
+                >
+                  <BarChart3 size={14} /> Practice Quiz
+                </button>
+                <button
+                  onClick={() => startStudyCards('recall', true)}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:brightness-110 border border-[var(--color-purple)]/40 text-[var(--color-purple)] bg-[var(--color-purple)]/10"
+                >
+                  <Brain size={14} /> Practice Recall
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {vocabStreak > 0 && (
@@ -644,7 +696,7 @@ export function ReviewTab() {
         </div>
 
         <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1">
-          <Layers size={12} /> Study Cards — review before your quiz
+          <Layers size={12} /> {isPractice ? 'Practice Cards' : 'Study Cards'} — review before your quiz
         </p>
 
         {/* Flashcard */}
@@ -763,7 +815,7 @@ export function ReviewTab() {
       <div className="space-y-4">
         <div className="text-center py-8 p-6 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]">
           <div className="text-4xl mb-3">{accuracy >= 80 ? '🏆' : accuracy >= 50 ? '💪' : '📖'}</div>
-          <h3 className="text-lg font-bold mb-1">Session Complete!</h3>
+          <h3 className="text-lg font-bold mb-1">{isPractice ? 'Practice' : 'Session'} Complete!</h3>
           <p className="text-2xl font-bold mb-1" style={{ color: accuracy >= 80 ? 'var(--color-green)' : accuracy >= 50 ? 'var(--color-orange)' : 'var(--color-red)' }}>
             {accuracy}% Accuracy
           </p>
@@ -833,12 +885,22 @@ export function ReviewTab() {
           ))}
         </div>
 
-        <button
-          onClick={() => setMode('idle')}
-          className="w-full py-2.5 rounded-lg text-sm font-bold bg-[var(--color-bg-card)] border border-[var(--color-border)] text-white hover:bg-[var(--color-bg-hover)] transition-colors"
-        >
-          Back to Review
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setMode('idle')}
+            className="flex-1 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-bg-card)] border border-[var(--color-border)] text-white hover:bg-[var(--color-bg-hover)] transition-colors"
+          >
+            Back to Review
+          </button>
+          {vocabWords.length > 0 && (
+            <button
+              onClick={() => startStudyCards('quiz', true)}
+              className="flex-1 py-2.5 rounded-lg text-sm font-bold border border-[var(--color-blue)]/40 text-[var(--color-blue)] bg-[var(--color-blue)]/10 hover:bg-[var(--color-blue)]/20 transition-colors"
+            >
+              Practice Again
+            </button>
+          )}
+        </div>
       </div>
     );
   }
