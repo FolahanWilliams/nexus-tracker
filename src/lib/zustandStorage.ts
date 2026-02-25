@@ -6,6 +6,7 @@
 import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
 import { saveToSupabase, loadFromSupabase } from './supabaseSync';
+import { logger } from './logger';
 
 // ── Debounce ─────────────────────────────────────────────────────────────
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -49,7 +50,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
           new Promise<null>((resolve) => {
             timeoutId = setTimeout(() => {
               timeoutId = null;
-              console.warn('[sync] Cloud load timed out');
+              logger.warn('Cloud load timed out', 'sync');
               resolve(null);
             }, TIMEOUT_MS);
           }),
@@ -67,7 +68,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
       const raw = await hybridStorage.load();
       return raw ? (JSON.parse(raw) as StorageValue<T>) : null;
     } catch (error) {
-      console.error('[sync] getItem error:', error);
+      logger.error('getItem error', 'sync', error);
       return null;
     }
   },
@@ -102,7 +103,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
         }
       }, DEBOUNCE_MS);
     } catch (error) {
-      console.error('[sync] setItem error:', error);
+      logger.error('setItem error', 'sync', error);
       localStorage.setItem(name, serialized);
     }
   },

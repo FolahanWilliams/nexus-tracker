@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { GameState, RpgSlice, InventoryItem, CraftingRecipe, QuestChain } from '../types';
 import { validateShopItemName, validateCost, ValidationError } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 const CRAFTING_RECIPES: CraftingRecipe[] = [
     { id: 'health-potion', name: 'Health Potion', description: 'Restores HP', icon: '🧪', rarity: 'Common', inputs: [{ itemId: 'herbs', quantity: 2 }], output: { name: 'Health Potion', description: 'Restores 50 HP', type: 'consumable', rarity: 'Common', icon: '🧪', quantity: 1, stats: { hpRestore: 50 }, usable: true, consumableEffect: { type: 'heal', value: 50 } } },
@@ -195,7 +196,7 @@ export const createRpgSlice: StateCreator<GameState, [], [], RpgSlice> = (set, g
             const newItem = { id: crypto.randomUUID(), name: validatedName, cost: validatedCost, purchased: false };
             set((state) => ({ shopItems: [...state.shopItems, newItem] }));
         } catch (error) {
-            if (error instanceof ValidationError) console.error('Validation error:', error.message);
+            if (error instanceof ValidationError) logger.error(`Validation error: ${error.message}`, 'store');
             throw error;
         }
     },

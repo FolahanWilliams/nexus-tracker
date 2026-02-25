@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useGameStore, Task, Habit, VocabWord } from '@/store/useGameStore';
+import { logger } from '@/lib/logger';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Nexus Pulse — Client-side heuristic engine + event-driven AI synthesis
@@ -548,7 +549,7 @@ export function useNexusPulse(): NexusPulseData {
             setCachedSynthesis(data);
             appendHistory(data, snapshot);
         } catch (err) {
-            console.error('[NexusPulse] AI refresh failed:', err);
+            logger.error('AI refresh failed', 'NexusPulse', err);
         } finally {
             setIsLoadingAI(false);
             fetchingRef.current = false;
@@ -558,7 +559,7 @@ export function useNexusPulse(): NexusPulseData {
     // Event-driven trigger function
     const triggerEvent = useCallback((event: PulseEvent) => {
         const force = event === 'manual_refresh';
-        console.log(`[NexusPulse] Event: ${event}`);
+        logger.info(`Event: ${event}`, 'NexusPulse');
         refreshAI(force);
     }, [refreshAI]);
 

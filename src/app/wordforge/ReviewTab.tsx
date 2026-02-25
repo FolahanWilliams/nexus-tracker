@@ -8,6 +8,7 @@ import {
   Layers, ThumbsUp, ThumbsDown, Minus, ArrowRight,
   Lightbulb,
 } from 'lucide-react';
+import { logger } from '@/lib/logger';
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
@@ -128,7 +129,7 @@ export default function ReviewTab() {
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Quiz generation failed:', message);
+      logger.error(`Quiz generation failed: ${message}`, 'wordforge');
       addToast('Network error generating quiz.', 'error');
       setMode('idle');
     }

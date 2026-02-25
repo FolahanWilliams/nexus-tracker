@@ -7,7 +7,8 @@ import {
   ChevronDown, ChevronUp, Eye, EyeOff, Trash2, Brain,
   BookOpen, PenLine, GitBranch, Search, X, Filter,
 } from 'lucide-react';
-import { useGameStore, VocabWord, VocabDifficulty } from '@/store/useGameStore';
+import { useGameStore, VocabWord } from '@/store/useGameStore';
+import { logger } from '@/lib/logger';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { DIFFICULTY_COLORS, STATUS_LABELS } from './shared';
@@ -57,7 +58,7 @@ export default function DailyWordsTab() {
       }
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('Failed to generate vocab words:', message);
+      logger.error(`Failed to generate vocab words: ${message}`, 'wordforge');
       addToast('Failed to generate words. Try again.', 'error');
     } finally {
       setLoading(false);

@@ -3,6 +3,7 @@
 import { useGameStore, QuestChain, QuestStep, StepBranch } from '@/store/useGameStore';
 import { useState } from 'react';
 import { useToastStore } from '@/components/ToastContainer';
+import { logger } from '@/lib/logger';
 import {
   Map,
   Check,
@@ -109,7 +110,7 @@ export default function QuestChainsPage() {
       addToast('AI Quest Chain generated! Review and create.', 'success');
       setGeneratePrompt('');
     } catch (error) {
-      console.error('Failed to generate chain:', error);
+      logger.error('Failed to generate chain', 'chains', error);
       addToast('Failed to generate chain. Try again.', 'error');
     } finally {
       setIsGenerating(false);

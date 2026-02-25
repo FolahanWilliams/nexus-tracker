@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
     try {
@@ -9,13 +11,11 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Command is required' }, { status: 400 });
         }
 
-        if (!process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({
-                action: 'none',
-                message: 'AI unavailable. Try editing quests manually.',
-                isMock: true
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            action: 'none',
+            message: 'AI unavailable. Try editing quests manually.',
+        });
+        if (mock) return mock;
 
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
@@ -63,7 +63,7 @@ Interpret this command:`;
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Quest Command Error:', error);
+        logger.error('Quest Command Error', 'quest-command', error);
         return NextResponse.json({
             action: 'none',
             message: 'Failed to process command. Try again.',

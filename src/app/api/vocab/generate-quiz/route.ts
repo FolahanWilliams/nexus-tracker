@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 interface QuizWord {
     word: string;
@@ -18,23 +20,21 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'No words provided' }, { status: 400 });
         }
 
-        if (!process.env.GOOGLE_API_KEY) {
-            // Generate mock quiz questions
-            const questions = words.map((w: QuizWord) => ({
-                word: w.word,
-                type: 'multiple_choice',
-                question: `What does "${w.word}" mean?`,
-                options: [
-                    w.definition,
-                    'An incorrect definition option A',
-                    'An incorrect definition option B',
-                    'An incorrect definition option C',
-                ],
-                correctIndex: 0,
-                hint: `This is a ${w.partOfSpeech}.`,
-            }));
-            return NextResponse.json({ questions, isMock: true });
-        }
+        const mockQuestions = words.map((w: QuizWord) => ({
+            word: w.word,
+            type: 'multiple_choice',
+            question: `What does "${w.word}" mean?`,
+            options: [
+                w.definition,
+                'An incorrect definition option A',
+                'An incorrect definition option B',
+                'An incorrect definition option C',
+            ],
+            correctIndex: 0,
+            hint: `This is a ${w.partOfSpeech}.`,
+        }));
+        const mock = hasApiKeyOrMock({ questions: mockQuestions });
+        if (mock) return mock;
 
         const model = genAI.getGenerativeModel({
             model: 'gemini-2.0-flash',
@@ -96,7 +96,7 @@ Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "multiple_choic
 
         return NextResponse.json({ questions: validQuestions });
     } catch (error) {
-        console.error('Quiz generation error:', error);
+        logger.error('Quiz generation error', 'generate-quiz', error);
         return NextResponse.json({
             questions: [],
             isMock: true,

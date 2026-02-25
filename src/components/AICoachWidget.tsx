@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Sparkles, BarChart3, ExternalLink, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 interface CoachSource {
     title: string;
@@ -72,7 +73,7 @@ export default function AICoachWidget() {
             const data: CoachResponse = await response.json();
             setMessages(prev => [...prev, data]);
         } catch (error) {
-            console.error('AI Coach error:', error);
+            logger.error('AI Coach error', 'AICoach', error);
             setMessages(prev => [...prev, {
                 message: "I couldn't connect right now, but I'm still rooting for you! 🦉",
                 trendInsight: null,

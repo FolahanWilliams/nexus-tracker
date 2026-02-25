@@ -7,6 +7,7 @@ import { hybridStorage } from '@/lib/indexedDB';
 import { useToastStore } from '@/components/ToastContainer';
 import { useGameStore } from '@/store/useGameStore';
 import { setCachedUid } from '@/lib/zustandStorage';
+import { logger } from '@/lib/logger';
 
 interface AuthContext {
     user: User | null;
@@ -91,7 +92,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             });
             if (error) throw error;
         } catch (error: unknown) {
-            console.error('Sign-in error:', error);
+            logger.error('Sign-in error', 'auth', error);
             const message = error instanceof Error ? error.message : 'Sign-in failed';
             useToastStore.getState().addToast(message, 'error');
         }
@@ -104,7 +105,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
             await hybridStorage.clear();
             await supabase.auth.signOut();
         } catch (error) {
-            console.error('Sign-out error:', error);
+            logger.error('Sign-out error', 'auth', error);
         }
     };
 

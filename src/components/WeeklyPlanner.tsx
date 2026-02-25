@@ -6,6 +6,7 @@ import { useToastStore } from '@/components/ToastContainer';
 import { Calendar, Sparkles, X, Lightbulb, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
+import { logger } from '@/lib/logger';
 
 interface DayPlan {
     day: string;
@@ -50,7 +51,7 @@ export default function WeeklyPlanner() {
             setPlan(data);
             addToast('Weekly strategy generated! 📋', 'success');
         } catch (error) {
-            console.error('Weekly plan error:', error);
+            logger.error('Weekly plan error', 'WeeklyPlanner', error);
             addToast('Failed to generate plan. Try again.', 'error');
         } finally {
             setIsLoading(false);

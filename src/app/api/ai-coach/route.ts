@@ -1,19 +1,18 @@
 import { DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
     try {
         const { reflection, energyRating, recentTasks, playerContext, reflectionHistory } = await request.json();
 
-        if (!process.env.GOOGLE_API_KEY) {
-            console.warn("No GOOGLE_API_KEY found.");
-            return NextResponse.json({
-                message: "You're doing great! Keep up the good work. (Mock AI Response)",
-                trendInsight: null,
-                isMock: true
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            message: "You're doing great! Keep up the good work. (Mock AI Response)",
+            trendInsight: null,
+        });
+        if (mock) return mock;
 
         // Use Google Search Grounding so Hoot can cite real articles, studies,
         // and current information when coaching the user.
@@ -70,7 +69,7 @@ Example trendInsight: "Your energy consistently dips on Thursdays — consider s
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Gemini Coach Error:', error);
+        logger.error('Gemini Coach Error', 'ai-coach', error);
         return NextResponse.json({
             message: "I couldn't process that right now, but I believe in you!",
             trendInsight: null,

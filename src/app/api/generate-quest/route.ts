@@ -1,21 +1,20 @@
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
         const { prompt, context } = await request.json();
 
-        if (!process.env.GOOGLE_API_KEY) {
-            console.warn("No GOOGLE_API_KEY found.");
-            return NextResponse.json({
-                quests: [
-                    { title: `[MOCK] Research: ${prompt}`, xp: 20, difficulty: 'Easy' },
-                    { title: `[MOCK] Plan: ${prompt}`, xp: 50, difficulty: 'Medium' },
-                    { title: `[MOCK] Execute: ${prompt}`, xp: 100, difficulty: 'Hard' }
-                ],
-                isMock: true
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            quests: [
+                { title: `[MOCK] Research: ${prompt}`, xp: 20, difficulty: 'Easy' },
+                { title: `[MOCK] Plan: ${prompt}`, xp: 50, difficulty: 'Medium' },
+                { title: `[MOCK] Execute: ${prompt}`, xp: 100, difficulty: 'Hard' }
+            ],
+        });
+        if (mock) return mock;
 
         // Google Search Grounding lets the AI research the user's goal in real-time
         // so quests reference accurate, current information (e.g., latest docs, tutorials).
@@ -70,7 +69,7 @@ Output ONLY a valid JSON object with a "quests" array. No other text.`;
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Gemini Generation Error:', error);
+        logger.error('Gemini Generation Error', 'generate-quest', error);
         return NextResponse.json({
             quests: [
                 { title: 'Plan your approach', xp: 10, difficulty: 'Easy' },

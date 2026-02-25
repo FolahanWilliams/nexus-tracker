@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { GameState, GoalSlice, Goal, TimelineEvent } from '../types';
 import { validateGoalTitle, validateGoalDescription, validateTimelineEventName, validateTimelineSubject, ValidationError } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set, get) => ({
     // ── State ──
@@ -37,7 +38,7 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
             };
             set((state) => ({ goals: [...state.goals, newGoal] }));
         } catch (error) {
-            if (error instanceof ValidationError) console.error('Validation error:', error.message);
+            if (error instanceof ValidationError) logger.error(`Validation error: ${error.message}`, 'store');
             throw error;
         }
     },
@@ -101,7 +102,7 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
             const newEvent: TimelineEvent = { id: crypto.randomUUID(), name: validatedName, date, subject: validatedSubject, status, statusColor };
             set((state) => ({ timelineEvents: [...state.timelineEvents, newEvent] }));
         } catch (error) {
-            if (error instanceof ValidationError) console.error('Validation error:', error.message);
+            if (error instanceof ValidationError) logger.error(`Validation error: ${error.message}`, 'store');
             throw error;
         }
     },

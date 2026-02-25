@@ -2,6 +2,12 @@
 
 import { useCallback, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
+import { logger } from '@/lib/logger';
+
+// Safari exposes AudioContext under a prefixed name.
+declare global {
+  interface Window { webkitAudioContext?: typeof AudioContext; }
+}
 
 // Sound effect types
 type SoundType = 'click' | 'success' | 'error' | 'levelup' | 'quest' | 'achievement' | 'boss' | 'craft' | 'coin' | 'battle_clash' | 'ambient_wind' | 'level_fanfare' | 'hit' | 'victory';
@@ -29,8 +35,7 @@ let audioContext: AudioContext | null = null;
 // Generate a rich synthetic sound
 const generateSound = (type: SoundType): AudioBuffer => {
   if (!audioContext) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
 
   const ctx = audioContext;
@@ -167,7 +172,7 @@ const initSounds = () => {
       sounds[type] = generateSound(type);
     });
   } catch {
-    console.warn('Audio not supported');
+    logger.warn('Audio not supported', 'audio');
   }
 };
 

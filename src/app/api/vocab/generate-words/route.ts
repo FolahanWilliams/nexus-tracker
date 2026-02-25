@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 const MOCK_WORDS = [
     {
@@ -57,12 +59,10 @@ export async function POST(request: Request) {
         const { currentLevel, existingWords, count } = await request.json();
         const wordCount = Math.min(Math.max(count || 4, 3), 5);
 
-        if (!process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({
-                words: MOCK_WORDS.slice(0, wordCount),
-                isMock: true,
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            words: MOCK_WORDS.slice(0, wordCount),
+        });
+        if (mock) return mock;
 
         const model = genAI.getGenerativeModel({
             model: 'gemini-2.0-flash',
@@ -123,7 +123,7 @@ Output ONLY a valid JSON object: { "words": [...] }`;
 
         return NextResponse.json({ words: validWords });
     } catch (error) {
-        console.error('Vocab generation error:', error);
+        logger.error('Vocab generation error', 'generate-words', error);
         return NextResponse.json({
             words: MOCK_WORDS,
             isMock: true,

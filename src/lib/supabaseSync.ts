@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { useSyncStore } from './syncStatus';
+import { logger } from './logger';
 
 // Transient UI fields that should never be persisted to the cloud.
 const TRANSIENT_FIELDS = new Set([
@@ -42,7 +43,7 @@ export async function saveToSupabase(uid: string, state: Record<string, unknown>
             });
 
         if (error) {
-            console.error('[supabaseSync] Save failed:', error.message);
+            logger.error(`Save failed: ${error.message}`, 'supabaseSync');
             sync.setError('Save failed');
             return false;
         }
@@ -50,7 +51,7 @@ export async function saveToSupabase(uid: string, state: Record<string, unknown>
         sync.setSynced();
         return true;
     } catch (error) {
-        console.error('[supabaseSync] Unexpected save error:', error);
+        logger.error('Unexpected save error', 'supabaseSync', error);
         sync.setError('Unexpected save error');
         return false;
     }
@@ -67,7 +68,7 @@ export async function loadFromSupabase(uid: string): Promise<{ state: Record<str
             .maybeSingle();
 
         if (error) {
-            console.error('[supabaseSync] Load failed:', error.message);
+            logger.error(`Load failed: ${error.message}`, 'supabaseSync');
             useSyncStore.getState().setError('Load failed');
             return null;
         }
@@ -77,7 +78,7 @@ export async function loadFromSupabase(uid: string): Promise<{ state: Record<str
         useSyncStore.getState().setSynced();
         return { state: (data.state as Record<string, unknown>) || {} };
     } catch (error) {
-        console.error('[supabaseSync] Unexpected load error:', error);
+        logger.error('Unexpected load error', 'supabaseSync', error);
         useSyncStore.getState().setError('Load failed');
         return null;
     }

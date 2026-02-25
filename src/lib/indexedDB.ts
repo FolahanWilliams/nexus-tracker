@@ -1,4 +1,6 @@
 // IndexedDB wrapper for better data persistence
+import { logger } from './logger';
+
 const DB_NAME = 'QuestFlowDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'gameData';
@@ -119,7 +121,7 @@ export const hybridStorage = {
     try {
       await indexedDBStorage.save(data);
     } catch (error) {
-      console.warn('IndexedDB save failed, falling back to localStorage:', error);
+      logger.warn('IndexedDB save failed, falling back to localStorage', 'storage', error);
       localStorage.setItem('questflow-game-storage', data);
     }
   },
@@ -130,7 +132,7 @@ export const hybridStorage = {
       const data = await indexedDBStorage.load();
       if (data) return data;
     } catch (error) {
-      console.warn('IndexedDB load failed, falling back to localStorage:', error);
+      logger.warn('IndexedDB load failed, falling back to localStorage', 'storage', error);
     }
     return localStorage.getItem('questflow-game-storage');
   },
@@ -149,7 +151,7 @@ export const hybridStorage = {
     try {
       await indexedDBStorage.clear();
     } catch (error) {
-      console.warn('IndexedDB clear failed:', error);
+      logger.warn('IndexedDB clear failed', 'storage', error);
     }
     localStorage.removeItem('questflow-game-storage');
   },
