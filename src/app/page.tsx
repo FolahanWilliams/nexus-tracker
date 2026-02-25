@@ -9,6 +9,7 @@ import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
 import NextBestAction from '@/components/NextBestAction';
 import RecentActivityFeed from '@/components/RecentActivityFeed';
+import NexusPulseCard from '@/components/NexusPulseCard';
 
 import { useAuth } from '@/components/AuthProvider';
 import LoginScreen from '@/components/LoginScreen';
@@ -394,6 +395,11 @@ function DashboardContent() {
           {/* Recent Activity Feed */}
           <motion.div className="mb-4" variants={fadeUp}>
             <RecentActivityFeed />
+          </motion.div>
+
+          {/* Nexus Pulse — AI-powered intelligence feed */}
+          <motion.div className="mb-4" variants={fadeUp}>
+            <NexusPulseCard />
           </motion.div>
 
           {/* Next Best Action */}
