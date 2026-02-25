@@ -10,3 +10,4 @@
 export { default as DailyWordsTab } from './DailyWordsTab';
 export { default as ReviewTab } from './ReviewTab';
 export { default as ProgressTab } from './ProgressTab';
+export { default as CollectionTab } from './CollectionTab';
