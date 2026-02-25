@@ -10,6 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X, ExternalLink, Loader2, Sparkles, Trash2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import useSoundEffects from '@/hooks/useSoundEffects';
+import { buildPulseSnapshot } from '@/hooks/useNexusPulse';
 
 interface Nudge {
     id: string;
@@ -367,6 +368,30 @@ export default function HootFAB() {
             default:
                 break;
         }
+
+        // Nexus Pulse: inject compressed cross-domain snapshot so Hoot has
+        // deep awareness of trends without needing a separate AI call.
+        try {
+            const pulse = buildPulseSnapshot(state);
+            parts.push(`\n--- Nexus Pulse Snapshot ---`);
+            parts.push(`Weekly quest counts (last 7d): ${(pulse.weeklyQuestCounts as number[]).join(', ')}`);
+            parts.push(`Energy trend (last 7d): ${(pulse.energyTrend as number[]).join(', ') || 'No data'}`);
+            const pending = pulse.pendingQuests as Record<string, number>;
+            parts.push(`Pending quests: Easy=${pending.easy} Med=${pending.medium} Hard=${pending.hard} Epic=${pending.epic}`);
+            const vocab = pulse.vocab as Record<string, number>;
+            parts.push(`Vocab: ${vocab.total} total, ${vocab.mastered} mastered, ${vocab.due} due, ${vocab.avgAccuracy}% accuracy`);
+            parts.push(`Focus: ${pulse.focusSessions} sessions, ${pulse.focusMinutes} minutes total`);
+            parts.push(`Active goals: ${pulse.activeGoals}`);
+            // Include cached AI synthesis if available
+            const cached = typeof window !== 'undefined' ? localStorage.getItem('nexus-pulse-ai') : null;
+            if (cached) {
+                try {
+                    const { data } = JSON.parse(cached);
+                    if (data?.topInsight) parts.push(`AI Pulse: ${data.topInsight}`);
+                    if (data?.suggestion) parts.push(`AI Suggestion: ${data.suggestion}`);
+                } catch { /* ignore parse errors */ }
+            }
+        } catch { /* pulse snapshot is optional — don't break context */ }
 
         return parts.join('\n');
     }, [pathname]);
