@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, RefreshCw, Volume2, CheckCircle, XCircle,
@@ -494,6 +494,8 @@ export function ReviewTab() {
     setShowHint(false);
   }, [dueWords]);
 
+  const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleMCAnswer = (optionIdx: number) => {
     if (showAnswer) return;
     setSelectedAnswer(optionIdx);
@@ -510,7 +512,19 @@ export function ReviewTab() {
     if (correct) {
       triggerXPFloat('+15 XP', '#4ade80');
     }
+    // Auto-advance after a brief delay so user can see the result
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    autoAdvanceRef.current = setTimeout(() => {
+      advanceQuestion();
+    }, correct ? 800 : 1500); // faster for correct, slower for incorrect so they can learn
   };
+
+  // Clean up auto-advance timer on unmount or mode change
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    };
+  }, [mode]);
 
   const handleRecallSelfGrade = (quality: 0 | 1 | 2 | 3 | 4 | 5) => {
     const q = questions[currentIdx];
@@ -889,10 +903,13 @@ export function ReviewTab() {
               {showAnswer && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-2">
                   <button
-                    onClick={advanceQuestion}
-                    className="w-full py-2.5 rounded-lg text-sm font-bold bg-[var(--color-blue)] text-white hover:brightness-110 transition-all"
+                    onClick={() => {
+                      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                      advanceQuestion();
+                    }}
+                    className="w-full py-1.5 rounded-lg text-xs text-[var(--color-text-muted)] hover:text-white hover:bg-[var(--color-bg-hover)] transition-all flex items-center justify-center gap-1"
                   >
-                    {currentIdx < questions.length - 1 ? 'Next Question' : 'Finish'}
+                    {currentIdx < questions.length - 1 ? 'Skip ahead →' : 'Finish now →'}
                   </button>
                 </motion.div>
               )}
