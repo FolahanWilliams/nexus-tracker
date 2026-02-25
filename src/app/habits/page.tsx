@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, Trash2, CheckCircle, Circle, Flame, Trophy, Calendar } from 'lucide-react';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { useToastStore } from '@/components/ToastContainer';
+import PulseInsightStrip from '@/components/PulseInsightStrip';
 
 const HABIT_ICONS = ['📚', '🏃', '💧', '🧘', '✍️', '🎯', '🌱', '🏋️', '🎨', '🧠', '💤', '🥗', '📖', '🎵', '🤝'];
 
@@ -121,6 +122,9 @@ export default function HabitsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+
+        {/* Pulse Insights for Habits */}
+        <PulseInsightStrip domains={['habits', 'streaks']} />
 
         {/* Daily Progress Banner */}
         <motion.div

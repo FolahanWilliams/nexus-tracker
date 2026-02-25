@@ -5,6 +5,7 @@ import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { Calendar, Sparkles, X, Lightbulb, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
 
 interface DayPlan {
     day: string;
@@ -38,7 +39,8 @@ export default function WeeklyPlanner() {
                     reflections: reflectionNotes,
                     habits: habits?.map((h: { name: string; streak: number }) => ({ name: h.name, streak: h.streak })) || [],
                     streaks: streak,
-                    playerContext: { name: characterName, characterClass, level, streak }
+                    playerContext: { name: characterName, characterClass, level, streak },
+                    pulseData: getPulseDataForRoute()
                 })
             });
 

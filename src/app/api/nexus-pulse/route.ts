@@ -18,7 +18,9 @@ function extractJSON(text: string): unknown {
 
 export async function POST(request: Request) {
     try {
-        const { snapshot } = await request.json();
+        const { snapshot, history, pulseContext: clientPulse } = await request.json();
+        // history: optional array of past PulseHistoryEntry for trend analysis
+        // clientPulse: optional string context from other AI routes
 
         if (!process.env.GOOGLE_API_KEY) {
             return NextResponse.json({
@@ -35,11 +37,18 @@ export async function POST(request: Request) {
             generationConfig: { responseMimeType: 'application/json' },
         });
 
+        // Build historical context if available
+        const historyContext = Array.isArray(history) && history.length > 0
+            ? `\n\nHistorical Pulse Data (previous days):\n${history.map((h: { date: string; synthesis: { momentum: string; burnoutRisk: number; topInsight: string } }) =>
+                `- ${h.date}: momentum=${h.synthesis.momentum}, burnout=${h.synthesis.burnoutRisk}, insight="${h.synthesis.topInsight}"`
+            ).join('\n')}`
+            : '';
+
         const systemPrompt = `You are the Nexus Pulse — the intelligence engine for a productivity RPG called QuestFlow.
 You receive a compressed snapshot of the player's data and must produce a concise, actionable synthesis.
 
 Player Snapshot:
-${JSON.stringify(snapshot, null, 1)}
+${JSON.stringify(snapshot, null, 1)}${historyContext}${clientPulse ? `\n\nAdditional Context:\n${clientPulse}` : ''}
 
 Your task:
 1. Analyze cross-domain patterns the player might not see themselves.
@@ -47,12 +56,14 @@ Your task:
 3. Find correlations (e.g. focus sessions → quest completion, energy → habit consistency).
 4. Celebrate genuine progress — don't be falsely positive, but acknowledge real wins.
 5. Give ONE concrete, specific suggestion that connects multiple data points.
+${historyContext ? '6. Compare with previous days to identify week-over-week trends (improving, plateau, declining).' : ''}
 
 Rules:
 - Be concise. Max 1-2 sentences per field.
 - Be specific. Reference actual numbers, habit names, or patterns from the data.
 - Do NOT be generic ("keep up the good work"). Always tie observations to actual data.
 - If data is sparse (new player), acknowledge it and give a helpful onboarding tip.
+${historyContext ? '- If historical data is available, note trends vs previous days (e.g., "burnout risk dropped from 0.7 to 0.3 — the lighter load is working").' : ''}
 
 Output ONLY valid JSON with these exact fields:
 {
