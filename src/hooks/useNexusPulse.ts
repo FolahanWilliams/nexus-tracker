@@ -540,6 +540,7 @@ export function useNexusPulse(): NexusPulseData {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ snapshot, history }),
+                signal: AbortSignal.timeout(30000),
             });
             if (!res.ok) throw new Error('AI unavailable');
             const data: AISynthesis = await res.json();

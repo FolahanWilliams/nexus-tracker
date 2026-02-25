@@ -44,7 +44,7 @@ function getLast30Days(): string[] {
 }
 
 export default function HabitsPage() {
-  const { habits, addHabit, completeHabit, deleteHabit, checkHabitResets } = useGameStore();
+  const { habits, addHabit, completeHabit, deleteHabit, restoreHabit, checkHabitResets } = useGameStore();
   const { addToast } = useToastStore();
 
   const [showAdd, setShowAdd] = useState(false);
@@ -349,8 +349,9 @@ export default function HabitsPage() {
                         </motion.button>
                         <motion.button
                           onClick={() => {
+                            const backup = { ...habit };
                             deleteHabit(habit.id);
-                            addToast(`Habit "${habit.name}" deleted`, 'info');
+                            addToast(`Habit "${habit.name}" deleted`, 'info', () => restoreHabit(backup));
                             if (selectedHabit === habit.id) setSelectedHabit(null);
                           }}
                           className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors"

@@ -123,7 +123,8 @@ export default function BossBattlesPage() {
           failedHabits,
           playerContext: { level },
           pulseData: getPulseDataForRoute()
-        })
+        }),
+        signal: AbortSignal.timeout(30000),
       });
       const data = await response.json();
 
@@ -140,8 +141,10 @@ export default function BossBattlesPage() {
         });
         addToast(`Vanquish the ${data.name}!`, 'success');
       }
-    } catch {
-      addToast('Failed to summon boss. The arcane energies fizzled.', 'error');
+    } catch (err) {
+      const msg = err instanceof DOMException && err.name === 'TimeoutError'
+        ? 'Boss summoning timed out. Try again.' : 'Failed to summon boss. The arcane energies fizzled.';
+      addToast(msg, 'error');
     }
     setIsGeneratingBoss(false);
   };

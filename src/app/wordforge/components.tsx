@@ -133,7 +133,8 @@ export function DailyWordsTab() {
 function WordCard({ word, index, expanded, onToggle }: {
   word: VocabWord; index: number; expanded: boolean; onToggle: () => void;
 }) {
-  const { deleteVocabWord, setUserMnemonic } = useGameStore();
+  const { deleteVocabWord, restoreVocabWord, setUserMnemonic } = useGameStore();
+  const { addToast } = useToastStore();
   const statusInfo = STATUS_LABELS[word.status] || STATUS_LABELS.new;
   const [showAIMnemonic, setShowAIMnemonic] = useState(false);
   const [userMnemonicInput, setUserMnemonicInput] = useState(word.userMnemonic || '');
@@ -302,7 +303,11 @@ function WordCard({ word, index, expanded, onToggle }: {
               )}
 
               <button
-                onClick={() => deleteVocabWord(word.id)}
+                onClick={() => {
+                  const backup = { ...word };
+                  deleteVocabWord(word.id);
+                  addToast(`"${word.word}" removed`, 'info', () => restoreVocabWord(backup));
+                }}
                 className="flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors mt-1"
               >
                 <Trash2 size={12} /> Remove word
