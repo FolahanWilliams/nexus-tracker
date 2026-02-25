@@ -45,6 +45,9 @@ export type {
     VocabStatus,
     CharacterClass,
     Title,
+    HootMemory,
+    HootMemoryNote,
+    HootConversationSummary,
 } from './types';
 
 // Re-export constants that were previously exported from this file
@@ -63,6 +66,7 @@ import { createRpgSlice } from './slices/rpgSlice';
 import { createHabitSlice } from './slices/habitSlice';
 import { createGoalSlice } from './slices/goalSlice';
 import { createVocabSlice } from './slices/vocabSlice';
+import { createHootSlice } from './slices/hootSlice';
 
 // ─── Compose store ───────────────────────────────────────────────
 
@@ -75,6 +79,7 @@ export const useGameStore = create<GameState>()(
             ...createHabitSlice(...a),
             ...createGoalSlice(...a),
             ...createVocabSlice(...a),
+            ...createHootSlice(...a),
         }),
         {
             name: 'ai-productivity-storage',

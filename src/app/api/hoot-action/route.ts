@@ -1,4 +1,4 @@
-import { SchemaType } from '@google/generative-ai';
+import { SchemaType, DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
@@ -106,13 +106,13 @@ const hootFunctions = [
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /goals, /focus, /reflection, /bosses, /chains, /analytics, /character, /inventory, /shop, /skills, /crafting, /achievements, /timeline, /settings' },
+                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /goals, /focus, /reflection, /bosses, /chains, /analytics, /character, /inventory, /shop, /skills, /crafting, /achievements, /timeline, /settings, /wordforge' },
                 reason: { type: SchemaType.STRING, description: 'Brief reason for suggesting this page' },
             },
             required: ['page'],
         },
     },
-    // ── Category 1: Power Actions ─────────────────────────────────────────
+    // ── Power Actions ─────────────────────────────────────────────────
     {
         name: 'equip_item',
         description: 'Equip or use an item from the user\'s inventory. Use when the user asks to equip gear, use a potion/consumable, or manage their inventory.',
@@ -159,7 +159,7 @@ const hootFunctions = [
             required: ['goalName', 'milestoneName'],
         },
     },
-    // ── Category 2: Strategic Intelligence ────────────────────────────────
+    // ── Strategic Intelligence ────────────────────────────────────────
     {
         name: 'get_productivity_summary',
         description: 'Generate a weekly productivity briefing for the user. Use when the user asks for a summary, report, status update, "how am I doing", or wants strategic advice about their progress.',
@@ -207,6 +207,105 @@ const hootFunctions = [
             required: ['query'],
         },
     },
+    // ── NEW: Vocab & Cross-Domain Actions ─────────────────────────────
+    {
+        name: 'generate_vocab_words',
+        description: 'Generate new vocabulary words for the user to learn. Use when the user asks to learn new words, add vocab, or wants vocabulary practice.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                count: { type: SchemaType.NUMBER, description: 'Number of words to generate (1-5, default 3)' },
+                difficulty: { type: SchemaType.STRING, description: 'Difficulty: beginner, intermediate, advanced, or expert' },
+                category: { type: SchemaType.STRING, description: 'Optional word category/theme (e.g., "science", "emotions", "business")' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'batch_reschedule_vocab',
+        description: 'Reschedule all overdue vocab words to today for review. Use when the user has a vocab backlog or wants to catch up on reviews.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                onlyOverdue: { type: SchemaType.BOOLEAN, description: 'If true (default), only reschedule overdue words. If false, reschedule all.' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'start_boss_battle',
+        description: 'Generate and start a new boss battle. Use when the user wants to fight a boss, start a challenge, or needs a deadline-driven motivator.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                difficulty: { type: SchemaType.STRING, description: 'Boss difficulty: Easy, Medium, Hard, or Epic' },
+                theme: { type: SchemaType.STRING, description: 'Optional theme for the boss (e.g., "procrastination", "exam prep")' },
+                durationHours: { type: SchemaType.NUMBER, description: 'How many hours the boss battle lasts (default 48)' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'respec_class',
+        description: 'Change the user\'s character class. Costs 200 gold (free first time). Use when the user wants to switch or change their class.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                newClass: { type: SchemaType.STRING, description: 'The class to switch to: Warrior, Mage, Rogue, Healer, or Ranger' },
+            },
+            required: ['newClass'],
+        },
+    },
+    {
+        name: 'use_item',
+        description: 'Use a consumable item from inventory (potion, scroll, etc). Use when the user asks to use, drink, consume, or activate an item.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                itemName: { type: SchemaType.STRING, description: 'Name of the consumable item to use (fuzzy match OK)' },
+            },
+            required: ['itemName'],
+        },
+    },
+    {
+        name: 'set_weekly_plan',
+        description: 'Create a multi-step plan/schedule for the user. Breaks a big goal into daily tasks spread across the week. Use when the user asks to plan their week, create a study schedule, or wants help organizing multiple tasks.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                goal: { type: SchemaType.STRING, description: 'The overarching goal for this plan' },
+                steps: {
+                    type: SchemaType.ARRAY,
+                    items: { type: SchemaType.STRING },
+                    description: 'List of step labels, in order (3-7 steps). Each step becomes a quest.',
+                },
+            },
+            required: ['goal', 'steps'],
+        },
+    },
+    {
+        name: 'save_memory_note',
+        description: 'Save a note to persistent memory about the user. Use when the user shares a preference, learning style, struggle, or important info worth remembering across sessions.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                text: { type: SchemaType.STRING, description: 'The note to remember about the user' },
+                category: { type: SchemaType.STRING, description: 'Category: preference, insight, goal, struggle, or general' },
+            },
+            required: ['text'],
+        },
+    },
+    {
+        name: 'get_coaching_insight',
+        description: 'Provide a coaching insight grounded in real research. Use when the user asks for study tips, productivity advice, health guidance, or motivational coaching.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                topic: { type: SchemaType.STRING, description: 'The coaching topic to research (e.g., "spaced repetition", "morning routine", "exam anxiety")' },
+            },
+            required: ['topic'],
+        },
+    },
 ];
 
 // ── Page context descriptions ────────────────────────────────────────────
@@ -228,11 +327,12 @@ const PAGE_CONTEXT: Record<string, string> = {
     '/achievements': 'Achievements — unlockable badges and milestones',
     '/timeline': 'Timeline — upcoming events and deadlines',
     '/settings': 'Settings — app preferences and data management',
+    '/wordforge': 'WordForge — AI-powered vocabulary builder with spaced repetition',
 };
 
 export async function POST(request: Request) {
     try {
-        const { message, currentPage, context, grounding } = await request.json();
+        const { message, currentPage, context, grounding, planningContext, conversationHistory } = await request.json();
 
         const mock = hasApiKeyOrMock({
             message: "I can't connect right now, but I'm still here for you! \u{1F989}",
@@ -248,34 +348,76 @@ export async function POST(request: Request) {
             tools: [
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 { functionDeclarations: hootFunctions as any },
+                // Always-on Google Search grounding for study tips, facts, coaching
+                {
+                    googleSearch: {
+                        dynamicRetrievalConfig: {
+                            mode: DynamicRetrievalMode.MODE_DYNAMIC,
+                            dynamicThreshold: 0.5,
+                        },
+                    },
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any,
             ],
         });
 
-        const systemPrompt = `You are "Hoot" 🦉, the AI assistant for QuestFlow RPG — a gamified productivity app.
-You are context-aware and can both CHAT and TAKE ACTIONS in the app.
+        // Build planning context section
+        let planSection = '';
+        if (planningContext) {
+            const steps = planningContext.steps as { label: string; done: boolean }[];
+            planSection = `\n\n--- ACTIVE PLAN ---
+Goal: ${planningContext.goal}
+Steps:
+${steps.map((s: { label: string; done: boolean }, i: number) => `  ${i === planningContext.currentStepIndex ? '→' : s.done ? '✓' : '○'} ${i + 1}. ${s.label}`).join('\n')}
+Current step: ${planningContext.currentStepIndex + 1}/${steps.length}
+Guide the user through the current step. When they complete it, call the relevant action and encourage them to move to the next step.`;
+        }
+
+        const systemPrompt = `You are "Hoot" 🦉, the AI assistant and personal coach for QuestFlow RPG — a gamified productivity app.
+You are context-aware, have persistent memory, and can both CHAT and TAKE ACTIONS in the app.
 
 CURRENT PAGE: ${pageDescription}
-${context ? `\nAPP STATE SNAPSHOT:\n${context}` : ''}
-${grounding ? `\nWEB SEARCH GROUNDING:\n${grounding}\n(Use the above information to provide a grounded, accurate response to the user's latest query.)` : ''}
+${context ? `\nPLAYER STATE:\n${context}` : ''}
+${grounding ? `\nWEB SEARCH GROUNDING:\n${grounding}\n(Use the above information to provide a grounded, accurate response.)` : ''}${planSection}
 
 YOUR CAPABILITIES:
-1. **Chat & Advise**: Answer questions, give productivity tips, motivate the user. Use Google Search for real, current information.
-2. **Take Actions**: You can add/complete tasks, add/complete habits, add goals, complete milestones, set intentions, add reflections, equip/use items, start focus sessions, buy shop items, and suggest navigation. Use function calls for these.
-3. **Strategic Intelligence**: You can generate productivity summaries, analyze quest tags/categories, and provide boss battle strategy. Use function calls for these.
-4. **Be Context-Aware**: Tailor your responses to the current page. On /quests, focus on task management. On /habits, focus on habit coaching. On /reflection, focus on mindfulness. On /inventory, help with gear. On /boss, give battle strategy.
+1. **Chat & Coach**: Answer questions, give productivity & study tips, motivate the user. You have access to Google Search for real-time information — USE IT for study tips, productivity research, and factual questions.
+2. **Take Actions**: You can manage quests, habits, goals, milestones, intentions, reflections, inventory, focus sessions, shop purchases, and navigation. Use function calls for these.
+3. **Vocab & Learning**: You can generate vocab words, reschedule reviews, and provide vocabulary coaching.
+4. **Strategic Intelligence**: Generate productivity summaries, analyze quest difficulty, provide boss battle strategy, and create weekly plans.
+5. **Memory**: You can save important notes about the user for future reference using save_memory_note. Remember their preferences, learning style, and struggles.
+6. **Planning**: When the user has a multi-step plan active, guide them through each step and celebrate progress.
+7. **Cross-Domain**: Connect insights across quests, habits, vocab, goals, and boss battles. For example, if vocab mastery increases boss damage, mention this synergy.
 
 RULES:
 - Be encouraging, slightly sassy, and fun — you're an owl mascot!
-- Keep messages concise (1-3 sentences max)
+- Keep messages concise (1-3 sentences max for simple interactions, up to 5 for coaching)
 - When taking actions, confirm what you did in your message
-- Use function calls ONLY when the user explicitly asks you to do something (add, create, complete, mark, etc.) — don't take actions unprompted
+- Use function calls when the user explicitly asks you to do something or when it's clearly the right response
 - For navigation, only suggest it if relevant to the conversation
-- If the user asks a factual question, use Google Search to ground your answer
-- Always respond in character as Hoot the owl`;
+- Use Google Search proactively for study tips, coaching advice, and factual questions — ground your advice in real data
+- When giving coaching or study advice, cite specific techniques or research when possible
+- If you notice patterns in the user's data (declining streaks, vocab backlog, energy trends), proactively mention them
+- Always respond in character as Hoot the owl
+- When the user shares personal preferences, learning styles, or struggles, save a memory note about it`;
 
-        const chat = model.startChat({
-            history: [{ role: 'user', parts: [{ text: systemPrompt }] }, { role: 'model', parts: [{ text: 'Understood! I\'m Hoot 🦉, ready to help!' }] }],
-        });
+        // Build conversation history for multi-turn awareness
+        const history: { role: string; parts: { text: string }[] }[] = [
+            { role: 'user', parts: [{ text: systemPrompt }] },
+            { role: 'model', parts: [{ text: "Understood! I'm Hoot 🦉, your AI coach and assistant, ready to help!" }] },
+        ];
+
+        // Add recent conversation history for continuity
+        if (conversationHistory && Array.isArray(conversationHistory)) {
+            for (const msg of conversationHistory.slice(-6)) {
+                history.push({
+                    role: msg.role === 'user' ? 'user' : 'model',
+                    parts: [{ text: msg.text }],
+                });
+            }
+        }
+
+        const chat = model.startChat({ history });
 
         const result = await chat.sendMessage(message);
         const response = result.response;
