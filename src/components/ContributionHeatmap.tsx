@@ -1,15 +1,19 @@
 'use client';
 
 import React from 'react';
-import moment from 'moment';
 import { motion } from 'framer-motion';
-
-// This is a simplified contribution heatmap
-// We will define an array of dates, and count occurrences
 
 interface ContributionHeatmapProps {
     dates: string[]; // ISO date strings e.g., '2023-10-25'
     color?: string; // CSS color variable like 'var(--color-green)'
+}
+
+/** Format a Date as YYYY-MM-DD without pulling in moment.js. */
+function formatDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
 }
 
 export default function ContributionHeatmap({ dates, color = 'var(--color-green)' }: ContributionHeatmapProps) {
@@ -22,26 +26,29 @@ export default function ContributionHeatmap({ dates, color = 'var(--color-green)
     }, {} as Record<string, number>);
 
     // Determine the start date (12 weeks ago roughly 84 days)
-    const today = moment();
-    const startDate = today.clone().subtract(84, 'days');
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 84);
 
-    // Let's go back 84 days + maybe a few to align to Sunday
-    while (startDate.day() !== 0) {
-        startDate.subtract(1, 'days');
+    // Go back to align to Sunday
+    while (startDate.getDay() !== 0) {
+        startDate.setDate(startDate.getDate() - 1);
     }
 
-    // Generate the days
+    // Generate the weeks
     const weeks: { date: string; count: number }[][] = [];
-    const currentDay = startDate.clone();
+    const currentDay = new Date(startDate);
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 1);
 
-    while (currentDay.isBefore(today.clone().add(1, 'days'))) {
-        if (currentDay.day() === 0) {
+    while (currentDay < endDate) {
+        if (currentDay.getDay() === 0) {
             weeks.push([]);
         }
-        const dayStr = currentDay.format('YYYY-MM-DD');
+        const dayStr = formatDate(currentDay);
         const count = activityMap[dayStr] || 0;
         weeks[weeks.length - 1].push({ date: dayStr, count });
-        currentDay.add(1, 'days');
+        currentDay.setDate(currentDay.getDate() + 1);
     }
 
     // Get max count for scaling color intensity

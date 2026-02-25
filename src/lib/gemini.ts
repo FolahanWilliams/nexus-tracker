@@ -1,4 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { validateEnv } from './env';
+
+// Validate env on first import (server-side only — this file is only
+// imported by API routes which run on the server).
+if (typeof window === 'undefined') {
+    validateEnv();
+}
 
 /**
  * Shared Gemini AI client instance.
