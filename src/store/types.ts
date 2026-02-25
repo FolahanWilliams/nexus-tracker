@@ -415,6 +415,38 @@ export interface VocabSlice {
     setWordConfidence: (wordId: string, confidence: number) => void;
 }
 
+// ─── Hoot Memory ────────────────────────────────────────────────
+
+export interface HootMemoryNote {
+    id: string;
+    text: string;
+    category: 'preference' | 'insight' | 'goal' | 'struggle' | 'general';
+    createdAt: string;
+}
+
+export interface HootConversationSummary {
+    id: string;
+    summary: string;
+    topics: string[];
+    actionsTaken: string[];
+    date: string;
+}
+
+export interface HootMemory {
+    notes: HootMemoryNote[];
+    summaries: HootConversationSummary[];
+    lastInteractionDate: string | null;
+}
+
+export interface HootSlice {
+    hootMemory: HootMemory;
+
+    addHootMemoryNote: (text: string, category: HootMemoryNote['category']) => void;
+    removeHootMemoryNote: (noteId: string) => void;
+    addHootConversationSummary: (summary: string, topics: string[], actionsTaken: string[]) => void;
+    updateHootLastInteraction: () => void;
+}
+
 // ─── Combined state ──────────────────────────────────────────────
 
-export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice;
+export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice;

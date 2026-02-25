@@ -7,11 +7,12 @@ import { useHootStore, QuickReply, HootAction } from '@/store/useHootStore';
 import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ExternalLink, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { Send, X, ExternalLink, Loader2, Sparkles, Trash2, ListChecks } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import ReactMarkdown from 'react-markdown';
 import useSoundEffects from '@/hooks/useSoundEffects';
-import { buildPulseSnapshot } from '@/hooks/useNexusPulse';
+import { buildPlayerNarrative } from '@/lib/hootNarrative';
+import type { CharacterClass } from '@/store/types';
 
 interface Nudge {
     id: string;
@@ -57,6 +58,20 @@ function generateQuickReplies(
             case 'perform_web_search':
                 chips.push({ label: '🔍 Tell me more', message: 'Tell me more about that' });
                 break;
+            case 'generate_vocab_words':
+                chips.push({ label: '📖 Review words', message: 'Take me to WordForge to review' });
+                chips.push({ label: '➕ More words', message: 'Generate more vocab words' });
+                break;
+            case 'start_boss_battle':
+                chips.push({ label: '⚔️ Strategy', message: 'What\'s my battle strategy?' });
+                break;
+            case 'set_weekly_plan':
+                chips.push({ label: '📋 Show plan', message: 'Show me my current plan' });
+                chips.push({ label: '✅ Next step', message: 'What\'s my next step?' });
+                break;
+            case 'save_memory_note':
+                chips.push({ label: '🧠 What do you know?', message: 'What do you remember about me?' });
+                break;
         }
     }
 
@@ -83,6 +98,9 @@ function generateQuickReplies(
                 break;
             case '/focus':
                 chips.push({ label: '⏱️ Start focus', message: 'Start a 25-minute focus session' });
+                break;
+            case '/wordforge':
+                chips.push({ label: '📖 New words', message: 'Generate some new vocab words for me' });
                 break;
             default:
                 chips.push({ label: '📊 How am I doing?', message: 'How am I doing this week?' });
@@ -116,11 +134,13 @@ export default function HootFAB() {
     const {
         messages, addMessage, updateLastHootMessage, clearMessages,
         isOpen, setOpen,
+        planningContext, setPlanningContext, advancePlanStep,
     } = useHootStore();
 
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [isSummarizing, setIsSummarizing] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -346,111 +366,10 @@ export default function HootFAB() {
         updateLastHootMessage({ actionResults: results });
     };
 
-    // Build context snapshot for the current page
+    // Build context snapshot using the unified narrative builder
     const buildContext = useCallback((): string => {
         const state = useGameStore.getState();
-        const today = new Date().toISOString().split('T')[0];
-        const parts: string[] = [];
-
-        parts.push(`Player: ${state.characterName || 'Adventurer'} (Level ${state.level} ${state.characterClass || 'Novice'})`);
-        parts.push(`XP: ${state.xp} | Gold: ${state.gold} | Gems: ${state.gems} | Streak: ${state.streak} days`);
-
-        switch (pathname) {
-            case '/':
-            case '/quests': {
-                const active = state.tasks.filter(t => !t.completed);
-                const doneToday = state.tasks.filter(t => t.completed && t.completedAt?.startsWith(today));
-                parts.push(`Active quests (${active.length}): ${active.slice(0, 5).map(t => t.title).join(', ') || 'None'}`);
-                parts.push(`Completed today: ${doneToday.length}`);
-                break;
-            }
-            case '/habits': {
-                const todayHabits = state.habits.map(h => ({
-                    name: h.name,
-                    done: h.completedDates.includes(today),
-                    streak: h.streak,
-                }));
-                parts.push(`Habits: ${todayHabits.map(h => `${h.name} (${h.done ? '✅' : '⬜'}, streak: ${h.streak})`).join(', ') || 'None'}`);
-                break;
-            }
-            case '/goals': {
-                const active = state.goals.filter(g => !g.completed);
-                parts.push(`Active goals (${active.length}): ${active.slice(0, 3).map(g => `${g.title} (${g.milestones.filter(m => m.completed).length}/${g.milestones.length} milestones)`).join(', ') || 'None'}`);
-                break;
-            }
-            case '/reflection': {
-                const recent = state.reflectionNotes.slice(-3);
-                parts.push(`Recent reflections: ${recent.map(r => `${r.date}: ${r.stars}★`).join(', ') || 'None yet'}`);
-                parts.push(`Today's energy: ${state.todayEnergyRating || 'Not set'}`);
-                if (state.reflectionNotes.length >= 3) {
-                    parts.push(`Reflection history (last ${Math.min(state.reflectionNotes.length, 7)}): ${state.reflectionNotes.slice(-7).map(r => `${r.date}: ${r.stars}★ "${r.note}"`).join(' | ')}`);
-                }
-                break;
-            }
-            case '/focus':
-                parts.push(`Total focus sessions: ${state.focusSessionsTotal || 0}`);
-                parts.push(`Total focus minutes: ${state.focusMinutesTotal || 0}`);
-                break;
-            case '/bosses': {
-                const activeBoss = state.bossBattles.find(b => !b.completed && !b.failed);
-                parts.push(activeBoss ? `Active boss: ${activeBoss.name} (${activeBoss.hp}/${activeBoss.maxHp} HP)` : 'No active boss battle');
-                break;
-            }
-            case '/chains': {
-                const activeChains = state.questChains?.filter(c => !c.completed) || [];
-                parts.push(`Active quest chains: ${activeChains.map(c => `${c.name} (step ${c.currentStep + 1}/${c.steps.length})`).join(', ') || 'None'}`);
-                break;
-            }
-            case '/character':
-                parts.push(`Class: ${state.characterClass || 'Not chosen'} | Title: ${state.title}`);
-                break;
-            case '/inventory': {
-                const equippedNames = [
-                    state.equippedItems?.weapon?.name,
-                    state.equippedItems?.armor?.name,
-                    state.equippedItems?.accessory?.name,
-                ].filter(Boolean);
-                parts.push(`Inventory: ${state.inventory.length} items`);
-                parts.push(`Equipped: ${equippedNames.length > 0 ? equippedNames.join(', ') : 'Nothing equipped'}`);
-                const consumables = state.inventory.filter(i => i.usable || i.consumableEffect);
-                if (consumables.length > 0) parts.push(`Consumables: ${consumables.map(c => `${c.name} x${c.quantity}`).join(', ')}`);
-                break;
-            }
-            case '/shop': {
-                const affordable = state.shopItems.filter(r => !r.purchased && r.cost <= state.gold);
-                parts.push(`Gold: ${state.gold} | Shop items you can afford: ${affordable.length}`);
-                if (affordable.length > 0) parts.push(`Available: ${affordable.map(r => `${r.name} (${r.cost}g)`).join(', ')}`);
-                break;
-            }
-            default:
-                break;
-        }
-
-        // Nexus Pulse: inject compressed cross-domain snapshot so Hoot has
-        // deep awareness of trends without needing a separate AI call.
-        try {
-            const pulse = buildPulseSnapshot(state);
-            parts.push(`\n--- Nexus Pulse Snapshot ---`);
-            parts.push(`Weekly quest counts (last 7d): ${(pulse.weeklyQuestCounts as number[]).join(', ')}`);
-            parts.push(`Energy trend (last 7d): ${(pulse.energyTrend as number[]).join(', ') || 'No data'}`);
-            const pending = pulse.pendingQuests as Record<string, number>;
-            parts.push(`Pending quests: Easy=${pending.easy} Med=${pending.medium} Hard=${pending.hard} Epic=${pending.epic}`);
-            const vocab = pulse.vocab as Record<string, number>;
-            parts.push(`Vocab: ${vocab.total} total, ${vocab.mastered} mastered, ${vocab.due} due, ${vocab.avgAccuracy}% accuracy`);
-            parts.push(`Focus: ${pulse.focusSessions} sessions, ${pulse.focusMinutes} minutes total`);
-            parts.push(`Active goals: ${pulse.activeGoals}`);
-            // Include cached AI synthesis if available
-            const cached = typeof window !== 'undefined' ? localStorage.getItem('nexus-pulse-ai') : null;
-            if (cached) {
-                try {
-                    const { data } = JSON.parse(cached);
-                    if (data?.topInsight) parts.push(`AI Pulse: ${data.topInsight}`);
-                    if (data?.suggestion) parts.push(`AI Suggestion: ${data.suggestion}`);
-                } catch { /* ignore parse errors */ }
-            }
-        } catch { /* pulse snapshot is optional — don't break context */ }
-
-        return parts.join('\n');
+        return buildPlayerNarrative(state, pathname);
     }, [pathname]);
 
     // Execute actions returned by the API
@@ -647,6 +566,145 @@ export default function HootFAB() {
                         }
                         break;
                     }
+                    case 'generate_vocab_words': {
+                        const count = Math.min(5, Math.max(1, (params.count as number) || 3));
+                        const difficulty = (params.difficulty as string) || state.vocabCurrentLevel || 'intermediate';
+                        const category = params.category as string;
+                        try {
+                            const genRes = await fetch('/api/generate-words', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    level: difficulty,
+                                    count,
+                                    existingWords: state.vocabWords.map(w => w.word),
+                                    ...(category ? { category } : {}),
+                                }),
+                            });
+                            const genData = await genRes.json();
+                            if (genData.words && genData.words.length > 0) {
+                                state.addVocabWords(genData.words);
+                                results.push(`✅ Generated ${genData.words.length} new vocab words: ${genData.words.map((w: { word: string }) => w.word).join(', ')}`);
+                                addToast(`🦉 Added ${genData.words.length} new words!`, 'success');
+                            } else {
+                                results.push(`⚠️ Couldn't generate vocabulary words right now.`);
+                            }
+                        } catch (err) {
+                            logger.error('Vocab generation error', 'Hoot', err);
+                            results.push(`⚠️ Failed to generate vocabulary words.`);
+                        }
+                        break;
+                    }
+                    case 'batch_reschedule_vocab': {
+                        const today = new Date().toISOString().split('T')[0];
+                        const overdueIds = state.vocabWords
+                            .filter(w => w.nextReviewDate < today)
+                            .map(w => w.id);
+                        if (overdueIds.length === 0) {
+                            results.push(`✅ No overdue vocab words — you're all caught up!`);
+                        } else {
+                            state.batchRescheduleVocabWords(overdueIds);
+                            results.push(`✅ Rescheduled ${overdueIds.length} overdue vocab words to today`);
+                            addToast(`🦉 Rescheduled ${overdueIds.length} words`, 'success');
+                        }
+                        break;
+                    }
+                    case 'start_boss_battle': {
+                        const difficulty = (params.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic') || 'Medium';
+                        const theme = (params.theme as string) || '';
+                        const hours = (params.durationHours as number) || 48;
+                        const bossNames: Record<string, string[]> = {
+                            Easy: ['Shadow Wisp', 'Goblin Scout', 'Dust Sprite'],
+                            Medium: ['Iron Golem', 'Storm Wraith', 'Frost Wolf'],
+                            Hard: ['Obsidian Dragon', 'Void Sentinel', 'Chaos Knight'],
+                            Epic: ['The Procrastinator King', 'Entropy Incarnate', 'The Final Exam'],
+                        };
+                        const names = bossNames[difficulty] || bossNames.Medium;
+                        const name = theme
+                            ? `${theme.charAt(0).toUpperCase() + theme.slice(1)} ${names[0]}`
+                            : names[Math.floor(Math.random() * names.length)];
+                        const hpMap = { Easy: 200, Medium: 500, Hard: 1000, Epic: 2000 };
+                        const xpMap = { Easy: 100, Medium: 250, Hard: 500, Epic: 1000 };
+                        const goldMap = { Easy: 50, Medium: 150, Hard: 300, Epic: 600 };
+                        state.startBossBattle({
+                            name,
+                            description: theme ? `A boss born from ${theme}!` : `A ${difficulty.toLowerCase()} challenge awaits!`,
+                            difficulty,
+                            hp: hpMap[difficulty],
+                            maxHp: hpMap[difficulty],
+                            xpReward: xpMap[difficulty],
+                            goldReward: goldMap[difficulty],
+                            expiresAt: new Date(Date.now() + hours * 3600000).toISOString(),
+                        });
+                        results.push(`✅ Boss battle started: ${name} (${difficulty}, ${hpMap[difficulty]} HP, ${hours}h deadline)`);
+                        addToast(`🦉 Boss spawned: ${name}!`, 'success');
+                        break;
+                    }
+                    case 'respec_class': {
+                        const newClass = params.newClass as string;
+                        const validClasses = ['Warrior', 'Mage', 'Rogue', 'Healer', 'Ranger'];
+                        if (!validClasses.includes(newClass)) {
+                            results.push(`⚠️ Invalid class "${newClass}". Choose: ${validClasses.join(', ')}`);
+                        } else {
+                            const success = state.respecClass(newClass as CharacterClass);
+                            if (success) {
+                                results.push(`✅ Class changed to ${newClass}!`);
+                                addToast(`🦉 Respecced to ${newClass}!`, 'success');
+                            } else {
+                                results.push(`⚠️ Not enough gold! Class respec costs 200g, you have ${state.gold}g`);
+                            }
+                        }
+                        break;
+                    }
+                    case 'use_item': {
+                        const itemName = (params.itemName as string | undefined)?.toLowerCase();
+                        if (!itemName) { results.push(`⚠️ No item name provided`); break; }
+                        const item = state.inventory.find(i =>
+                            i.name.toLowerCase().includes(itemName) && (i.usable || i.consumableEffect)
+                        );
+                        if (!item) {
+                            results.push(`⚠️ Couldn't find a usable item matching "${params.itemName}"`);
+                        } else {
+                            state.useItem(item.id);
+                            results.push(`✅ Used ${item.name}${item.consumableEffect ? ` (${item.consumableEffect.type} +${item.consumableEffect.value})` : ''}`);
+                            addToast(`🦉 Used ${item.name}`, 'success');
+                        }
+                        break;
+                    }
+                    case 'set_weekly_plan': {
+                        const goal = params.goal as string;
+                        const steps = (params.steps as string[]) || [];
+                        if (steps.length === 0) {
+                            results.push(`⚠️ No steps provided for the plan`);
+                        } else {
+                            // Create tasks for each step
+                            for (const step of steps) {
+                                state.addTask(step, 'Medium', undefined, 'Study');
+                            }
+                            // Set planning context in Hoot store
+                            setPlanningContext({
+                                goal,
+                                steps: steps.map(s => ({ label: s, done: false })),
+                                currentStepIndex: 0,
+                            });
+                            results.push(`✅ Created weekly plan: "${goal}" with ${steps.length} steps (all added as quests)`);
+                            addToast(`🦉 Plan created with ${steps.length} steps!`, 'success');
+                        }
+                        break;
+                    }
+                    case 'save_memory_note': {
+                        const text = params.text as string;
+                        const category = (params.category as 'preference' | 'insight' | 'goal' | 'struggle' | 'general') || 'general';
+                        state.addHootMemoryNote(text, category);
+                        results.push(`✅ Saved to memory: "${text}"`);
+                        break;
+                    }
+                    case 'get_coaching_insight': {
+                        // This is handled by Google Search grounding in the API route.
+                        // We just acknowledge it client-side.
+                        results.push(`🧠 Coaching insight provided via Google Search grounding`);
+                        break;
+                    }
                     default:
                         results.push(`⚠️ Unknown action: ${action}`);
                 }
@@ -750,8 +808,17 @@ export default function HootFAB() {
         addMessage({ role: 'user', text });
         setIsLoading(true);
 
+        // Update last interaction date in persistent memory
+        useGameStore.getState().updateHootLastInteraction();
+
         try {
             const context = buildContext();
+
+            // Build conversation history for multi-turn context
+            const recentMessages = messages.slice(-6).map(m => ({
+                role: m.role === 'user' ? 'user' : 'hoot',
+                text: m.text,
+            }));
 
             const res = await fetch('/api/hoot-action', {
                 method: 'POST',
@@ -760,8 +827,10 @@ export default function HootFAB() {
                     message: text,
                     currentPage: pathname,
                     context: isAutoCoach
-                        ? context + `\n\n--- COACHING MODE ---\nThis is an auto-coaching request after the user submitted a daily reflection. Include a trend insight if you see patterns in their reflection history. Be encouraging and give one actionable tip.`
+                        ? context + `\n\n--- COACHING MODE ---\nThis is an auto-coaching request after the user submitted a daily reflection. Include a trend insight if you see patterns in their reflection history. Be encouraging and give one actionable tip. Use Google Search to find a relevant study tip or resource.`
                         : context,
+                    planningContext,
+                    conversationHistory: recentMessages,
                 }),
             });
 
@@ -770,6 +839,15 @@ export default function HootFAB() {
             let actionResults: string[] = [];
             if (data.actions && data.actions.length > 0) {
                 actionResults = await executeActions(data.actions);
+
+                // Check if a plan step was completed
+                if (planningContext) {
+                    const stepActions = ['complete_task', 'add_task', 'complete_habit', 'complete_milestone'];
+                    const hasStepAction = data.actions.some((a: HootAction) => stepActions.includes(a.action));
+                    if (hasStepAction) {
+                        advancePlanStep();
+                    }
+                }
             }
 
             // Detect web search and do a synthesis pass
@@ -783,6 +861,7 @@ export default function HootFAB() {
                         currentPage: pathname,
                         context,
                         grounding: searchResult,
+                        conversationHistory: recentMessages,
                     }),
                 });
                 const synthesisData = await synthesisRes.json();
@@ -813,6 +892,41 @@ export default function HootFAB() {
             });
         } finally {
             setIsLoading(false);
+        }
+    }
+
+    // Summarize conversation and persist to memory before clearing
+    async function handleClearWithSummary() {
+        if (messages.length < 4) {
+            // Too few messages to summarize meaningfully
+            clearMessages();
+            return;
+        }
+        setIsSummarizing(true);
+        try {
+            // Extract key info from messages
+            const userMsgs = messages.filter(m => m.role === 'user').map(m => m.text);
+            const hootActions = messages
+                .filter(m => m.role === 'hoot' && m.actions && m.actions.length > 0)
+                .flatMap(m => m.actions!.map(a => a.action));
+            const topics = [...new Set([
+                ...userMsgs.slice(0, 5).map(t => t.slice(0, 50)),
+            ])];
+            const actionsTaken = [...new Set(hootActions)];
+
+            // Generate a brief summary
+            const summaryText = `${userMsgs.length} messages exchanged. Topics: ${topics.join('; ')}. Actions: ${actionsTaken.length > 0 ? actionsTaken.join(', ') : 'chat only'}.`;
+
+            useGameStore.getState().addHootConversationSummary(
+                summaryText,
+                topics.slice(0, 5),
+                actionsTaken.slice(0, 10),
+            );
+        } catch (err) {
+            logger.error('Summary save error', 'Hoot', err);
+        } finally {
+            setIsSummarizing(false);
+            clearMessages();
         }
     }
 
@@ -954,12 +1068,16 @@ export default function HootFAB() {
                                 <div className="flex items-center gap-1">
                                     {messages.length > 0 && (
                                         <button
-                                            onClick={clearMessages}
-                                            className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
+                                            onClick={handleClearWithSummary}
+                                            disabled={isSummarizing}
+                                            className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors disabled:opacity-40"
                                             aria-label="Clear chat"
-                                            title="Clear conversation"
+                                            title="Clear conversation (saves summary)"
                                         >
-                                            <Trash2 size={14} className="text-[var(--color-text-muted)]" />
+                                            {isSummarizing
+                                                ? <Loader2 size={14} className="animate-spin text-[var(--color-text-muted)]" />
+                                                : <Trash2 size={14} className="text-[var(--color-text-muted)]" />
+                                            }
                                         </button>
                                     )}
                                     <button
@@ -971,6 +1089,28 @@ export default function HootFAB() {
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Active Plan Indicator */}
+                            {planningContext && (
+                                <div className="px-4 py-2 flex items-center gap-2 text-xs"
+                                    style={{ background: 'rgba(139, 92, 246, 0.08)', borderBottom: '1px solid var(--color-border)' }}
+                                >
+                                    <ListChecks size={14} className="text-[var(--color-purple)] shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[var(--color-text-primary)] font-medium truncate">{planningContext.goal}</p>
+                                        <p className="text-[var(--color-text-muted)]">
+                                            Step {planningContext.currentStepIndex + 1}/{planningContext.steps.length}: {planningContext.steps[planningContext.currentStepIndex]?.label}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPlanningContext(null)}
+                                        className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] shrink-0"
+                                        title="Dismiss plan"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Messages */}
                             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin min-h-0">
@@ -989,8 +1129,9 @@ export default function HootFAB() {
                                                 '📊 How am I doing?',
                                                 '⚔️ Boss strategy',
                                                 '🎯 Set a goal',
-                                                '🎒 Equip my best gear',
+                                                '📖 New vocab words',
                                                 '📝 Coach me',
+                                                '📅 Plan my week',
                                             ].map(suggestion => (
                                                 <button
                                                     key={suggestion}
