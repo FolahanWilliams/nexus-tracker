@@ -3,6 +3,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { useGameStore, Task, Habit, VocabWord } from '@/store/useGameStore';
 import { logger } from '@/lib/logger';
+import { VOCAB_MASTERY_BOSS_STEP, VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS } from '@/lib/rewardCalculator';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Nexus Pulse — Client-side heuristic engine + event-driven AI synthesis
@@ -311,6 +312,113 @@ function detectInsights(state: ReturnType<typeof useGameStore.getState>): PulseI
         });
     }
 
+    // 11. Cognitive load detection — too many new words without enough reviews
+    const newWords = state.vocabWords.filter((w: VocabWord) => w.status === 'new');
+    const learningWords = state.vocabWords.filter((w: VocabWord) => w.status === 'learning');
+    const totalActive = newWords.length + learningWords.length;
+    if (totalActive >= 15) {
+        insights.push({
+            id: 'vocab-cognitive-overload',
+            icon: '🧠',
+            title: 'Cognitive overload risk',
+            description: `You have ${totalActive} words in new/learning status. Focus on reviewing existing words before adding more — your brain needs time to consolidate.`,
+            severity: totalActive >= 25 ? 'critical' : 'warning',
+            domain: 'vocab',
+            actionLabel: 'Review words',
+            actionHref: '/wordforge',
+        });
+    } else if (totalActive >= 8 && dueCount >= 5) {
+        insights.push({
+            id: 'vocab-review-before-new',
+            icon: '📝',
+            title: 'Review before adding new words',
+            description: `${dueCount} words due for review and ${totalActive} still in learning phase. Clear your review queue first for better retention.`,
+            severity: 'info',
+            domain: 'vocab',
+            actionLabel: 'Start review',
+            actionHref: '/wordforge',
+        });
+    }
+
+    // 12. Declining vocab accuracy trend
+    const recentlyReviewed = state.vocabWords
+        .filter((w: VocabWord) => w.totalReviews >= 2 && w.lastReviewed && w.lastReviewed >= daysAgo(7))
+        .slice(0, 20);
+    if (recentlyReviewed.length >= 5) {
+        const avgAccuracy = recentlyReviewed.reduce((sum: number, w: VocabWord) =>
+            sum + (w.totalReviews > 0 ? w.correctReviews / w.totalReviews : 0), 0) / recentlyReviewed.length;
+        if (avgAccuracy < 0.5) {
+            insights.push({
+                id: 'vocab-accuracy-low',
+                icon: '📉',
+                title: 'Vocab accuracy dropping',
+                description: `Only ${Math.round(avgAccuracy * 100)}% accuracy on recently reviewed words. Try using mnemonics or slowing down during reviews.`,
+                severity: 'warning',
+                domain: 'vocab',
+                actionLabel: 'Practice mode',
+                actionHref: '/wordforge',
+            });
+        }
+    }
+
+    // 13. Vocab mastery celebration + boss buff nudge
+    const masteredCount = state.vocabWords.filter((w: VocabWord) => w.status === 'mastered').length;
+    const currentBossSteps = Math.floor(masteredCount / VOCAB_MASTERY_BOSS_STEP);
+    const nextMilestone = (currentBossSteps + 1) * VOCAB_MASTERY_BOSS_STEP;
+    const currentBonus = Math.min(currentBossSteps * VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS);
+    const wordsToNextBonus = nextMilestone - masteredCount;
+
+    if (masteredCount > 0 && currentBonus < VOCAB_MASTERY_BOSS_MAX_BONUS && wordsToNextBonus <= 2) {
+        insights.push({
+            id: 'vocab-boss-buff-close',
+            icon: '⚔️',
+            title: `${wordsToNextBonus} word${wordsToNextBonus !== 1 ? 's' : ''} from next boss buff`,
+            description: `Master ${wordsToNextBonus} more word${wordsToNextBonus !== 1 ? 's' : ''} to unlock +${Math.round((currentBonus + VOCAB_MASTERY_BOSS_BONUS_PER_STEP) * 100)}% boss damage. Knowledge is power!`,
+            severity: 'info',
+            domain: 'cross-domain',
+            actionLabel: 'Review words',
+            actionHref: '/wordforge',
+        });
+    }
+    if ([5, 10, 25, 50].includes(masteredCount)) {
+        insights.push({
+            id: `vocab-mastery-milestone-${masteredCount}`,
+            icon: '📖',
+            title: `${masteredCount} words mastered!`,
+            description: `Your vocabulary mastery grants +${Math.round(currentBonus * 100)}% bonus boss damage. Scholar power!`,
+            severity: 'celebration',
+            domain: 'cross-domain',
+        });
+    }
+
+    // 14. Vocab streak nudge — encourage daily reviews
+    if (state.vocabWords.length > 0 && state.vocabStreak === 0 && dueCount > 0) {
+        insights.push({
+            id: 'vocab-streak-start',
+            icon: '🔤',
+            title: 'Start a vocab streak',
+            description: `You have ${dueCount} words waiting for review. Review today to start building a vocab streak!`,
+            severity: 'info',
+            domain: 'vocab',
+            actionLabel: 'Review now',
+            actionHref: '/wordforge',
+        });
+    }
+
+    // 15. No words yet — onboarding nudge
+    if (state.vocabWords.length === 0) {
+        insights.push({
+            id: 'vocab-onboarding',
+            icon: '📚',
+            title: 'Unlock WordForge',
+            description: 'Generate your first vocabulary words to start earning boss damage bonuses through mastery!',
+            severity: 'info',
+            domain: 'vocab',
+            actionLabel: 'Get started',
+            actionHref: '/wordforge',
+        });
+    }
+
     // Sort: critical first, then warnings, then celebrations, then info
     const severityOrder: Record<InsightSeverity, number> = { critical: 0, warning: 1, celebration: 2, info: 3 };
     insights.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
@@ -337,14 +445,21 @@ export function buildPulseSnapshot(state: ReturnType<typeof useGameStore.getStat
         weeklyQuests.push(countCompletedOnDate(state.tasks, daysAgo(i)));
     }
 
+    const masteredWords = state.vocabWords.filter((w: VocabWord) => w.status === 'mastered').length;
+    const bossSteps = Math.floor(masteredWords / VOCAB_MASTERY_BOSS_STEP);
+    const bossBonus = Math.min(bossSteps * VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS);
     const vocabStats = {
         total: state.vocabWords.length,
-        mastered: state.vocabWords.filter((w: VocabWord) => w.status === 'mastered').length,
+        mastered: masteredWords,
+        new: state.vocabWords.filter((w: VocabWord) => w.status === 'new').length,
+        learning: state.vocabWords.filter((w: VocabWord) => w.status === 'learning').length,
         due: state.vocabWords.filter((w: VocabWord) => w.nextReviewDate <= t).length,
         avgAccuracy: state.vocabWords.length > 0
             ? Math.round(state.vocabWords.reduce((sum: number, w: VocabWord) =>
                 sum + (w.totalReviews > 0 ? w.correctReviews / w.totalReviews : 0), 0) / state.vocabWords.length * 100)
             : 0,
+        bossBuffPercent: Math.round(bossBonus * 100),
+        vocabStreak: state.vocabStreak,
     };
 
     return {

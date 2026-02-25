@@ -2,17 +2,18 @@
 
 import { useGameStore, CLASS_BONUSES, xpForLevel, Skill } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
+import { CLASS_RESPEC_GOLD_COST, previewAllClasses, buildRewardContext } from '@/lib/rewardCalculator';
 import Link from 'next/link';
 import {
   ChevronLeft, Pencil, Check, X,
-  Brain, Zap, Flame, Lock, Star, AlertCircle
+  Brain, Zap, Flame, Lock, Star, AlertCircle, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 const CLASSES = ['Scholar', 'Strategist', 'Warrior', 'Merchant', 'Creator'] as const;
 type AboutField = 'characterAge' | 'characterYearLevel' | 'characterMotto' | 'characterStrengths';
-type Tab = 'profile' | 'skills';
+type Tab = 'profile' | 'skills' | 'classes';
 
 const CLASS_EMOJI: Record<typeof CLASSES[number], string> = {
   Scholar: '📚', Strategist: '🧠', Warrior: '⚔️', Merchant: '💰', Creator: '🎨',
@@ -34,14 +35,16 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export default function CharacterPage() {
   const {
-    level, xp,
+    level, xp, gold,
     characterClass, characterName, characterAge, characterYearLevel, characterMotto, characterStrengths,
-    setCharacterClass, updateCharacterInfo,
+    setCharacterClass, respecClass, updateCharacterInfo,
     skills, upgradeSkill, unlockSkill, resetSkill, getSkillMultiplier,
+    activeBuffs, vocabWords,
   } = useGameStore();
   const { addToast } = useToastStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const [confirmRespec, setConfirmRespec] = useState<typeof CLASSES[number] | null>(null);
   const [editingField, setEditingField] = useState<AboutField | 'name' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -96,6 +99,33 @@ export default function CharacterPage() {
     }
   };
 
+  // Class comparison data
+  const classPreview = useMemo(() => {
+    const ctx = buildRewardContext({ characterClass, skills, activeBuffs, vocabWords });
+    return previewAllClasses(ctx, 100); // base 100 for easy percentage reading
+  }, [characterClass, skills, activeBuffs, vocabWords]);
+
+  const handleRespec = (newClass: typeof CLASSES[number]) => {
+    if (!characterClass) {
+      // First-time selection is free
+      setCharacterClass(newClass);
+      addToast(`Welcome, ${newClass}! Class selected.`, 'success');
+      setConfirmRespec(null);
+      return;
+    }
+    if (newClass === characterClass) {
+      setConfirmRespec(null);
+      return;
+    }
+    const success = respecClass(newClass);
+    if (success) {
+      addToast(`Respecced to ${newClass}! (-${CLASS_RESPEC_GOLD_COST}g)`, 'success');
+    } else {
+      addToast(`Not enough gold! Need ${CLASS_RESPEC_GOLD_COST}g to respec.`, 'error');
+    }
+    setConfirmRespec(null);
+  };
+
   return (
     <motion.div
       className="min-h-screen pb-12"
@@ -113,7 +143,7 @@ export default function CharacterPage() {
         </div>
         {/* Tabs */}
         <div className="max-w-5xl mx-auto px-4 flex gap-1 mt-2">
-          {(['profile', 'skills'] as const).map((tab) => (
+          {(['profile', 'skills', 'classes'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -123,7 +153,7 @@ export default function CharacterPage() {
                   : 'border-transparent text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
               }`}
             >
-              {tab === 'profile' ? 'Profile' : 'Skill Tree'}
+              {tab === 'profile' ? 'Profile' : tab === 'skills' ? 'Skill Tree' : 'Classes'}
             </button>
           ))}
         </div>
@@ -349,6 +379,143 @@ export default function CharacterPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Classes Tab — Comparison & Respec ── */}
+      {activeTab === 'classes' && (
+        <div className="max-w-5xl mx-auto px-4 py-6">
+          {/* Comparison Table */}
+          <motion.div className="rpg-card mb-6 overflow-x-auto" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-lg font-bold mb-4">Class Comparison</h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--color-border)]">
+                  <th className="text-left py-2 pr-4 text-[var(--color-text-muted)] font-semibold text-xs">Class</th>
+                  <th className="text-center py-2 px-2 text-[var(--color-green)] font-semibold text-xs">XP</th>
+                  <th className="text-center py-2 px-2 text-[var(--color-yellow)] font-semibold text-xs">Gold</th>
+                  <th className="text-center py-2 px-2 text-[var(--color-red)] font-semibold text-xs">Boss DMG</th>
+                  <th className="text-center py-2 px-2 text-[var(--color-blue)] font-semibold text-xs">Drop Bonus</th>
+                  <th className="text-right py-2 pl-2 text-[var(--color-text-muted)] font-semibold text-xs">Specialty</th>
+                </tr>
+              </thead>
+              <tbody>
+                {CLASSES.map((cls) => {
+                  const bonus = CLASS_BONUSES[cls];
+                  const preview = classPreview[cls];
+                  const isActive = characterClass === cls;
+                  return (
+                    <tr key={cls} className={`border-b border-[var(--color-border)]/50 ${isActive ? 'bg-[var(--color-purple)]/10' : ''}`}>
+                      <td className="py-3 pr-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{CLASS_EMOJI[cls]}</span>
+                          <span className={`font-bold ${isActive ? 'text-[var(--color-purple)]' : ''}`}>{cls}</span>
+                          {isActive && <span className="text-[9px] bg-[var(--color-purple)]/20 text-[var(--color-purple)] px-1.5 py-0.5 rounded-full font-bold">Active</span>}
+                        </div>
+                      </td>
+                      <td className="text-center py-3 px-2">
+                        <span className="font-mono font-bold text-[var(--color-green)]">{preview?.xp ?? 100}</span>
+                        {bonus.xpMultiplier > 1 && <span className="text-[10px] text-[var(--color-green)] block">+{Math.round((bonus.xpMultiplier - 1) * 100)}%</span>}
+                      </td>
+                      <td className="text-center py-3 px-2">
+                        <span className="font-mono font-bold text-[var(--color-yellow)]">{preview?.gold ?? 100}</span>
+                        {bonus.goldMultiplier > 1 && <span className="text-[10px] text-[var(--color-yellow)] block">+{Math.round((bonus.goldMultiplier - 1) * 100)}%</span>}
+                      </td>
+                      <td className="text-center py-3 px-2">
+                        <span className="font-mono font-bold text-[var(--color-red)]">{preview?.boss ?? 100}</span>
+                        {bonus.bossMultiplier > 1 && <span className="text-[10px] text-[var(--color-red)] block">+{Math.round((bonus.bossMultiplier - 1) * 100)}%</span>}
+                      </td>
+                      <td className="text-center py-3 px-2">
+                        <span className={`font-mono font-bold ${bonus.dropBonus > 0 ? 'text-[var(--color-blue)]' : 'text-[var(--color-text-muted)]'}`}>
+                          {bonus.dropBonus > 0 ? `+${Math.round(bonus.dropBonus * 100)}%` : '—'}
+                        </span>
+                      </td>
+                      <td className="text-right py-3 pl-2 text-xs text-[var(--color-text-secondary)] max-w-[120px]">
+                        {bonus.description}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="text-[10px] text-[var(--color-text-muted)] mt-3">
+              Values show projected reward for a base-100 action with your current skills and buffs.
+            </p>
+          </motion.div>
+
+          {/* Respec Section */}
+          <motion.div className="rpg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+            <div className="flex items-center gap-2 mb-4">
+              <RefreshCw size={18} className="text-[var(--color-purple)]" />
+              <h2 className="text-lg font-bold">{characterClass ? 'Change Class' : 'Choose Your Class'}</h2>
+            </div>
+            {characterClass && (
+              <p className="text-xs text-[var(--color-text-muted)] mb-4">
+                Respec costs <span className="font-bold text-[var(--color-yellow)]">{CLASS_RESPEC_GOLD_COST} gold</span>.
+                You have <span className={`font-bold ${gold >= CLASS_RESPEC_GOLD_COST ? 'text-[var(--color-green)]' : 'text-[var(--color-red)]'}`}>{gold}g</span>.
+              </p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {CLASSES.map((cls, index) => {
+                const bonus = CLASS_BONUSES[cls];
+                const isActive = characterClass === cls;
+                const isConfirming = confirmRespec === cls;
+                return (
+                  <motion.div
+                    key={cls}
+                    className={`p-4 rounded-lg border transition-all ${
+                      isActive
+                        ? 'border-[var(--color-purple)] bg-[var(--color-purple)]/10'
+                        : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/40'
+                    }`}
+                    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 + index * 0.05 }}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">{CLASS_EMOJI[cls]}</span>
+                      <div>
+                        <p className="font-bold">{cls}</p>
+                        {isActive && <p className="text-[10px] text-[var(--color-purple)] font-bold">Currently Active</p>}
+                      </div>
+                    </div>
+                    <p className="text-xs text-[var(--color-text-secondary)] mb-3">{bonus.description}</p>
+                    <div className="grid grid-cols-2 gap-1 mb-3 text-[10px]">
+                      <span className="text-[var(--color-green)]">XP: x{bonus.xpMultiplier.toFixed(2)}</span>
+                      <span className="text-[var(--color-yellow)]">Gold: x{bonus.goldMultiplier.toFixed(2)}</span>
+                      <span className="text-[var(--color-red)]">Boss: x{bonus.bossMultiplier.toFixed(2)}</span>
+                      <span className="text-[var(--color-blue)]">Drop: +{Math.round(bonus.dropBonus * 100)}%</span>
+                    </div>
+                    {isActive ? (
+                      <div className="text-center py-1.5 rounded-lg bg-[var(--color-purple)]/20 text-xs font-bold text-[var(--color-purple)]">
+                        Active
+                      </div>
+                    ) : isConfirming ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleRespec(cls)}
+                          className="flex-1 py-1.5 rounded-lg text-xs font-bold bg-[var(--color-purple)] text-white hover:bg-[var(--color-purple)]/80 transition-colors"
+                        >
+                          Confirm{characterClass ? ` (-${CLASS_RESPEC_GOLD_COST}g)` : ''}
+                        </button>
+                        <button
+                          onClick={() => setConfirmRespec(null)}
+                          className="py-1.5 px-3 rounded-lg text-xs font-bold border border-[var(--color-border)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-dark)] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmRespec(cls)}
+                        className="w-full py-1.5 rounded-lg text-xs font-bold border border-[var(--color-purple)]/40 text-[var(--color-purple)] hover:bg-[var(--color-purple)]/10 transition-colors"
+                      >
+                        {characterClass ? 'Switch to this class' : 'Select'}
+                      </button>
+                    )}
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
         </div>
       )}
 

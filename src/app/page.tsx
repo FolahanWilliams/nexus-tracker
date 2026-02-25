@@ -12,6 +12,7 @@ import RecentActivityFeed from '@/components/RecentActivityFeed';
 import NexusPulseCard from '@/components/NexusPulseCard';
 import SyncStatusIndicator from '@/components/SyncStatusIndicator';
 import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
+import { VOCAB_MASTERY_BOSS_STEP, VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS } from '@/lib/rewardCalculator';
 
 import { useAuth } from '@/components/AuthProvider';
 import LoginScreen from '@/components/LoginScreen';
@@ -155,6 +156,10 @@ function DashboardContent() {
     const pool = candidates.length > 0 ? candidates : vocabWords;
     return pool[pool.length - 1];
   }, [vocabWords]);
+  const vocabBossBonus = useMemo(() => {
+    const steps = Math.floor(vocabMastered / VOCAB_MASTERY_BOSS_STEP);
+    return Math.min(steps * VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS);
+  }, [vocabMastered]);
   const vocabWordsGeneratedToday = vocabDailyDate === today;
 
   const vocabReviewedToday = useMemo(
@@ -495,7 +500,7 @@ function DashboardContent() {
                   </Link>
                 </div>
 
-                <div className="px-4 pb-3 grid grid-cols-3 gap-2">
+                <div className="px-4 pb-3 grid grid-cols-4 gap-2">
                   <div className="text-center p-2 rounded-lg bg-[var(--color-bg-dark)]/50">
                     <p className="text-lg font-bold text-[var(--color-blue)]">{vocabWords.length}</p>
                     <p className="text-[9px] text-[var(--color-text-muted)] font-semibold uppercase">Words</p>
@@ -509,6 +514,10 @@ function DashboardContent() {
                       {vocabDueCount}
                     </p>
                     <p className="text-[9px] text-[var(--color-text-muted)] font-semibold uppercase">Due</p>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-[var(--color-bg-dark)]/50" title="Boss damage bonus from vocab mastery">
+                    <p className="text-lg font-bold text-[var(--color-red)]">+{Math.round(vocabBossBonus * 100)}%</p>
+                    <p className="text-[9px] text-[var(--color-text-muted)] font-semibold uppercase">Boss DMG</p>
                   </div>
                 </div>
 

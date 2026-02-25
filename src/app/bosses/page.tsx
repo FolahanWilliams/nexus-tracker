@@ -1,8 +1,9 @@
 'use client';
 
 import { useGameStore, BossBattle } from '@/store/useGameStore';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { VOCAB_MASTERY_BOSS_STEP, VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS } from '@/lib/rewardCalculator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
 import {
@@ -48,12 +49,18 @@ const DIFFICULTY_BG = {
 };
 
 export default function BossBattlesPage() {
-  const { bossBattles, startBossBattle, damageBoss, failBossBattle, checkDailyQuests } = useGameStore();
+  const { bossBattles, startBossBattle, damageBoss, failBossBattle, checkDailyQuests, vocabWords } = useGameStore();
   const { addToast } = useToastStore();
   const [showBossSelect, setShowBossSelect] = useState(false);
   const [selectedBoss, setSelectedBoss] = useState<BossBattle | null>(null);
   const [battleTimer, setBattleTimer] = useState(0);
   const [playerDamage, setPlayerDamage] = useState(10);
+
+  const vocabMastered = useMemo(() => vocabWords.filter(w => w.status === 'mastered').length, [vocabWords]);
+  const vocabBossBonus = useMemo(() => {
+    const steps = Math.floor(vocabMastered / VOCAB_MASTERY_BOSS_STEP);
+    return Math.min(steps * VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS);
+  }, [vocabMastered]);
 
   const activeBosses = bossBattles.filter(b => !b.completed && !b.failed);
   const completedBosses = bossBattles.filter(b => b.completed);
@@ -217,7 +224,7 @@ export default function BossBattlesPage() {
       <div className="max-w-5xl mx-auto px-4 py-6">
         {/* Stats */}
         <motion.div
-          className="grid grid-cols-3 gap-4 mb-8"
+          className="grid grid-cols-4 gap-4 mb-8"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
         >
@@ -232,6 +239,10 @@ export default function BossBattlesPage() {
           <div className="rpg-card text-center">
             <p className="text-2xl font-bold text-[var(--color-yellow)]">{failedBosses.length}</p>
             <p className="text-sm text-[var(--color-text-secondary)]">Defeats</p>
+          </div>
+          <div className="rpg-card text-center" title={`${vocabMastered} mastered words → +${Math.round(vocabBossBonus * 100)}% boss damage`}>
+            <p className="text-2xl font-bold text-[var(--color-purple)]">+{Math.round(vocabBossBonus * 100)}%</p>
+            <p className="text-sm text-[var(--color-text-secondary)]">Vocab Buff</p>
           </div>
         </motion.div>
 

@@ -273,6 +273,7 @@ export interface CoreSlice {
     addGold: (amount: number) => void;
     addGems: (amount: number) => void;
     setCharacterClass: (characterClass: CharacterClass) => void;
+    respecClass: (newClass: CharacterClass) => boolean;
     updateCharacterInfo: (info: Partial<Pick<GameState, 'characterName' | 'characterAge' | 'characterYearLevel' | 'characterMotto' | 'characterStrengths'>>) => void;
     updateTitle: () => void;
     updateSettings: (settings: Partial<Settings>) => void;
