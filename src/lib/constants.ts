@@ -149,7 +149,13 @@ export const DAILY_QUEST_TEMPLATES = [
     { title: 'Complete a quest chain step', difficulty: 'Medium' as const, xp: 35 },
 ];
 
-// ─── Activity Log ────────────────────────────────────────────────
+// ─── Bounded Arrays ─────────────────────────────────────────────
 
 /** Maximum entries kept in the activity log. */
 export const ACTIVITY_LOG_MAX_ENTRIES = 500;
+
+/**
+ * Maximum number of completedDates entries kept per habit.
+ * ~1 year of daily completions. Older entries are trimmed on each completion.
+ */
+export const HABIT_COMPLETED_DATES_MAX = 365;

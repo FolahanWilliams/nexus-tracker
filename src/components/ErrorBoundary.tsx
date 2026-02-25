@@ -4,6 +4,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import Link from 'next/link';
+import { logger } from '@/lib/logger';
 
 interface Props {
   children: React.ReactNode;
@@ -25,7 +26,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error('ErrorBoundary caught an error:', error, errorInfo);
+    logger.error('ErrorBoundary caught an error', 'ErrorBoundary', error, errorInfo);
   }
 
   handleReset = () => {

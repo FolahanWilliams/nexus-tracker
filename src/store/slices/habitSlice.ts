@@ -1,6 +1,8 @@
 import type { StateCreator } from 'zustand';
 import type { GameState, HabitSlice, Habit } from '../types';
 import { validateHabitName, ValidationError } from '@/lib/validation';
+import { HABIT_COMPLETED_DATES_MAX } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 export const createHabitSlice: StateCreator<GameState, [], [], HabitSlice> = (set, get) => ({
     // ── State ──
@@ -24,7 +26,7 @@ export const createHabitSlice: StateCreator<GameState, [], [], HabitSlice> = (se
             };
             set((state) => ({ habits: [...state.habits, newHabit] }));
         } catch (error) {
-            if (error instanceof ValidationError) console.error('Validation error:', error.message);
+            if (error instanceof ValidationError) logger.error(`Validation error: ${error.message}`, 'store');
             throw error;
         }
     },
@@ -44,7 +46,7 @@ export const createHabitSlice: StateCreator<GameState, [], [], HabitSlice> = (se
         set((state) => ({
             habits: state.habits.map(h =>
                 h.id === habitId
-                    ? { ...h, completedDates: [...h.completedDates, today], streak: newStreak, longestStreak: newLongest, lastCompletedDate: today }
+                    ? { ...h, completedDates: [...h.completedDates, today].slice(-HABIT_COMPLETED_DATES_MAX), streak: newStreak, longestStreak: newLongest, lastCompletedDate: today }
                     : h
             )
         }));

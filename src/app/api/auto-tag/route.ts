@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
         }
 
         if (!process.env.GOOGLE_API_KEY) {
-            console.warn("No GOOGLE_API_KEY found. Using fallback tagging.");
+            logger.warn('No GOOGLE_API_KEY found, using fallback tagging', 'auto-tag');
             return NextResponse.json({
                 cleanTitle: title,
                 difficulty: 'Medium',
@@ -68,7 +69,7 @@ Analyze the following task:`;
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Gemini Auto-Tag Error:', error);
+        logger.error('Gemini Auto-Tag Error', 'auto-tag', error);
         return NextResponse.json({
             cleanTitle: 'Untitled Quest',
             difficulty: 'Medium',

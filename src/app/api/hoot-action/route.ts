@@ -1,6 +1,8 @@
 import { SchemaType } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 // ── Hoot's available actions (Gemini Function Declarations) ──────────────
 const hootFunctions = [
@@ -232,14 +234,12 @@ export async function POST(request: Request) {
     try {
         const { message, currentPage, context, grounding } = await request.json();
 
-        if (!process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({
-                message: "I can't connect right now, but I'm still here for you! 🦉",
-                actions: [],
-                sources: null,
-                isMock: true,
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            message: "I can't connect right now, but I'm still here for you! \u{1F989}",
+            actions: [],
+            sources: null,
+        });
+        if (mock) return mock;
 
         const pageDescription = PAGE_CONTEXT[currentPage] || `Page: ${currentPage}`;
 
@@ -325,7 +325,7 @@ RULES:
             sources: sources && sources.length > 0 ? sources : null,
         });
     } catch (error) {
-        console.error('Hoot Action Error:', error);
+        logger.error('Hoot Action Error', 'hoot-action', error);
         return NextResponse.json({
             message: "Something went wrong on my end. Give me a moment and try again! 🦉",
             actions: [],

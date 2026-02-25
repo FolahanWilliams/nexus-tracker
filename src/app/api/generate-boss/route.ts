@@ -1,23 +1,22 @@
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
     try {
         const { uncompletedTasks, failedHabits, playerContext, pulseData } = await request.json();
 
-        if (!process.env.GOOGLE_API_KEY) {
-            console.warn("No GOOGLE_API_KEY found.");
-            return NextResponse.json({
-                name: "The Generic Procrastinator",
-                description: "A shadowy figure forged from the tasks you put off until tomorrow.",
-                difficulty: "Medium",
-                hp: 500,
-                maxHp: 500,
-                xpReward: 150,
-                goldReward: 75,
-                isMock: true
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            name: "The Generic Procrastinator",
+            description: "A shadowy figure forged from the tasks you put off until tomorrow.",
+            difficulty: "Medium",
+            hp: 500,
+            maxHp: 500,
+            xpReward: 150,
+            goldReward: 75,
+        });
+        if (mock) return mock;
 
         // Google Search Grounding lets the AI reference real-world events and trends
         // to create culturally relevant, topical boss battles.
@@ -77,7 +76,7 @@ Output ONLY a valid JSON object with:
             failed: false
         });
     } catch (error) {
-        console.error('Gemini Boss Gen Error:', error);
+        logger.error('Gemini Boss Gen Error', 'generate-boss', error);
         return NextResponse.json({
             name: "The Chaos Anomaly",
             description: "A glitch in the matrix blocking your path.",

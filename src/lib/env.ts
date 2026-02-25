@@ -5,6 +5,8 @@
  * clear startup errors instead of cryptic runtime failures.
  */
 
+import { logger } from './logger';
+
 interface EnvConfig {
     /** Google Gemini API key (optional — mock data is used when absent). */
     GOOGLE_API_KEY: string | undefined;
@@ -34,17 +36,19 @@ export function validateEnv(): EnvConfig {
     // The app degrades gracefully (local-only persistence) without them,
     // so we warn rather than throw.
     if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-        console.warn(
-            '[env] Supabase credentials missing (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY). ' +
-            'Auth and cloud sync will be unavailable. Persistence is local-only.'
+        logger.warn(
+            'Supabase credentials missing (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY). ' +
+            'Auth and cloud sync will be unavailable. Persistence is local-only.',
+            'env',
         );
     }
 
     // Gemini key is optional — all AI routes fall back to mock data without it.
     if (typeof window === 'undefined' && !env.GOOGLE_API_KEY) {
-        console.warn(
-            '[env] GOOGLE_API_KEY not set. AI features (quest generation, vocab, coaching) ' +
-            'will return mock/fallback data.'
+        logger.warn(
+            'GOOGLE_API_KEY not set. AI features (quest generation, vocab, coaching) ' +
+            'will return mock/fallback data.',
+            'env',
         );
     }
 

@@ -1,6 +1,8 @@
 import { DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
     try {
@@ -10,28 +12,25 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
         }
 
-        if (!process.env.GOOGLE_API_KEY) {
-            console.warn("No GOOGLE_API_KEY found. Using fallback chain.");
-            return NextResponse.json({
-                name: `[MOCK] Campaign: ${prompt}`,
-                description: `A generated campaign for ${prompt}`,
-                difficulty: 'Medium',
-                steps: [
-                    {
-                        title: 'Step 1: Preparation',
-                        description: 'Get everything ready before diving in.',
-                        branches: [
-                            { label: 'Plan Thoroughly', description: 'Create a detailed outline and gather all resources first.', xpBonus: 30 },
-                            { label: 'Start Lean', description: 'Begin with the minimum setup and adapt as you go.', xpBonus: 20 },
-                        ]
-                    },
-                    { title: 'Step 2: Execution', description: 'Do the hard work and push through challenges.' },
-                    { title: 'Step 3: Review', description: 'Reflect on what was accomplished and refine your approach.' },
-                ],
-                reward: { xp: 200, gold: 100 },
-                isMock: true
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            name: `[MOCK] Campaign: ${prompt}`,
+            description: `A generated campaign for ${prompt}`,
+            difficulty: 'Medium',
+            steps: [
+                {
+                    title: 'Step 1: Preparation',
+                    description: 'Get everything ready before diving in.',
+                    branches: [
+                        { label: 'Plan Thoroughly', description: 'Create a detailed outline and gather all resources first.', xpBonus: 30 },
+                        { label: 'Start Lean', description: 'Begin with the minimum setup and adapt as you go.', xpBonus: 20 },
+                    ]
+                },
+                { title: 'Step 2: Execution', description: 'Do the hard work and push through challenges.' },
+                { title: 'Step 3: Review', description: 'Reflect on what was accomplished and refine your approach.' },
+            ],
+            reward: { xp: 200, gold: 100 },
+        });
+        if (mock) return mock;
 
         // Google Search Grounding lets the AI research the user's project topic
         // to create steps that reference real tools, frameworks, and best practices.
@@ -97,7 +96,7 @@ Generate a quest chain for the following user goal:`;
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Gemini Generate Chain Error:', error);
+        logger.error('Gemini Generate Chain Error', 'generate-chain', error);
         return NextResponse.json({
             name: `Project: ${prompt}`,
             description: 'Failed to generate AI steps.',

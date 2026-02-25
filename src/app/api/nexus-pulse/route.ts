@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
     try {
@@ -7,15 +9,13 @@ export async function POST(request: Request) {
         // history: optional array of past PulseHistoryEntry for trend analysis
         // clientPulse: optional string context from other AI routes
 
-        if (!process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({
-                topInsight: 'Keep pushing — consistency is your superpower.',
-                burnoutRisk: 0.2,
-                momentum: 'steady',
-                suggestion: 'Complete your top 3 habits today to maintain your streak.',
-                isMock: true,
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            topInsight: 'Keep pushing — consistency is your superpower.',
+            burnoutRisk: 0.2,
+            momentum: 'steady',
+            suggestion: 'Complete your top 3 habits today to maintain your streak.',
+        });
+        if (mock) return mock;
 
         const model = genAI.getGenerativeModel({
             model: 'gemini-3-flash-preview',
@@ -78,7 +78,7 @@ Output ONLY valid JSON with these exact fields:
 
         return NextResponse.json(response);
     } catch (error) {
-        console.error('[NexusPulse] Error:', error);
+        logger.error('Error', 'nexus-pulse', error);
         return NextResponse.json({
             topInsight: 'Pulse analysis temporarily unavailable.',
             burnoutRisk: 0.3,

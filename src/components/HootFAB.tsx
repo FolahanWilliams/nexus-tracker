@@ -8,6 +8,7 @@ import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, X, ExternalLink, Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { logger } from '@/lib/logger';
 import ReactMarkdown from 'react-markdown';
 import useSoundEffects from '@/hooks/useSoundEffects';
 import { buildPulseSnapshot } from '@/hooks/useNexusPulse';
@@ -641,7 +642,7 @@ export default function HootFAB() {
                                 results.push(`⚠️ Web search failed or returned no results.`);
                             }
                         } catch (err) {
-                            console.error('Web search error', err);
+                            logger.error('Web search error', 'Hoot', err);
                             results.push(`⚠️ Web search encountered an error.`);
                         }
                         break;
@@ -650,7 +651,7 @@ export default function HootFAB() {
                         results.push(`⚠️ Unknown action: ${action}`);
                 }
             } catch (err) {
-                console.error(`Hoot action ${action} failed:`, err);
+                logger.error(`Hoot action ${action} failed`, 'Hoot', err);
                 results.push(`❌ Failed to execute: ${action}`);
             }
         }
@@ -805,7 +806,7 @@ export default function HootFAB() {
                 quickReplies,
             });
         } catch (error) {
-            console.error('Hoot error:', error);
+            logger.error('Hoot error', 'Hoot', error);
             addMessage({
                 role: 'hoot',
                 text: "Hoo! Something went wrong. Try again in a moment! 🦉",

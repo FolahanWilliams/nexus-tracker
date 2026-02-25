@@ -4,6 +4,7 @@ import { useGameStore, TaskCategory, TaskDuration } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { ValidationError } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -162,7 +163,7 @@ export default function QuestsPage() {
 
       setGeneratePrompt('');
     } catch (error) {
-      console.error('Failed to generate quests:', error);
+      logger.error('Failed to generate quests', 'quests', error);
       const msg = error instanceof DOMException && error.name === 'TimeoutError'
         ? 'AI request timed out. Try again.' : 'Network error. Check your connection and try again.';
       addToast(msg, 'error');
@@ -205,7 +206,7 @@ export default function QuestsPage() {
       setAiPreview(data);
       addToast('Quest classified by AI! Review and create. ✨', 'success');
     } catch (error) {
-      console.error('Failed to auto-tag:', error);
+      logger.error('Failed to auto-tag', 'quests', error);
       addToast('Network error. Check your connection.', 'error');
     } finally {
       setIsAutoTagging(false);
@@ -251,7 +252,7 @@ export default function QuestsPage() {
       }
       setNlCommand('');
     } catch (error) {
-      console.error('NL Command error:', error);
+      logger.error('NL Command error', 'quests', error);
       addToast('Failed to process command.', 'error');
     } finally {
       setIsCommandProcessing(false);
@@ -285,7 +286,7 @@ export default function QuestsPage() {
         addToast(`🌟 New Achievement: ${data.icon} ${data.name}!`, 'success');
       }
     } catch (error) {
-      console.error('Smart achievement check failed:', error);
+      logger.error('Smart achievement check failed', 'quests', error);
     }
   };
 

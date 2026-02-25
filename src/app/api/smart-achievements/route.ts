@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
     try {
         const { recentActivity } = await request.json();
 
-        if (!process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({ earned: false, isMock: true });
-        }
+        const mock = hasApiKeyOrMock({ earned: false });
+        if (mock) return mock;
 
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
@@ -43,7 +44,7 @@ Output ONLY valid JSON:
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Smart Achievement Error:', error);
+        logger.error('Smart Achievement Error', 'smart-achievements', error);
         return NextResponse.json({ earned: false, error: 'AI unavailable' });
     }
 }

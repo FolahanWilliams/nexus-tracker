@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand';
 import type { GameState, TaskSlice, DailyQuest, BossBattle, InventoryItem } from '../types';
 import { DIFFICULTY_XP, CLASS_BONUSES, DAILY_REWARDS, DAILY_QUEST_TEMPLATES } from '@/lib/constants';
 import { validateTaskTitle, ValidationError } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 // Module-level map: one active reset-timer per recurring task.
 const recurringTaskTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -36,7 +37,7 @@ export const createTaskSlice: StateCreator<GameState, [], [], TaskSlice> = (set,
             };
             set((state) => ({ tasks: [...state.tasks, newTask] }));
         } catch (error) {
-            if (error instanceof ValidationError) console.error('Validation error:', error.message);
+            if (error instanceof ValidationError) logger.error(`Validation error: ${error.message}`, 'store');
             throw error;
         }
     },

@@ -12,6 +12,7 @@ import {
     validateStrengths,
     ValidationError,
 } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 const ACHIEVEMENTS = [
     { id: 'FIRST_BLOOD', name: 'First Blood', description: 'Complete your first quest', icon: '⚔️', condition: (s: GameState) => s.totalQuestsCompleted >= 1 },
@@ -105,7 +106,7 @@ export const createCoreSlice: StateCreator<GameState, [], [], CoreSlice> = (set,
             get().checkAchievements();
             get().updateTitle();
         } catch (error) {
-            console.error('addXP error:', error instanceof ValidationError ? error.message : error);
+            logger.error('addXP error', 'store', error instanceof ValidationError ? error.message : error);
         }
     },
 
@@ -132,7 +133,7 @@ export const createCoreSlice: StateCreator<GameState, [], [], CoreSlice> = (set,
 
             set((state) => ({ gold: Math.max(0, state.gold + finalAmount) }));
         } catch (error) {
-            console.error('addGold error:', error instanceof ValidationError ? error.message : error);
+            logger.error('addGold error', 'store', error instanceof ValidationError ? error.message : error);
         }
     },
 
@@ -150,7 +151,7 @@ export const createCoreSlice: StateCreator<GameState, [], [], CoreSlice> = (set,
             if (info.characterStrengths !== undefined) validatedInfo.characterStrengths = validateStrengths(info.characterStrengths);
             set((state) => ({ ...state, ...validatedInfo }));
         } catch (error) {
-            if (error instanceof ValidationError) console.error('Validation error:', error.message);
+            if (error instanceof ValidationError) logger.error(`Validation error: ${error.message}`, 'store');
             throw error;
         }
     },
