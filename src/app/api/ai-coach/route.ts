@@ -1,26 +1,6 @@
-import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
+import { DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
-
-/**
- * Extract JSON from a Gemini response that may contain markdown fences or prose.
- */
-function extractJSON(text: string): unknown {
-    // Try direct parse first
-    try { return JSON.parse(text); } catch { /* continue */ }
-    // Try extracting from ```json ... ``` fences
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenced) {
-        try { return JSON.parse(fenced[1].trim()); } catch { /* continue */ }
-    }
-    // Try extracting the first { ... } block
-    const braces = text.match(/\{[\s\S]*\}/);
-    if (braces) {
-        try { return JSON.parse(braces[0]); } catch { /* continue */ }
-    }
-    throw new Error('Could not extract JSON from response');
-}
+import { genAI, extractJSON } from '@/lib/gemini';
 
 export async function POST(request: Request) {
     try {
