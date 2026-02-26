@@ -85,9 +85,11 @@ export const createRpgSlice: StateCreator<GameState, [], [], RpgSlice> = (set, g
             else if (type === 'gold') state.addGold(value);
             else if (type === 'heal') set((s) => ({ hp: Math.min(s.maxHp, s.hp + value) }));
             else if (type === 'buff' && duration) state.addBuff('buff', value, duration);
+        } else {
+            // Only apply stat bonuses for non-consumable items (passive gear)
+            if (item.stats?.xpBonus) state.addXP(item.stats.xpBonus);
+            if (item.stats?.goldBonus) state.addGold(item.stats.goldBonus);
         }
-        if (item.stats?.xpBonus) state.addXP(item.stats.xpBonus);
-        if (item.stats?.goldBonus) state.addGold(item.stats.goldBonus);
 
         state.removeItem(id, 1);
         get().unlockAchievement('CRAFTSMAN');
@@ -99,8 +101,8 @@ export const createRpgSlice: StateCreator<GameState, [], [], RpgSlice> = (set, g
             const skill = state.skills.find(s => s.id === skillId);
             if (!skill || !skill.unlocked || skill.currentLevel >= skill.maxLevel) return state;
             const cost = skill.cost * (skill.currentLevel + 1);
-            if (state.xp < cost) return state;
-            return { xp: state.xp - cost, skills: state.skills.map(s => s.id === skillId ? { ...s, currentLevel: s.currentLevel + 1 } : s) };
+            if (state.gold < cost) return state;
+            return { gold: state.gold - cost, skills: state.skills.map(s => s.id === skillId ? { ...s, currentLevel: s.currentLevel + 1 } : s) };
         });
     },
 
