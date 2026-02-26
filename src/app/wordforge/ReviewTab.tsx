@@ -38,9 +38,6 @@ export default function ReviewTab() {
   const [studyBatch, setStudyBatch] = useState<ReturnType<typeof useGameStore.getState>['vocabWords']>([]);
   const [pendingQuizType, setPendingQuizType] = useState<'quiz' | 'recall'>('quiz');
 
-  // Practice mode: quiz on all words when none are due
-  const [isPractice, setIsPractice] = useState(false);
-
   // Selected quiz mode — 'adaptive' lets AI pick, or user picks a specific type
   const [quizMode, setQuizMode] = useState<QuizType | 'adaptive'>('adaptive');
 
@@ -73,13 +70,12 @@ export default function ReviewTab() {
     [vocabWords, today]
   );
 
-  const startStudyCards = useCallback((nextMode: 'quiz' | 'recall', practice = false, endless = false) => {
-    const pool = practice || endless ? vocabWords : dueWords;
+  const startStudyCards = useCallback((nextMode: 'quiz' | 'recall', endless = false) => {
+    const pool = endless ? vocabWords : dueWords;
     if (pool.length === 0) {
-      addToast(practice || endless ? 'No words available!' : 'No words due for review!', 'info');
+      addToast(endless ? 'No words available!' : 'No words due for review!', 'info');
       return;
     }
-    setIsPractice(practice);
     setIsEndless(endless);
     if (endless) {
       setEndlessBatchCount(0);
@@ -89,7 +85,7 @@ export default function ReviewTab() {
 
     // ── Interleaving (Item 7) ── Mix in old/mastered words with due words
     let batch: typeof vocabWords;
-    if (!practice && dueWords.length > 0) {
+    if (dueWords.length > 0) {
       const maxBatch = 10;
       const dueShuffled = shuffleArray(dueWords);
       // Reserve ~70% for due words, ~30% for interleaved mastered/reviewing words
@@ -237,8 +233,7 @@ export default function ReviewTab() {
     const correct = optionIdx === q.correctIndex;
     const wordObj = vocabWords.find(w => w.word === q.word);
     const responseTimeMs = Date.now() - answerStartTime;
-    // Only update SM-2 scheduling during real reviews, not practice
-    if (wordObj && !isPractice) {
+    if (wordObj) {
       const quality = correct ? 4 : 1;
       const conf = confidenceRatings[wordObj.id];
       reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5, {
@@ -249,8 +244,7 @@ export default function ReviewTab() {
     const resultEntry = { word: q.word, correct, confidence: conf };
     setSessionResults(prev => [...prev, resultEntry]);
     if (isEndless) endlessResultsRef.current.push(resultEntry);
-    // Only show XP float for real reviews (practice doesn't award XP)
-    if (correct && !isPractice) {
+    if (correct) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
     }
     // Auto-advance only on correct answers; wrong answers show correction card and require manual continue
@@ -273,8 +267,7 @@ export default function ReviewTab() {
     const q = questions[currentIdx];
     const wordObj = vocabWords.find(w => w.word === q.word);
     const responseTimeMs = Date.now() - answerStartTime;
-    // Only update SM-2 scheduling during real reviews, not practice
-    if (wordObj && !isPractice) {
+    if (wordObj) {
       const conf = confidenceRatings[wordObj.id];
       reviewVocabWord(wordObj.id, quality, {
         confidence: conf, responseTimeMs, quizType: q.type,
@@ -285,8 +278,7 @@ export default function ReviewTab() {
     const resultEntry = { word: q.word, correct, confidence: conf };
     setSessionResults(prev => [...prev, resultEntry]);
     if (isEndless) endlessResultsRef.current.push(resultEntry);
-    // Only show XP float for real reviews
-    if (correct && !isPractice) {
+    if (correct) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.mid} XP`, '#4ade80');
     }
     advanceQuestion();
@@ -300,7 +292,7 @@ export default function ReviewTab() {
     setShowAnswer(true);
     const wordObj = vocabWords.find(w => w.word === q.word);
     const responseTimeMs = Date.now() - answerStartTime;
-    if (wordObj && !isPractice) {
+    if (wordObj) {
       const quality = correct ? 5 : 1;
       const conf = confidenceRatings[wordObj.id];
       reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5, {
@@ -311,7 +303,7 @@ export default function ReviewTab() {
     const resultEntry = { word: q.word, correct, confidence: conf };
     setSessionResults(prev => [...prev, resultEntry]);
     if (isEndless) endlessResultsRef.current.push(resultEntry);
-    if (correct && !isPractice) {
+    if (correct) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
     }
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
@@ -326,10 +318,8 @@ export default function ReviewTab() {
     prefetchedBatchRef.current = null;
     prefetchInProgressRef.current = false;
     setMode('done');
-    if (!isPractice) {
-      checkVocabStreak();
-      updateVocabLevel();
-    }
+    checkVocabStreak();
+    updateVocabLevel();
     const results = endlessResultsRef.current;
     const correctCount = results.filter(r => r.correct).length;
     const total = results.length;
@@ -492,25 +482,20 @@ export default function ReviewTab() {
       }
     } else if (isEndless) {
       // Endless mode: update SM2 state and load the next batch
-      if (!isPractice) {
-        checkVocabStreak();
-        updateVocabLevel();
-      }
+      checkVocabStreak();
+      updateVocabLevel();
       setEndlessBatchCount(prev => prev + 1);
       loadNextEndlessBatch();
     } else {
       setMode('done');
-      if (!isPractice) {
-        checkVocabStreak();
-        updateVocabLevel();
-      }
+      checkVocabStreak();
+      updateVocabLevel();
       const correctCount = sessionResults.length > 0
         ? sessionResults.filter(r => r.correct).length + (selectedAnswer === questions[currentIdx]?.correctIndex ? 1 : 0)
         : 0;
       const acc = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
-      const label = isPractice ? 'Practice' : 'Review';
-      addToast(`${label} complete! ${correctCount}/${questions.length} correct`, 'success');
-      logActivity('xp_earned', '🧠', `Vocab ${label.toLowerCase()}: ${correctCount}/${questions.length} correct (${acc}%)`, `WordForge ${label.toLowerCase()} session`);
+      addToast(`Review complete! ${correctCount}/${questions.length} correct`, 'success');
+      logActivity('xp_earned', '🧠', `Vocab review: ${correctCount}/${questions.length} correct (${acc}%)`, `WordForge review session`);
     }
   };
 
@@ -553,13 +538,13 @@ export default function ReviewTab() {
     advanceQuestion();
   };
 
-  const handleModeStart = (modeType: QuizType | 'adaptive', quizType: 'quiz' | 'recall' = 'quiz', practice = false) => {
+  const handleModeStart = (modeType: QuizType | 'adaptive', quizType: 'quiz' | 'recall' = 'quiz') => {
     setQuizMode(modeType);
-    startStudyCards(quizType, practice);
+    startStudyCards(quizType);
   };
 
   const handleEndlessStart = () => {
-    startStudyCards('quiz', false, true);
+    startStudyCards('quiz', true);
   };
 
   // ── Idle state ──
@@ -650,28 +635,6 @@ export default function ReviewTab() {
             </div>
           )}
 
-          {/* Practice mode — available when no words are due but words exist */}
-          {dueWords.length === 0 && vocabWords.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-[var(--color-border)]">
-              <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2 flex items-center gap-1">
-                <RefreshCw size={10} /> Practice Mode — quiz without affecting review schedule
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => handleModeStart(quizMode, 'quiz', true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:brightness-110 border border-[var(--color-blue)]/40 text-[var(--color-blue)] bg-[var(--color-blue)]/10"
-                >
-                  <BarChart3 size={14} /> Practice {selectedModeName}
-                </button>
-                <button
-                  onClick={() => handleModeStart('adaptive', 'recall', true)}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:brightness-110 border border-[var(--color-purple)]/40 text-[var(--color-purple)] bg-[var(--color-purple)]/10"
-                >
-                  <Brain size={14} /> Practice Recall
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {vocabStreak > 0 && (
@@ -707,7 +670,7 @@ export default function ReviewTab() {
         </div>
 
         <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1">
-          <Layers size={12} /> {isPractice ? 'Practice Cards' : 'Study Cards'} — active recall before your {selectedModeName.toLowerCase()}
+          <Layers size={12} /> Study Cards — active recall before your {selectedModeName.toLowerCase()}
         </p>
 
         {/* Interactive Flashcard */}
@@ -915,7 +878,7 @@ export default function ReviewTab() {
         <div className="text-center py-8 p-6 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]">
           <div className="text-4xl mb-3">{isEndless ? '♾️' : accuracy >= 80 ? '🏆' : accuracy >= 50 ? '💪' : '📖'}</div>
           <h3 className="text-lg font-bold mb-1">
-            {isEndless ? 'Endless Session' : isPractice ? 'Practice' : 'Session'} Complete!
+            {isEndless ? 'Endless Session' : 'Session'} Complete!
           </h3>
           <p className="text-2xl font-bold mb-1" style={{ color: accuracy >= 80 ? 'var(--color-green)' : accuracy >= 50 ? 'var(--color-orange)' : 'var(--color-red)' }}>
             {accuracy}% Accuracy
@@ -991,22 +954,12 @@ export default function ReviewTab() {
           ))}
         </div>
 
-        <div className="flex gap-3">
-          <button
-            onClick={() => { setMode('idle'); setIsEndless(false); }}
-            className="flex-1 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-bg-card)] border border-[var(--color-border)] text-white hover:bg-[var(--color-bg-hover)] transition-colors"
-          >
-            Back to Review
-          </button>
-          {vocabWords.length > 0 && (
-            <button
-              onClick={() => { setIsEndless(false); startStudyCards('quiz', true); }}
-              className="flex-1 py-2.5 rounded-lg text-sm font-bold border border-[var(--color-blue)]/40 text-[var(--color-blue)] bg-[var(--color-blue)]/10 hover:bg-[var(--color-blue)]/20 transition-colors"
-            >
-              Practice Again
-            </button>
-          )}
-        </div>
+        <button
+          onClick={() => { setMode('idle'); setIsEndless(false); }}
+          className="w-full py-2.5 rounded-lg text-sm font-bold bg-[var(--color-bg-card)] border border-[var(--color-border)] text-white hover:bg-[var(--color-bg-hover)] transition-colors"
+        >
+          Back to Review
+        </button>
       </div>
     );
   }
