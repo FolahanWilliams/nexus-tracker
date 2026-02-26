@@ -62,6 +62,11 @@ export default function ReviewTab() {
   const endlessResultsRef = useRef<{ word: string; correct: boolean; confidence?: number }[]>([]);
   const endlessReviewedIdsRef = useRef<Set<string>>(new Set());
 
+  // Prefetch next batch for seamless endless transitions
+  const prefetchedQuestionsRef = useRef<QuizQuestion[] | null>(null);
+  const prefetchedBatchRef = useRef<ReturnType<typeof useGameStore.getState>['vocabWords'] | null>(null);
+  const prefetchInProgressRef = useRef(false);
+
   const today = new Date().toISOString().split('T')[0];
   const dueWords = useMemo(
     () => vocabWords.filter(w => w.nextReviewDate <= today),
@@ -248,11 +253,13 @@ export default function ReviewTab() {
     if (correct && !isPractice) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
     }
-    // Auto-advance after a delay — longer to allow confidence rating
+    // Auto-advance only on correct answers; wrong answers show correction card and require manual continue
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-    autoAdvanceRef.current = setTimeout(() => {
-      advanceQuestion();
-    }, correct ? 2500 : 3500); // enough time for confidence rating
+    if (correct) {
+      autoAdvanceRef.current = setTimeout(() => {
+        advanceQuestion();
+      }, 2500);
+    }
   };
 
   // Clean up auto-advance timer on unmount or mode change
@@ -308,11 +315,16 @@ export default function ReviewTab() {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
     }
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-    autoAdvanceRef.current = setTimeout(() => advanceQuestion(), correct ? 2500 : 3500);
+    if (correct) {
+      autoAdvanceRef.current = setTimeout(() => advanceQuestion(), 2500);
+    }
   };
 
   const endEndlessSession = () => {
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    prefetchedQuestionsRef.current = null;
+    prefetchedBatchRef.current = null;
+    prefetchInProgressRef.current = false;
     setMode('done');
     if (!isPractice) {
       checkVocabStreak();
@@ -326,20 +338,13 @@ export default function ReviewTab() {
     logActivity('xp_earned', '🧠', `Vocab endless review: ${correctCount}/${total} correct (${acc}%)`, `${endlessBatchCount + 1} batches`);
   };
 
-  const loadNextEndlessBatch = async () => {
-    setMode('loading');
-    setSessionResults([]);
-    setCurrentIdx(0);
-    setSelectedAnswer(null);
-    setShowAnswer(false);
-    setShowHint(false);
-
+  // Select the next batch of words for endless mode
+  const selectNextEndlessBatch = (allowRecycle = false) => {
     const currentWords = useGameStore.getState().vocabWords;
     const todayStr = new Date().toISOString().split('T')[0];
     const reviewed = endlessReviewedIdsRef.current;
     const maxBatch = 10;
 
-    // Smart word selection: due > incorrect retry > unseen > recycle
     const freshDue = currentWords.filter(w => w.nextReviewDate <= todayStr && !reviewed.has(w.id));
     const incorrectNames = new Set(endlessResultsRef.current.filter(r => !r.correct).map(r => r.word));
     const incorrectRetry = currentWords.filter(w => incorrectNames.has(w.word) && !reviewed.has(w.id));
@@ -365,45 +370,101 @@ export default function ReviewTab() {
       const unseenPool = currentWords.filter(w => !reviewed.has(w.id) && w.totalReviews > 0);
       if (unseenPool.length > 0) {
         batch = shuffleArray(unseenPool).slice(0, maxBatch);
-      } else {
-        // All words seen — clear tracking and recycle
+      } else if (allowRecycle) {
         endlessReviewedIdsRef.current = new Set();
         batch = shuffleArray([...currentWords]).slice(0, maxBatch);
+      } else {
+        batch = [];
       }
     }
+    return { batch, currentWords };
+  };
 
-    if (batch.length === 0) {
-      endEndlessSession();
+  // Generate quiz questions for a given word batch
+  const generateQuizForBatch = async (batch: typeof vocabWords, allWords: typeof vocabWords) => {
+    const res = await fetch('/api/vocab/generate-quiz', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        words: batch.map(w => ({
+          word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
+          status: w.status, confidenceRating: w.confidenceRating,
+          lastConfidenceCorrect: w.lastConfidenceCorrect,
+          consecutiveFailures: w.consecutiveFailures || 0,
+          failedQuizTypes: w.failedQuizTypes || [],
+          totalReviews: w.totalReviews, etymology: w.etymology,
+          relatedWords: w.relatedWords, antonym: w.antonym,
+        })),
+        allWords: allWords.map(w => ({
+          word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
+        })),
+        ...(quizMode !== 'adaptive' ? { forcedType: quizMode } : {}),
+      }),
+    });
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
+    const data = await res.json();
+    return data.questions?.length > 0 ? shuffleArray(data.questions) as QuizQuestion[] : null;
+  };
+
+  // Prefetch next batch in the background while user finishes current batch
+  const prefetchNextBatch = async () => {
+    if (prefetchInProgressRef.current) return;
+    prefetchInProgressRef.current = true;
+    try {
+      const { batch, currentWords } = selectNextEndlessBatch(false);
+      if (batch.length === 0) return;
+      batch.forEach(w => endlessReviewedIdsRef.current.add(w.id));
+      const nextQuestions = await generateQuizForBatch(batch, currentWords);
+      if (nextQuestions) {
+        prefetchedQuestionsRef.current = nextQuestions;
+        prefetchedBatchRef.current = batch;
+      }
+    } catch {
+      // Prefetch failed silently — will fall back to loading spinner
+    }
+  };
+
+  const loadNextEndlessBatch = async () => {
+    // Use prefetched data if available — seamless transition
+    if (prefetchedQuestionsRef.current && prefetchedBatchRef.current) {
+      const pQuestions = prefetchedQuestionsRef.current;
+      const pBatch = prefetchedBatchRef.current;
+      prefetchedQuestionsRef.current = null;
+      prefetchedBatchRef.current = null;
+      prefetchInProgressRef.current = false;
+
+      setSessionResults([]);
+      setCurrentIdx(0);
+      setSelectedAnswer(null);
+      setShowAnswer(false);
+      setShowHint(false);
+      setStudyBatch(pBatch);
+      setQuestions(pQuestions);
+      setMode('quiz');
+      setAnswerStartTime(Date.now());
       return;
     }
 
-    batch.forEach(w => endlessReviewedIdsRef.current.add(w.id));
-    setStudyBatch(batch);
+    // No prefetched data — fall back to loading with spinner
+    setMode('loading');
+    setSessionResults([]);
+    setCurrentIdx(0);
+    setSelectedAnswer(null);
+    setShowAnswer(false);
+    setShowHint(false);
 
     try {
-      const res = await fetch('/api/vocab/generate-quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          words: batch.map(w => ({
-            word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
-            status: w.status, confidenceRating: w.confidenceRating,
-            lastConfidenceCorrect: w.lastConfidenceCorrect,
-            consecutiveFailures: w.consecutiveFailures || 0,
-            failedQuizTypes: w.failedQuizTypes || [],
-            totalReviews: w.totalReviews, etymology: w.etymology,
-            relatedWords: w.relatedWords, antonym: w.antonym,
-          })),
-          allWords: currentWords.map(w => ({
-            word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
-          })),
-          ...(quizMode !== 'adaptive' ? { forcedType: quizMode } : {}),
-        }),
-      });
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const data = await res.json();
-      if (data.questions?.length > 0) {
-        setQuestions(shuffleArray(data.questions));
+      const { batch, currentWords } = selectNextEndlessBatch(true);
+      if (batch.length === 0) {
+        endEndlessSession();
+        return;
+      }
+      batch.forEach(w => endlessReviewedIdsRef.current.add(w.id));
+      setStudyBatch(batch);
+
+      const nextQuestions = await generateQuizForBatch(batch, currentWords);
+      if (nextQuestions) {
+        setQuestions(nextQuestions);
         setMode('quiz');
         setAnswerStartTime(Date.now());
       } else {
@@ -424,6 +485,11 @@ export default function ReviewTab() {
       setSpellingInput('');
       setShowHint(false);
       setAnswerStartTime(Date.now());
+
+      // Prefetch next batch when nearing end of current batch (2nd-to-last question)
+      if (isEndless && currentIdx + 1 >= questions.length - 2 && !prefetchInProgressRef.current && !prefetchedQuestionsRef.current) {
+        prefetchNextBatch();
+      }
     } else if (isEndless) {
       // Endless mode: update SM2 state and load the next batch
       if (!isPractice) {
@@ -1107,16 +1173,57 @@ export default function ReviewTab() {
                         {opt.label}
                       </button>
                     ))}
-                    <button
-                      onClick={() => {
-                        if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-                        advanceQuestion();
-                      }}
-                      className="ml-auto text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
-                    >
-                      {currentIdx < questions.length - 1 ? 'Skip →' : 'Finish →'}
-                    </button>
+                    {selectedAnswer === q.correctIndex && (
+                      <button
+                        onClick={() => {
+                          if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                          advanceQuestion();
+                        }}
+                        className="ml-auto text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
+                      >
+                        {currentIdx < questions.length - 1 ? 'Skip →' : 'Finish →'}
+                      </button>
+                    )}
                   </div>
+
+                  {/* Correction card — shown on wrong answers */}
+                  {selectedAnswer !== q.correctIndex && currentWord && (
+                    <div className="mt-2 p-3.5 rounded-lg bg-[var(--color-red)]/5 border border-[var(--color-red)]/15 space-y-2.5">
+                      <p className="text-[10px] uppercase font-bold text-[var(--color-red)] tracking-wider flex items-center gap-1">
+                        <BookOpen size={11} /> Correct Answer
+                      </p>
+                      <div>
+                        <p className="text-base font-bold text-white">{currentWord.word}</p>
+                        <p className="text-[10px] italic text-[var(--color-text-muted)]">{currentWord.partOfSpeech} &middot; {currentWord.pronunciation}</p>
+                      </div>
+                      <p className="text-sm text-[var(--color-text-primary)]">{currentWord.definition}</p>
+                      {currentWord.examples[0] && (
+                        <div className="text-xs text-[var(--color-text-secondary)] pl-3 border-l-2 border-[var(--color-border)]">
+                          &ldquo;{currentWord.examples[0]}&rdquo;
+                        </div>
+                      )}
+                      {currentWord.etymology && (
+                        <p className="text-xs text-[var(--color-text-secondary)]">
+                          <span className="text-[var(--color-orange)] font-bold">Origin:</span> {currentWord.etymology}
+                        </p>
+                      )}
+                      {(currentWord.userMnemonic || currentWord.mnemonic) && (
+                        <div className="p-2 rounded bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                          <p className="text-[10px] uppercase font-bold text-[var(--color-purple)] mb-0.5">Memory Aid</p>
+                          <p className="text-xs text-[var(--color-text-secondary)]">{currentWord.userMnemonic || currentWord.mnemonic}</p>
+                        </div>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                          advanceQuestion();
+                        }}
+                        className="w-full mt-1 py-2 rounded-lg text-xs font-bold bg-[var(--color-bg-hover)] border border-[var(--color-border)] text-white hover:bg-[var(--color-bg-card)] transition-colors flex items-center justify-center gap-1"
+                      >
+                        Got it{currentIdx < questions.length - 1 ? ', next' : ', finish'} <ArrowRight size={12} />
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               )}
             </div>
@@ -1159,6 +1266,33 @@ export default function ReviewTab() {
                         ? 'var(--color-green)' : 'var(--color-red)',
                     }}>{spellingInput}</p>
                   </div>
+
+                  {/* Correction card for wrong spelling */}
+                  {spellingInput.toLowerCase().trim() !== (q.correctSpelling || q.word).toLowerCase().trim() && currentWord && (
+                    <div className="p-3.5 rounded-lg bg-[var(--color-red)]/5 border border-[var(--color-red)]/15 space-y-2.5">
+                      <p className="text-[10px] uppercase font-bold text-[var(--color-red)] tracking-wider flex items-center gap-1">
+                        <BookOpen size={11} /> Learn This Word
+                      </p>
+                      <p className="text-sm text-[var(--color-text-primary)]">{currentWord.definition}</p>
+                      {currentWord.examples[0] && (
+                        <div className="text-xs text-[var(--color-text-secondary)] pl-3 border-l-2 border-[var(--color-border)]">
+                          &ldquo;{currentWord.examples[0]}&rdquo;
+                        </div>
+                      )}
+                      {currentWord.etymology && (
+                        <p className="text-xs text-[var(--color-text-secondary)]">
+                          <span className="text-[var(--color-orange)] font-bold">Origin:</span> {currentWord.etymology}
+                        </p>
+                      )}
+                      {(currentWord.userMnemonic || currentWord.mnemonic) && (
+                        <div className="p-2 rounded bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                          <p className="text-[10px] uppercase font-bold text-[var(--color-purple)] mb-0.5">Memory Aid</p>
+                          <p className="text-xs text-[var(--color-text-secondary)]">{currentWord.userMnemonic || currentWord.mnemonic}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-3 mt-1 border-t border-[var(--color-border)]/30">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-[var(--color-text-muted)]">How was it?</span>
@@ -1180,15 +1314,27 @@ export default function ReviewTab() {
                           {opt.label}
                         </button>
                       ))}
-                      <button
-                        onClick={() => {
-                          if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-                          advanceQuestion();
-                        }}
-                        className="ml-auto text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
-                      >
-                        {currentIdx < questions.length - 1 ? 'Next →' : 'Finish →'}
-                      </button>
+                      {spellingInput.toLowerCase().trim() === (q.correctSpelling || q.word).toLowerCase().trim() ? (
+                        <button
+                          onClick={() => {
+                            if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                            advanceQuestion();
+                          }}
+                          className="ml-auto text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
+                        >
+                          {currentIdx < questions.length - 1 ? 'Next →' : 'Finish →'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                            advanceQuestion();
+                          }}
+                          className="ml-auto text-[10px] font-bold text-white px-3 py-1 rounded bg-[var(--color-bg-hover)] border border-[var(--color-border)] hover:bg-[var(--color-bg-card)] transition-colors flex items-center gap-1"
+                        >
+                          Got it <ArrowRight size={10} />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 </>
