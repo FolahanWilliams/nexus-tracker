@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         if (mock) return mock;
 
         const model = genAI.getGenerativeModel({
-            model: 'gemini-2.0-flash',
+            model: 'gemini-3-flash-preview',
         });
 
         const existingList = (existingWords || []).slice(-100).join(', ');
