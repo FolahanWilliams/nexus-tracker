@@ -24,11 +24,17 @@ export const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   mastered: { label: 'MASTERED', color: 'var(--color-green)' },
 };
 
+export type QuizType =
+  | 'multiple_choice' | 'reverse_choice' | 'fill_blank' | 'free_recall' | 'use_in_sentence'
+  | 'synonym_match' | 'antonym_match' | 'etymology_drill' | 'contextual_cloze' | 'spelling_challenge';
+
 export interface QuizQuestion {
   word: string;
-  type: 'multiple_choice' | 'reverse_choice' | 'fill_blank' | 'free_recall' | 'use_in_sentence';
+  type: QuizType;
   question: string;
   options?: string[];
   correctIndex?: number;
   hint: string;
+  /** The correct spelling for spelling_challenge type */
+  correctSpelling?: string;
 }

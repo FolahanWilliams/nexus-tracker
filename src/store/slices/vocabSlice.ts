@@ -45,13 +45,41 @@ export const createVocabSlice: StateCreator<GameState, [], [], VocabSlice> = (se
         set(state => ({ vocabWords: [...state.vocabWords, ...newWords] }));
     },
 
-    reviewVocabWord: (wordId, quality) => {
+    reviewVocabWord: (wordId, quality, meta) => {
         const today = new Date().toISOString().split('T')[0];
         set(state => {
             const words = state.vocabWords.map(w => {
                 if (w.id !== wordId) return w;
                 let { easeFactor, interval, repetitions } = w;
                 const isCorrect = quality >= 3;
+
+                // ── Confidence-adjusted quality (Item 3) ──
+                // Low confidence + correct → downgrade quality (they guessed)
+                // High confidence + wrong → extra penalty (overconfidence)
+                let adjustedQuality = quality;
+                const conf = meta?.confidence ?? w.confidenceRating;
+                if (conf != null) {
+                    if (isCorrect && conf <= 2) {
+                        // Correct but low confidence → quality 3 instead of 4/5
+                        adjustedQuality = Math.min(adjustedQuality, 3) as 0 | 1 | 2 | 3 | 4 | 5;
+                    } else if (!isCorrect && conf >= 4) {
+                        // Overconfident and wrong → harsher penalty
+                        adjustedQuality = Math.min(adjustedQuality, 0) as 0 | 1 | 2 | 3 | 4 | 5;
+                    }
+                }
+
+                // ── Response time adjustment (Item 4) ──
+                // Fast + correct → boost quality; Slow + correct → lower quality
+                const responseMs = meta?.responseTimeMs;
+                if (responseMs != null && isCorrect) {
+                    if (responseMs < 3000) {
+                        // Fast and correct → bump quality up by 1 (max 5)
+                        adjustedQuality = Math.min(5, adjustedQuality + 1) as 0 | 1 | 2 | 3 | 4 | 5;
+                    } else if (responseMs > 15000) {
+                        // Very slow but correct → reduce quality by 1 (min 3 since still correct)
+                        adjustedQuality = Math.max(3, adjustedQuality - 1) as 0 | 1 | 2 | 3 | 4 | 5;
+                    }
+                }
 
                 if (isCorrect) {
                     if (repetitions === 0) interval = 1;
@@ -64,7 +92,7 @@ export const createVocabSlice: StateCreator<GameState, [], [], VocabSlice> = (se
                 }
 
                 easeFactor = Math.min(SM2_MAX_EASE, Math.max(SM2_MIN_EASE,
-                    easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+                    easeFactor + (0.1 - (5 - adjustedQuality) * (0.08 + (5 - adjustedQuality) * 0.02))
                 ));
 
                 let status: VocabStatus = w.status;
@@ -76,6 +104,28 @@ export const createVocabSlice: StateCreator<GameState, [], [], VocabSlice> = (se
                 nextDate.setDate(nextDate.getDate() + Math.max(interval, 1));
                 const nextReviewDate = nextDate.toISOString().split('T')[0];
 
+                // ── Track response time (rolling average) ──
+                let avgResponseTimeMs = w.avgResponseTimeMs;
+                if (responseMs != null) {
+                    avgResponseTimeMs = avgResponseTimeMs != null
+                        ? Math.round(avgResponseTimeMs * 0.7 + responseMs * 0.3) // exponential moving average
+                        : responseMs;
+                }
+
+                // ── Track failed quiz types ──
+                let failedQuizTypes = w.failedQuizTypes || [];
+                let consecutiveFailures = w.consecutiveFailures || 0;
+                if (!isCorrect && meta?.quizType) {
+                    failedQuizTypes = [...new Set([...failedQuizTypes, meta.quizType])];
+                    consecutiveFailures += 1;
+                } else if (isCorrect) {
+                    consecutiveFailures = 0;
+                    // Remove the quiz type from failed list on success
+                    if (meta?.quizType) {
+                        failedQuizTypes = failedQuizTypes.filter(t => t !== meta.quizType);
+                    }
+                }
+
                 return {
                     ...w,
                     easeFactor, interval, repetitions, status, nextReviewDate,
@@ -83,6 +133,9 @@ export const createVocabSlice: StateCreator<GameState, [], [], VocabSlice> = (se
                     totalReviews: w.totalReviews + 1,
                     correctReviews: w.correctReviews + (isCorrect ? 1 : 0),
                     lastConfidenceCorrect: isCorrect,
+                    avgResponseTimeMs,
+                    failedQuizTypes,
+                    consecutiveFailures,
                 };
             });
             return { vocabWords: words };

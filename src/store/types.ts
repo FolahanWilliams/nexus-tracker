@@ -193,6 +193,12 @@ export interface VocabWord {
     status: VocabStatus;
     confidenceRating?: number;
     lastConfidenceCorrect?: boolean;
+    /** Average response time in ms for recent quiz answers */
+    avgResponseTimeMs?: number;
+    /** Quiz types the user has failed on for this word */
+    failedQuizTypes?: string[];
+    /** Count of consecutive failures (resets on correct) */
+    consecutiveFailures?: number;
     dateAdded: string;
     lastReviewed: string | null;
     totalReviews: number;
@@ -402,7 +408,7 @@ export interface VocabSlice {
     vocabLastReviewDate: string | null;
 
     addVocabWords: (words: Omit<VocabWord, 'id' | 'dateAdded' | 'lastReviewed' | 'totalReviews' | 'correctReviews' | 'nextReviewDate' | 'easeFactor' | 'interval' | 'repetitions' | 'status'>[]) => void;
-    reviewVocabWord: (wordId: string, quality: 0 | 1 | 2 | 3 | 4 | 5) => void;
+    reviewVocabWord: (wordId: string, quality: 0 | 1 | 2 | 3 | 4 | 5, meta?: { confidence?: number; responseTimeMs?: number; quizType?: string }) => void;
     setVocabDailyDate: (date: string) => void;
     updateVocabLevel: () => void;
     deleteVocabWord: (wordId: string) => void;
