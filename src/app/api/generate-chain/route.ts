@@ -1,4 +1,3 @@
-import { DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
@@ -36,15 +35,8 @@ export async function POST(request: Request) {
         // to create steps that reference real tools, frameworks, and best practices.
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
-            tools: [{
-                googleSearch: {
-                    dynamicRetrievalConfig: {
-                        mode: DynamicRetrievalMode.MODE_DYNAMIC,
-                        dynamicThreshold: 0.3, // Low threshold = search more often
-                    },
-                },
             // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
-            } as any],
+            tools: [{ googleSearch: {} } as any],
         });
 
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG.
