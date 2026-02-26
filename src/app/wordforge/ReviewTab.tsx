@@ -6,7 +6,7 @@ import {
   RefreshCw, CheckCircle, XCircle,
   Brain, BarChart3, HelpCircle,
   Layers, ThumbsUp, ThumbsDown, Minus, ArrowRight,
-  Lightbulb, Type, PenTool, BookOpen,
+  Lightbulb, Type, PenTool, BookOpen, Square, Infinity,
 } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { useGameStore } from '@/store/useGameStore';
@@ -56,19 +56,31 @@ export default function ReviewTab() {
   // Response time tracking (Item 4)
   const [answerStartTime, setAnswerStartTime] = useState<number>(Date.now());
 
+  // Endless study mode
+  const [isEndless, setIsEndless] = useState(false);
+  const [endlessBatchCount, setEndlessBatchCount] = useState(0);
+  const endlessResultsRef = useRef<{ word: string; correct: boolean; confidence?: number }[]>([]);
+  const endlessReviewedIdsRef = useRef<Set<string>>(new Set());
+
   const today = new Date().toISOString().split('T')[0];
   const dueWords = useMemo(
     () => vocabWords.filter(w => w.nextReviewDate <= today),
     [vocabWords, today]
   );
 
-  const startStudyCards = useCallback((nextMode: 'quiz' | 'recall', practice = false) => {
-    const pool = practice ? vocabWords : dueWords;
+  const startStudyCards = useCallback((nextMode: 'quiz' | 'recall', practice = false, endless = false) => {
+    const pool = practice || endless ? vocabWords : dueWords;
     if (pool.length === 0) {
-      addToast(practice ? 'No words to practice!' : 'No words due for review!', 'info');
+      addToast(practice || endless ? 'No words available!' : 'No words due for review!', 'info');
       return;
     }
     setIsPractice(practice);
+    setIsEndless(endless);
+    if (endless) {
+      setEndlessBatchCount(0);
+      endlessResultsRef.current = [];
+      endlessReviewedIdsRef.current = new Set();
+    }
 
     // ── Interleaving (Item 7) ── Mix in old/mastered words with due words
     let batch: typeof vocabWords;
@@ -90,6 +102,9 @@ export default function ReviewTab() {
       batch = shuffleArray(pool).slice(0, 10);
     }
 
+    if (endless) {
+      batch.forEach(w => endlessReviewedIdsRef.current.add(w.id));
+    }
     setStudyBatch(batch);
     setStudyCardIdx(0);
     setStudyCardFlipped(false);
@@ -226,7 +241,9 @@ export default function ReviewTab() {
       });
     }
     const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
-    setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
+    const resultEntry = { word: q.word, correct, confidence: conf };
+    setSessionResults(prev => [...prev, resultEntry]);
+    if (isEndless) endlessResultsRef.current.push(resultEntry);
     // Only show XP float for real reviews (practice doesn't award XP)
     if (correct && !isPractice) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
@@ -258,7 +275,9 @@ export default function ReviewTab() {
     }
     const correct = quality >= 3;
     const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
-    setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
+    const resultEntry = { word: q.word, correct, confidence: conf };
+    setSessionResults(prev => [...prev, resultEntry]);
+    if (isEndless) endlessResultsRef.current.push(resultEntry);
     // Only show XP float for real reviews
     if (correct && !isPractice) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.mid} XP`, '#4ade80');
@@ -282,12 +301,118 @@ export default function ReviewTab() {
       });
     }
     const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
-    setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
+    const resultEntry = { word: q.word, correct, confidence: conf };
+    setSessionResults(prev => [...prev, resultEntry]);
+    if (isEndless) endlessResultsRef.current.push(resultEntry);
     if (correct && !isPractice) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
     }
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     autoAdvanceRef.current = setTimeout(() => advanceQuestion(), correct ? 2500 : 3500);
+  };
+
+  const endEndlessSession = () => {
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    setMode('done');
+    if (!isPractice) {
+      checkVocabStreak();
+      updateVocabLevel();
+    }
+    const results = endlessResultsRef.current;
+    const correctCount = results.filter(r => r.correct).length;
+    const total = results.length;
+    const acc = total > 0 ? Math.round((correctCount / total) * 100) : 0;
+    addToast(`Endless session complete! ${correctCount}/${total} correct (${acc}%)`, 'success');
+    logActivity('xp_earned', '🧠', `Vocab endless review: ${correctCount}/${total} correct (${acc}%)`, `${endlessBatchCount + 1} batches`);
+  };
+
+  const loadNextEndlessBatch = async () => {
+    setMode('loading');
+    setSessionResults([]);
+    setCurrentIdx(0);
+    setSelectedAnswer(null);
+    setShowAnswer(false);
+    setShowHint(false);
+
+    const currentWords = useGameStore.getState().vocabWords;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const reviewed = endlessReviewedIdsRef.current;
+    const maxBatch = 10;
+
+    // Smart word selection: due > incorrect retry > unseen > recycle
+    const freshDue = currentWords.filter(w => w.nextReviewDate <= todayStr && !reviewed.has(w.id));
+    const incorrectNames = new Set(endlessResultsRef.current.filter(r => !r.correct).map(r => r.word));
+    const incorrectRetry = currentWords.filter(w => incorrectNames.has(w.word) && !reviewed.has(w.id));
+
+    let batch: typeof currentWords;
+    if (freshDue.length > 0) {
+      const dueShuffled = shuffleArray(freshDue);
+      const dueCount = Math.min(dueShuffled.length, Math.ceil(maxBatch * 0.7));
+      const dueBatch = dueShuffled.slice(0, dueCount);
+      const dueIds = new Set(dueBatch.map(w => w.id));
+      const interleavePool = [
+        ...incorrectRetry.filter(w => !dueIds.has(w.id)),
+        ...currentWords.filter(w =>
+          !dueIds.has(w.id) && !reviewed.has(w.id) &&
+          (w.status === 'mastered' || w.status === 'reviewing') && w.totalReviews > 0
+        ),
+      ];
+      const interleaveBatch = shuffleArray(interleavePool).slice(0, maxBatch - dueCount);
+      batch = shuffleArray([...dueBatch, ...interleaveBatch]);
+    } else if (incorrectRetry.length > 0) {
+      batch = shuffleArray(incorrectRetry).slice(0, maxBatch);
+    } else {
+      const unseenPool = currentWords.filter(w => !reviewed.has(w.id) && w.totalReviews > 0);
+      if (unseenPool.length > 0) {
+        batch = shuffleArray(unseenPool).slice(0, maxBatch);
+      } else {
+        // All words seen — clear tracking and recycle
+        endlessReviewedIdsRef.current = new Set();
+        batch = shuffleArray([...currentWords]).slice(0, maxBatch);
+      }
+    }
+
+    if (batch.length === 0) {
+      endEndlessSession();
+      return;
+    }
+
+    batch.forEach(w => endlessReviewedIdsRef.current.add(w.id));
+    setStudyBatch(batch);
+
+    try {
+      const res = await fetch('/api/vocab/generate-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          words: batch.map(w => ({
+            word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
+            status: w.status, confidenceRating: w.confidenceRating,
+            lastConfidenceCorrect: w.lastConfidenceCorrect,
+            consecutiveFailures: w.consecutiveFailures || 0,
+            failedQuizTypes: w.failedQuizTypes || [],
+            totalReviews: w.totalReviews, etymology: w.etymology,
+            relatedWords: w.relatedWords, antonym: w.antonym,
+          })),
+          allWords: currentWords.map(w => ({
+            word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
+          })),
+          ...(quizMode !== 'adaptive' ? { forcedType: quizMode } : {}),
+        }),
+      });
+      if (!res.ok) throw new Error(`Server error: ${res.status}`);
+      const data = await res.json();
+      if (data.questions?.length > 0) {
+        setQuestions(shuffleArray(data.questions));
+        setMode('quiz');
+        setAnswerStartTime(Date.now());
+      } else {
+        endEndlessSession();
+      }
+    } catch {
+      addToast('Error loading next batch. Ending session.', 'error');
+      endEndlessSession();
+    }
   };
 
   const advanceQuestion = () => {
@@ -299,6 +424,14 @@ export default function ReviewTab() {
       setSpellingInput('');
       setShowHint(false);
       setAnswerStartTime(Date.now());
+    } else if (isEndless) {
+      // Endless mode: update SM2 state and load the next batch
+      if (!isPractice) {
+        checkVocabStreak();
+        updateVocabLevel();
+      }
+      setEndlessBatchCount(prev => prev + 1);
+      loadNextEndlessBatch();
     } else {
       setMode('done');
       if (!isPractice) {
@@ -345,6 +478,10 @@ export default function ReviewTab() {
         const last = prev[prev.length - 1];
         return [...prev.slice(0, -1), { ...last, confidence }];
       });
+      if (isEndless && endlessResultsRef.current.length > 0) {
+        const last = endlessResultsRef.current[endlessResultsRef.current.length - 1];
+        endlessResultsRef.current[endlessResultsRef.current.length - 1] = { ...last, confidence };
+      }
     }
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     advanceQuestion();
@@ -353,6 +490,10 @@ export default function ReviewTab() {
   const handleModeStart = (modeType: QuizType | 'adaptive', quizType: 'quiz' | 'recall' = 'quiz', practice = false) => {
     setQuizMode(modeType);
     startStudyCards(quizType, practice);
+  };
+
+  const handleEndlessStart = () => {
+    startStudyCards('quiz', false, true);
   };
 
   // ── Idle state ──
@@ -427,6 +568,21 @@ export default function ReviewTab() {
               <Brain size={16} /> Free Recall
             </button>
           </div>
+
+          {/* Endless Study Mode */}
+          {vocabWords.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={handleEndlessStart}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-orange)] text-white transition-all hover:brightness-110"
+              >
+                <Infinity size={16} /> Endless {selectedModeName}
+              </button>
+              <p className="text-[10px] text-[var(--color-text-muted)] text-center mt-1">
+                Quiz indefinitely — batches keep coming until you end the session
+              </p>
+            </div>
+          )}
 
           {/* Practice mode — available when no words are due but words exist */}
           {dueWords.length === 0 && vocabWords.length > 0 && (
@@ -678,24 +834,32 @@ export default function ReviewTab() {
 
   // ── Done state ──
   if (mode === 'done') {
-    const correctCount = sessionResults.filter(r => r.correct).length;
-    const accuracy = sessionResults.length > 0 ? Math.round((correctCount / sessionResults.length) * 100) : 0;
+    const displayResults = isEndless ? endlessResultsRef.current : sessionResults;
+    const correctCount = displayResults.filter(r => r.correct).length;
+    const accuracy = displayResults.length > 0 ? Math.round((correctCount / displayResults.length) * 100) : 0;
 
     // Metacognitive insights: compare confidence vs actual correctness
-    const hasConfidenceData = sessionResults.some(r => r.confidence != null);
-    const overconfidentWords = sessionResults.filter(r => r.confidence != null && r.confidence >= 4 && !r.correct);
-    const underconfidentWords = sessionResults.filter(r => r.confidence != null && r.confidence <= 2 && r.correct);
-    const calibratedWords = sessionResults.filter(r => r.confidence != null && ((r.confidence >= 3 && r.correct) || (r.confidence <= 2 && !r.correct)));
+    const hasConfidenceData = displayResults.some(r => r.confidence != null);
+    const overconfidentWords = displayResults.filter(r => r.confidence != null && r.confidence >= 4 && !r.correct);
+    const underconfidentWords = displayResults.filter(r => r.confidence != null && r.confidence <= 2 && r.correct);
+    const calibratedWords = displayResults.filter(r => r.confidence != null && ((r.confidence >= 3 && r.correct) || (r.confidence <= 2 && !r.correct)));
 
     return (
       <div className="space-y-4">
         <div className="text-center py-8 p-6 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]">
-          <div className="text-4xl mb-3">{accuracy >= 80 ? '🏆' : accuracy >= 50 ? '💪' : '📖'}</div>
-          <h3 className="text-lg font-bold mb-1">{isPractice ? 'Practice' : 'Session'} Complete!</h3>
+          <div className="text-4xl mb-3">{isEndless ? '♾️' : accuracy >= 80 ? '🏆' : accuracy >= 50 ? '💪' : '📖'}</div>
+          <h3 className="text-lg font-bold mb-1">
+            {isEndless ? 'Endless Session' : isPractice ? 'Practice' : 'Session'} Complete!
+          </h3>
           <p className="text-2xl font-bold mb-1" style={{ color: accuracy >= 80 ? 'var(--color-green)' : accuracy >= 50 ? 'var(--color-orange)' : 'var(--color-red)' }}>
             {accuracy}% Accuracy
           </p>
-          <p className="text-xs text-[var(--color-text-secondary)]">{correctCount}/{sessionResults.length} correct</p>
+          <p className="text-xs text-[var(--color-text-secondary)]">{correctCount}/{displayResults.length} correct</p>
+          {isEndless && (
+            <p className="text-xs text-[var(--color-orange)] mt-1">
+              {endlessBatchCount + 1} batches completed
+            </p>
+          )}
         </div>
 
         {/* Metacognitive insight panel */}
@@ -747,8 +911,8 @@ export default function ReviewTab() {
           </div>
         )}
 
-        <div className="space-y-1.5">
-          {sessionResults.map((r, i) => (
+        <div className="space-y-1.5" style={{ maxHeight: displayResults.length > 20 ? '300px' : undefined, overflowY: displayResults.length > 20 ? 'auto' : undefined }}>
+          {displayResults.map((r, i) => (
             <div key={i} className="flex items-center gap-2 p-2 rounded bg-[var(--color-bg-hover)] text-sm">
               {r.correct ? <CheckCircle size={14} className="text-[var(--color-green)]" /> : <XCircle size={14} className="text-[var(--color-red)]" />}
               <span className={r.correct ? 'text-white' : 'text-[var(--color-text-secondary)]'}>{r.word}</span>
@@ -763,14 +927,14 @@ export default function ReviewTab() {
 
         <div className="flex gap-3">
           <button
-            onClick={() => setMode('idle')}
+            onClick={() => { setMode('idle'); setIsEndless(false); }}
             className="flex-1 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-bg-card)] border border-[var(--color-border)] text-white hover:bg-[var(--color-bg-hover)] transition-colors"
           >
             Back to Review
           </button>
           {vocabWords.length > 0 && (
             <button
-              onClick={() => startStudyCards('quiz', true)}
+              onClick={() => { setIsEndless(false); startStudyCards('quiz', true); }}
               className="flex-1 py-2.5 rounded-lg text-sm font-bold border border-[var(--color-blue)]/40 text-[var(--color-blue)] bg-[var(--color-blue)]/10 hover:bg-[var(--color-blue)]/20 transition-colors"
             >
               Practice Again
@@ -821,6 +985,29 @@ export default function ReviewTab() {
 
   return (
     <div className="space-y-4">
+      {/* Endless session stats bar */}
+      {isEndless && (
+        <div className="flex items-center justify-between p-2.5 rounded-lg bg-[var(--color-orange)]/10 border border-[var(--color-orange)]/20">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-orange)] flex items-center gap-1">
+              <Infinity size={12} /> Endless
+            </span>
+            <span className="text-xs text-[var(--color-text-secondary)]">
+              Batch {endlessBatchCount + 1} &middot; {endlessResultsRef.current.length} reviewed
+              {endlessResultsRef.current.length > 0 && (
+                <> &middot; {Math.round((endlessResultsRef.current.filter(r => r.correct).length / endlessResultsRef.current.length) * 100)}%</>
+              )}
+            </span>
+          </div>
+          <button
+            onClick={endEndlessSession}
+            className="flex items-center gap-1 px-2.5 py-1 rounded text-[10px] font-bold text-[var(--color-red)] bg-[var(--color-red)]/10 border border-[var(--color-red)]/20 hover:bg-[var(--color-red)]/20 transition-colors"
+          >
+            <Square size={8} fill="currentColor" /> End Session
+          </button>
+        </div>
+      )}
+
       {/* Progress bar + mode indicator */}
       <div className="flex items-center gap-3">
         {quizMode !== 'adaptive' && (
