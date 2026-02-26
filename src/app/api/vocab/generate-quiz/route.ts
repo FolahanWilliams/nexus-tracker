@@ -72,9 +72,10 @@ function selectAdaptiveType(w: QuizWord): string {
 
 export async function POST(request: Request) {
     try {
-        const { words, allWords } = await request.json() as {
+        const { words, allWords, forcedType } = await request.json() as {
             words: QuizWord[];
             allWords?: QuizWord[];
+            forcedType?: string;
         };
 
         if (!words || words.length === 0) {
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
 
         // Build adaptive type assignments for each word
         const wordEntries = words.map((w: QuizWord) => {
-            const assignedType = selectAdaptiveType(w);
+            const assignedType = forcedType || selectAdaptiveType(w);
             return {
                 ...w,
                 assignedType,

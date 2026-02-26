@@ -41,6 +41,9 @@ export default function ReviewTab() {
   // Practice mode: quiz on all words when none are due
   const [isPractice, setIsPractice] = useState(false);
 
+  // Selected quiz mode — 'adaptive' lets AI pick, or user picks a specific type
+  const [quizMode, setQuizMode] = useState<QuizType | 'adaptive'>('adaptive');
+
   // Interactive study card state (Item 6)
   const [studyRecallInput, setStudyRecallInput] = useState('');
   const [studyRecallSubmitted, setStudyRecallSubmitted] = useState(false);
@@ -161,6 +164,7 @@ export default function ReviewTab() {
           allWords: vocabWords.map(w => ({
             word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
           })),
+          ...(quizMode !== 'adaptive' ? { forcedType: quizMode } : {}),
         }),
       });
       if (!res.ok) {
@@ -182,7 +186,7 @@ export default function ReviewTab() {
       addToast('Network error generating quiz.', 'error');
       setMode('idle');
     }
-  }, [dueWords, studyBatch, vocabWords, addToast]);
+  }, [dueWords, studyBatch, vocabWords, addToast, quizMode]);
 
   const launchFreeRecall = useCallback(() => {
     // Use the already-shuffled study batch, or shuffle due words as fallback
@@ -227,11 +231,11 @@ export default function ReviewTab() {
     if (correct && !isPractice) {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
     }
-    // Auto-advance after a brief delay so user can see the result
+    // Auto-advance after a delay — longer to allow confidence rating
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     autoAdvanceRef.current = setTimeout(() => {
       advanceQuestion();
-    }, correct ? 800 : 1500); // faster for correct, slower for incorrect so they can learn
+    }, correct ? 2500 : 3500); // enough time for confidence rating
   };
 
   // Clean up auto-advance timer on unmount or mode change
@@ -283,7 +287,7 @@ export default function ReviewTab() {
       triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
     }
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-    autoAdvanceRef.current = setTimeout(() => advanceQuestion(), correct ? 800 : 2000);
+    autoAdvanceRef.current = setTimeout(() => advanceQuestion(), correct ? 2500 : 3500);
   };
 
   const advanceQuestion = () => {
@@ -309,6 +313,46 @@ export default function ReviewTab() {
       addToast(`${label} complete! ${correctCount}/${questions.length} correct`, 'success');
       logActivity('xp_earned', '🧠', `Vocab ${label.toLowerCase()}: ${correctCount}/${questions.length} correct (${acc}%)`, `WordForge ${label.toLowerCase()} session`);
     }
+  };
+
+  // ── Quiz mode options ──
+  const QUIZ_MODES: { type: QuizType | 'adaptive'; label: string; icon: string; color: string; desc: string }[] = [
+    { type: 'adaptive', label: 'Adaptive', icon: '🧠', color: 'var(--color-blue)', desc: 'AI picks best type' },
+    { type: 'multiple_choice', label: 'Definition', icon: '📝', color: 'var(--color-blue)', desc: 'Match word → meaning' },
+    { type: 'reverse_choice', label: 'Word Match', icon: '🔄', color: 'var(--color-purple)', desc: 'Match meaning → word' },
+    { type: 'fill_blank', label: 'Fill Blank', icon: '✏️', color: 'var(--color-orange)', desc: 'Complete sentences' },
+    { type: 'synonym_match', label: 'Synonyms', icon: '🔗', color: 'var(--color-green)', desc: 'Find similar words' },
+    { type: 'antonym_match', label: 'Antonyms', icon: '⚡', color: 'var(--color-red)', desc: 'Find opposites' },
+    { type: 'etymology_drill', label: 'Etymology', icon: '📜', color: 'var(--color-orange)', desc: 'Word origins & roots' },
+    { type: 'contextual_cloze', label: 'Context Cloze', icon: '📖', color: 'var(--color-green)', desc: 'Fill paragraph gaps' },
+    { type: 'spelling_challenge', label: 'Spelling', icon: '✍️', color: 'var(--color-purple)', desc: 'Spell from definition' },
+    { type: 'use_in_sentence', label: 'Usage', icon: '💬', color: 'var(--color-blue)', desc: 'Correct sentence usage' },
+  ];
+
+  const selectedModeName = quizMode === 'adaptive'
+    ? 'Adaptive Quiz'
+    : QUIZ_MODES.find(m => m.type === quizMode)?.label || 'Quiz';
+
+  const handleQuizConfidence = (confidence: number) => {
+    const q = questions[currentIdx];
+    const wordObj = vocabWords.find(w => w.word === q?.word);
+    if (wordObj) {
+      setConfidenceRatings(prev => ({ ...prev, [wordObj.id]: confidence }));
+      setWordConfidence(wordObj.id, confidence);
+      // Update the last session result with confidence
+      setSessionResults(prev => {
+        if (prev.length === 0) return prev;
+        const last = prev[prev.length - 1];
+        return [...prev.slice(0, -1), { ...last, confidence }];
+      });
+    }
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    advanceQuestion();
+  };
+
+  const handleModeStart = (modeType: QuizType | 'adaptive', quizType: 'quiz' | 'recall' = 'quiz', practice = false) => {
+    setQuizMode(modeType);
+    startStudyCards(quizType, practice);
   };
 
   // ── Idle state ──
@@ -340,16 +384,43 @@ export default function ReviewTab() {
             <p className="text-xs text-[var(--color-text-secondary)] mb-4">All caught up! Come back later.</p>
           )}
 
+          {/* ── Learning Mode Selector ── */}
+          <div className="pt-3 border-t border-[var(--color-border)]">
+            <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2 flex items-center gap-1">
+              <Layers size={10} /> Select Quiz Mode
+            </p>
+            <div className="grid grid-cols-5 gap-1.5">
+              {QUIZ_MODES.map(m => (
+                <button
+                  key={m.type}
+                  onClick={() => setQuizMode(m.type === quizMode ? 'adaptive' : m.type)}
+                  className="p-1.5 rounded-md text-center transition-all border"
+                  style={{
+                    color: quizMode === m.type ? m.color : 'var(--color-text-secondary)',
+                    background: quizMode === m.type ? `color-mix(in srgb, ${m.color} 12%, transparent)` : 'transparent',
+                    borderColor: quizMode === m.type ? m.color : 'var(--color-border)',
+                    opacity: quizMode === m.type ? 1 : 0.7,
+                  }}
+                  title={m.desc}
+                >
+                  <span className="block text-sm">{m.icon}</span>
+                  <span className="block text-[9px] font-bold leading-tight mt-0.5">{m.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── Start Buttons ── */}
           <div className="flex gap-3">
             <button
-              onClick={() => startStudyCards('quiz')}
+              onClick={() => handleModeStart(quizMode, 'quiz')}
               disabled={dueWords.length === 0}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-blue)] text-white transition-all hover:brightness-110 disabled:opacity-40"
             >
-              <BarChart3 size={16} /> Adaptive Quiz
+              <BarChart3 size={16} /> {selectedModeName}
             </button>
             <button
-              onClick={() => startStudyCards('recall')}
+              onClick={() => handleModeStart('adaptive', 'recall')}
               disabled={dueWords.length === 0}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-purple)] text-white transition-all hover:brightness-110 disabled:opacity-40"
             >
@@ -365,13 +436,13 @@ export default function ReviewTab() {
               </p>
               <div className="flex gap-3">
                 <button
-                  onClick={() => startStudyCards('quiz', true)}
+                  onClick={() => handleModeStart(quizMode, 'quiz', true)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:brightness-110 border border-[var(--color-blue)]/40 text-[var(--color-blue)] bg-[var(--color-blue)]/10"
                 >
-                  <BarChart3 size={14} /> Practice Adaptive
+                  <BarChart3 size={14} /> Practice {selectedModeName}
                 </button>
                 <button
-                  onClick={() => startStudyCards('recall', true)}
+                  onClick={() => handleModeStart('adaptive', 'recall', true)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:brightness-110 border border-[var(--color-purple)]/40 text-[var(--color-purple)] bg-[var(--color-purple)]/10"
                 >
                   <Brain size={14} /> Practice Recall
@@ -414,7 +485,7 @@ export default function ReviewTab() {
         </div>
 
         <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1">
-          <Layers size={12} /> {isPractice ? 'Practice Cards' : 'Study Cards'} — active recall before your quiz
+          <Layers size={12} /> {isPractice ? 'Practice Cards' : 'Study Cards'} — active recall before your {selectedModeName.toLowerCase()}
         </p>
 
         {/* Interactive Flashcard */}
@@ -750,8 +821,13 @@ export default function ReviewTab() {
 
   return (
     <div className="space-y-4">
-      {/* Progress bar */}
+      {/* Progress bar + mode indicator */}
       <div className="flex items-center gap-3">
+        {quizMode !== 'adaptive' && (
+          <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-[var(--color-purple)]/15 text-[var(--color-purple)]">
+            {selectedModeName}
+          </span>
+        )}
         <div className="flex-1 h-1.5 rounded-full bg-[var(--color-bg-hover)]">
           <div className="h-full rounded-full bg-[var(--color-blue)] transition-all" style={{ width: `${progress}%` }} />
         </div>
@@ -823,16 +899,37 @@ export default function ReviewTab() {
               })}
 
               {showAnswer && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-2">
-                  <button
-                    onClick={() => {
-                      if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-                      advanceQuestion();
-                    }}
-                    className="w-full py-1.5 rounded-lg text-xs text-[var(--color-text-muted)] hover:text-white hover:bg-[var(--color-bg-hover)] transition-all flex items-center justify-center gap-1"
-                  >
-                    {currentIdx < questions.length - 1 ? 'Skip ahead →' : 'Finish now →'}
-                  </button>
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-3 mt-2 border-t border-[var(--color-border)]/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-[10px] text-[var(--color-text-muted)]">How was it?</span>
+                    {[
+                      { val: 1, label: 'Hard', color: 'var(--color-red)' },
+                      { val: 3, label: 'OK', color: 'var(--color-blue)' },
+                      { val: 5, label: 'Easy', color: 'var(--color-green)' },
+                    ].map(opt => (
+                      <button
+                        key={opt.val}
+                        onClick={() => handleQuizConfidence(opt.val)}
+                        className="text-[10px] px-3 py-1 rounded border transition-all hover:brightness-110"
+                        style={{
+                          borderColor: opt.color,
+                          color: opt.color,
+                          background: `color-mix(in srgb, ${opt.color} 10%, transparent)`,
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => {
+                        if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                        advanceQuestion();
+                      }}
+                      className="ml-auto text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
+                    >
+                      {currentIdx < questions.length - 1 ? 'Skip →' : 'Finish →'}
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -875,16 +972,37 @@ export default function ReviewTab() {
                         ? 'var(--color-green)' : 'var(--color-red)',
                     }}>{spellingInput}</p>
                   </div>
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-1">
-                    <button
-                      onClick={() => {
-                        if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
-                        advanceQuestion();
-                      }}
-                      className="w-full py-1.5 rounded-lg text-xs text-[var(--color-text-muted)] hover:text-white hover:bg-[var(--color-bg-hover)] transition-all flex items-center justify-center gap-1"
-                    >
-                      {currentIdx < questions.length - 1 ? 'Next →' : 'Finish →'}
-                    </button>
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-3 mt-1 border-t border-[var(--color-border)]/30">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[var(--color-text-muted)]">How was it?</span>
+                      {[
+                        { val: 1, label: 'Hard', color: 'var(--color-red)' },
+                        { val: 3, label: 'OK', color: 'var(--color-blue)' },
+                        { val: 5, label: 'Easy', color: 'var(--color-green)' },
+                      ].map(opt => (
+                        <button
+                          key={opt.val}
+                          onClick={() => handleQuizConfidence(opt.val)}
+                          className="text-[10px] px-3 py-1 rounded border transition-all hover:brightness-110"
+                          style={{
+                            borderColor: opt.color,
+                            color: opt.color,
+                            background: `color-mix(in srgb, ${opt.color} 10%, transparent)`,
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                          advanceQuestion();
+                        }}
+                        className="ml-auto text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
+                      >
+                        {currentIdx < questions.length - 1 ? 'Next →' : 'Finish →'}
+                      </button>
+                    </div>
                   </motion.div>
                 </>
               )}
