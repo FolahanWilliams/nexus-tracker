@@ -6,19 +6,19 @@ import {
   RefreshCw, CheckCircle, XCircle,
   Brain, BarChart3, HelpCircle,
   Layers, ThumbsUp, ThumbsDown, Minus, ArrowRight,
-  Lightbulb,
+  Lightbulb, Type, PenTool, BookOpen,
 } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
-import { shuffleArray, QuizQuestion } from './shared';
+import { shuffleArray, QuizQuestion, QuizType } from './shared';
 import { VOCAB_REVIEW_XP } from '@/lib/constants';
 
 export default function ReviewTab() {
   const {
     vocabWords, reviewVocabWord, checkVocabStreak,
-    updateVocabLevel, vocabStreak, logActivity, setWordConfidence,
+    updateVocabLevel, vocabStreak, logActivity, setWordConfidence, setUserMnemonic,
   } = useGameStore();
   const { addToast } = useToastStore();
 
@@ -27,6 +27,7 @@ export default function ReviewTab() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [recallInput, setRecallInput] = useState('');
+  const [spellingInput, setSpellingInput] = useState('');
   const [showAnswer, setShowAnswer] = useState(false);
   const [sessionResults, setSessionResults] = useState<{ word: string; correct: boolean; confidence?: number }[]>([]);
   const [showHint, setShowHint] = useState(false);
@@ -40,8 +41,17 @@ export default function ReviewTab() {
   // Practice mode: quiz on all words when none are due
   const [isPractice, setIsPractice] = useState(false);
 
+  // Interactive study card state (Item 6)
+  const [studyRecallInput, setStudyRecallInput] = useState('');
+  const [studyRecallSubmitted, setStudyRecallSubmitted] = useState(false);
+  const [studyMnemonicInput, setStudyMnemonicInput] = useState('');
+  const [studyMnemonicSaved, setStudyMnemonicSaved] = useState(false);
+
   // Confidence tracking state
   const [confidenceRatings, setConfidenceRatings] = useState<Record<string, number>>({});
+
+  // Response time tracking (Item 4)
+  const [answerStartTime, setAnswerStartTime] = useState<number>(Date.now());
 
   const today = new Date().toISOString().split('T')[0];
   const dueWords = useMemo(
@@ -56,12 +66,36 @@ export default function ReviewTab() {
       return;
     }
     setIsPractice(practice);
-    const batch = shuffleArray(pool).slice(0, 10);
+
+    // ── Interleaving (Item 7) ── Mix in old/mastered words with due words
+    let batch: typeof vocabWords;
+    if (!practice && dueWords.length > 0) {
+      const maxBatch = 10;
+      const dueShuffled = shuffleArray(dueWords);
+      // Reserve ~70% for due words, ~30% for interleaved mastered/reviewing words
+      const dueCount = Math.min(dueShuffled.length, Math.ceil(maxBatch * 0.7));
+      const dueBatch = dueShuffled.slice(0, dueCount);
+      const dueIds = new Set(dueBatch.map(w => w.id));
+      // Pick interleaved words from non-due mastered/reviewing pool
+      const interleaveCandidates = vocabWords.filter(w =>
+        !dueIds.has(w.id) && (w.status === 'mastered' || w.status === 'reviewing') && w.totalReviews > 0
+      );
+      const interleaveCount = Math.min(interleaveCandidates.length, maxBatch - dueCount);
+      const interleaveBatch = shuffleArray(interleaveCandidates).slice(0, interleaveCount);
+      batch = shuffleArray([...dueBatch, ...interleaveBatch]);
+    } else {
+      batch = shuffleArray(pool).slice(0, 10);
+    }
+
     setStudyBatch(batch);
     setStudyCardIdx(0);
     setStudyCardFlipped(false);
     setPendingQuizType(nextMode);
     setConfidenceRatings({});
+    setStudyRecallInput('');
+    setStudyRecallSubmitted(false);
+    setStudyMnemonicInput('');
+    setStudyMnemonicSaved(false);
     setMode('study');
   }, [dueWords, vocabWords, addToast]);
 
@@ -74,6 +108,10 @@ export default function ReviewTab() {
     if (studyCardIdx < studyBatch.length - 1) {
       setStudyCardIdx(prev => prev + 1);
       setStudyCardFlipped(false);
+      setStudyRecallInput('');
+      setStudyRecallSubmitted(false);
+      setStudyMnemonicInput('');
+      setStudyMnemonicSaved(false);
     } else {
       // Done studying — transition to quiz or recall
       if (pendingQuizType === 'quiz') {
@@ -109,6 +147,16 @@ export default function ReviewTab() {
         body: JSON.stringify({
           words: reviewBatch.map(w => ({
             word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
+            // Adaptive metadata (Item 2)
+            status: w.status,
+            confidenceRating: w.confidenceRating,
+            lastConfidenceCorrect: w.lastConfidenceCorrect,
+            consecutiveFailures: w.consecutiveFailures || 0,
+            failedQuizTypes: w.failedQuizTypes || [],
+            totalReviews: w.totalReviews,
+            etymology: w.etymology,
+            relatedWords: w.relatedWords,
+            antonym: w.antonym,
           })),
           allWords: vocabWords.map(w => ({
             word: w.word, definition: w.definition, partOfSpeech: w.partOfSpeech,
@@ -123,6 +171,7 @@ export default function ReviewTab() {
         // Shuffle the returned questions so they don't follow input order
         setQuestions(shuffleArray(data.questions));
         setMode('quiz');
+        setAnswerStartTime(Date.now());
       } else {
         addToast('Could not generate quiz. Try free recall instead.', 'error');
         setMode('idle');
@@ -151,6 +200,7 @@ export default function ReviewTab() {
     setRecallInput('');
     setShowAnswer(false);
     setShowHint(false);
+    setAnswerStartTime(Date.now());
   }, [dueWords, studyBatch]);
 
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,10 +212,14 @@ export default function ReviewTab() {
     const q = questions[currentIdx];
     const correct = optionIdx === q.correctIndex;
     const wordObj = vocabWords.find(w => w.word === q.word);
+    const responseTimeMs = Date.now() - answerStartTime;
     // Only update SM-2 scheduling during real reviews, not practice
     if (wordObj && !isPractice) {
       const quality = correct ? 4 : 1;
-      reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5);
+      const conf = confidenceRatings[wordObj.id];
+      reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5, {
+        confidence: conf, responseTimeMs, quizType: q.type,
+      });
     }
     const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
     setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
@@ -190,9 +244,13 @@ export default function ReviewTab() {
   const handleRecallSelfGrade = (quality: 0 | 1 | 2 | 3 | 4 | 5) => {
     const q = questions[currentIdx];
     const wordObj = vocabWords.find(w => w.word === q.word);
+    const responseTimeMs = Date.now() - answerStartTime;
     // Only update SM-2 scheduling during real reviews, not practice
     if (wordObj && !isPractice) {
-      reviewVocabWord(wordObj.id, quality);
+      const conf = confidenceRatings[wordObj.id];
+      reviewVocabWord(wordObj.id, quality, {
+        confidence: conf, responseTimeMs, quizType: q.type,
+      });
     }
     const correct = quality >= 3;
     const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
@@ -204,13 +262,39 @@ export default function ReviewTab() {
     advanceQuestion();
   };
 
+  const handleSpellingSubmit = () => {
+    const q = questions[currentIdx];
+    const target = (q.correctSpelling || q.word).toLowerCase().trim();
+    const answer = spellingInput.toLowerCase().trim();
+    const correct = answer === target;
+    setShowAnswer(true);
+    const wordObj = vocabWords.find(w => w.word === q.word);
+    const responseTimeMs = Date.now() - answerStartTime;
+    if (wordObj && !isPractice) {
+      const quality = correct ? 5 : 1;
+      const conf = confidenceRatings[wordObj.id];
+      reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5, {
+        confidence: conf, responseTimeMs, quizType: q.type,
+      });
+    }
+    const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
+    setSessionResults(prev => [...prev, { word: q.word, correct, confidence: conf }]);
+    if (correct && !isPractice) {
+      triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
+    }
+    if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+    autoAdvanceRef.current = setTimeout(() => advanceQuestion(), correct ? 800 : 2000);
+  };
+
   const advanceQuestion = () => {
     if (currentIdx < questions.length - 1) {
       setCurrentIdx(prev => prev + 1);
       setSelectedAnswer(null);
       setShowAnswer(false);
       setRecallInput('');
+      setSpellingInput('');
       setShowHint(false);
+      setAnswerStartTime(Date.now());
     } else {
       setMode('done');
       if (!isPractice) {
@@ -262,7 +346,7 @@ export default function ReviewTab() {
               disabled={dueWords.length === 0}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-[var(--color-blue)] text-white transition-all hover:brightness-110 disabled:opacity-40"
             >
-              <BarChart3 size={16} /> Multiple Choice
+              <BarChart3 size={16} /> Adaptive Quiz
             </button>
             <button
               onClick={() => startStudyCards('recall')}
@@ -284,7 +368,7 @@ export default function ReviewTab() {
                   onClick={() => startStudyCards('quiz', true)}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all hover:brightness-110 border border-[var(--color-blue)]/40 text-[var(--color-blue)] bg-[var(--color-blue)]/10"
                 >
-                  <BarChart3 size={14} /> Practice Quiz
+                  <BarChart3 size={14} /> Practice Adaptive
                 </button>
                 <button
                   onClick={() => startStudyCards('recall', true)}
@@ -330,10 +414,10 @@ export default function ReviewTab() {
         </div>
 
         <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] flex items-center gap-1">
-          <Layers size={12} /> {isPractice ? 'Practice Cards' : 'Study Cards'} — review before your quiz
+          <Layers size={12} /> {isPractice ? 'Practice Cards' : 'Study Cards'} — active recall before your quiz
         </p>
 
-        {/* Flashcard */}
+        {/* Interactive Flashcard */}
         {card && (
           <AnimatePresence mode="wait">
             <motion.div
@@ -342,34 +426,121 @@ export default function ReviewTab() {
               animate={{ opacity: 1, rotateY: 0 }}
               exit={{ opacity: 0, rotateY: 10 }}
               transition={{ duration: 0.25 }}
-              onClick={() => setStudyCardFlipped(!studyCardFlipped)}
-              className="cursor-pointer min-h-[200px] p-5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] flex flex-col justify-center hover:border-[var(--color-green)] transition-colors"
+              className="min-h-[200px] p-5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] flex flex-col justify-center"
             >
+              {/* Front: word + active recall prompt */}
               {!studyCardFlipped ? (
-                <div className="text-center space-y-3">
-                  <p className="text-2xl font-bold text-white">{card.word}</p>
-                  <p className="text-xs italic text-[var(--color-text-secondary)]">{card.partOfSpeech} &middot; {card.pronunciation}</p>
-                  <p className="text-[10px] text-[var(--color-text-muted)] mt-4">Tap to reveal definition</p>
+                <div className="space-y-4">
+                  <div className="text-center space-y-2">
+                    <p className="text-2xl font-bold text-white">{card.word}</p>
+                    <p className="text-xs italic text-[var(--color-text-secondary)]">{card.partOfSpeech} &middot; {card.pronunciation}</p>
+                  </div>
+
+                  {/* Active recall prompt — user tries to recall before seeing answer */}
+                  {!studyRecallSubmitted ? (
+                    <div className="space-y-2">
+                      <p className="text-[10px] uppercase tracking-wider text-[var(--color-purple)] font-bold flex items-center gap-1">
+                        <Brain size={11} /> What do you think this word means?
+                      </p>
+                      <textarea
+                        value={studyRecallInput}
+                        onChange={e => setStudyRecallInput(e.target.value)}
+                        placeholder="Try to recall the definition..."
+                        className="w-full p-2.5 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)] text-sm text-white resize-none focus:outline-none focus:border-[var(--color-purple)]"
+                        rows={2}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            setStudyRecallSubmitted(true);
+                            setStudyCardFlipped(true);
+                          }
+                        }}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setStudyRecallSubmitted(true); setStudyCardFlipped(true); }}
+                          className="flex-1 py-2 rounded-lg text-xs font-bold bg-[var(--color-purple)] text-white hover:brightness-110 transition-all"
+                        >
+                          {studyRecallInput.trim() ? 'Check My Answer' : 'Reveal Definition'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setStudyCardFlipped(true)}
+                      className="text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
+                    >
+                      Tap to see definition →
+                    </button>
+                  )}
                 </div>
               ) : (
+                /* Back: definition + recall comparison + mnemonic prompt */
                 <div className="space-y-3">
                   <p className="text-lg font-bold text-white text-center">{card.word}</p>
                   <p className="text-sm text-[var(--color-text-primary)]">{card.definition}</p>
+
+                  {/* Show user's recall attempt if they wrote one */}
+                  {studyRecallInput.trim() && (
+                    <div className="p-2.5 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                      <p className="text-[10px] uppercase font-bold text-[var(--color-blue)] mb-1">Your Recall</p>
+                      <p className="text-xs text-[var(--color-text-secondary)]">{studyRecallInput}</p>
+                    </div>
+                  )}
+
                   {card.etymology && (
                     <p className="text-xs text-[var(--color-text-secondary)]">
                       <span className="text-[var(--color-orange)] font-bold">Origin:</span> {card.etymology}
                     </p>
                   )}
+
+                  {/* Example completion — show first few words, let user see the full example */}
                   {card.examples[0] && (
-                    <p className="text-xs text-[var(--color-text-secondary)] pl-3 border-l-2 border-[var(--color-border)]">
-                      &ldquo;{card.examples[0]}&rdquo;
-                    </p>
+                    <div className="text-xs text-[var(--color-text-secondary)] pl-3 border-l-2 border-[var(--color-border)]">
+                      <p>&ldquo;{card.examples[0]}&rdquo;</p>
+                    </div>
                   )}
+
                   {card.relatedWords && card.relatedWords.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
                       {card.relatedWords.map((rw, i) => (
                         <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-blue)]/10 text-[var(--color-blue)]">{rw}</span>
                       ))}
+                    </div>
+                  )}
+
+                  {/* Mnemonic creation prompt */}
+                  {!studyMnemonicSaved && !card.userMnemonic && (
+                    <div className="p-2.5 rounded-md bg-[var(--color-bg-hover)] border border-dashed border-[var(--color-green)]/40">
+                      <p className="text-[10px] uppercase font-bold text-[var(--color-green)] mb-1.5 flex items-center gap-1">
+                        <PenTool size={10} /> Create a memory trick
+                      </p>
+                      <input
+                        value={studyMnemonicInput}
+                        onChange={e => setStudyMnemonicInput(e.target.value)}
+                        placeholder="Link it to something you know..."
+                        className="w-full p-2 rounded text-xs bg-[var(--color-bg-dark)] border border-[var(--color-border)] text-white focus:outline-none focus:border-[var(--color-green)]"
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && studyMnemonicInput.trim()) {
+                            setUserMnemonic(card.id, studyMnemonicInput);
+                            setStudyMnemonicSaved(true);
+                          }
+                        }}
+                      />
+                      {studyMnemonicInput.trim() && (
+                        <button
+                          onClick={() => { setUserMnemonic(card.id, studyMnemonicInput); setStudyMnemonicSaved(true); }}
+                          className="mt-1.5 text-[10px] font-bold text-[var(--color-green)] hover:underline"
+                        >
+                          Save mnemonic
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {(studyMnemonicSaved || card.userMnemonic) && (
+                    <div className="p-2 rounded-md bg-[var(--color-green)]/10 border border-[var(--color-green)]/20">
+                      <p className="text-[10px] font-bold text-[var(--color-green)]">Your Mnemonic:</p>
+                      <p className="text-xs text-[var(--color-text-primary)]">{studyMnemonicInput || card.userMnemonic}</p>
                     </div>
                   )}
                 </div>
@@ -379,7 +550,7 @@ export default function ReviewTab() {
         )}
 
         {/* Confidence rating */}
-        {card && (
+        {card && studyCardFlipped && (
           <div className="p-3 rounded-lg bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
             <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-secondary)] mb-2 flex items-center gap-1">
               <Lightbulb size={11} /> How confident are you on this word?
@@ -544,6 +715,39 @@ export default function ReviewTab() {
   const currentWord = vocabWords.find(w => w.word === q?.word);
   const progress = ((currentIdx + 1) / questions.length) * 100;
 
+  // Type-specific labels and colors
+  const typeLabels: Record<QuizType, { label: string; color: string }> = {
+    multiple_choice: { label: 'Definition Match', color: 'var(--color-blue)' },
+    reverse_choice: { label: 'Word From Definition', color: 'var(--color-purple)' },
+    fill_blank: { label: 'Fill in the Blank', color: 'var(--color-orange)' },
+    use_in_sentence: { label: 'Correct Usage', color: 'var(--color-green)' },
+    free_recall: { label: 'Free Recall', color: 'var(--color-purple)' },
+    synonym_match: { label: 'Synonym Match', color: 'var(--color-blue)' },
+    antonym_match: { label: 'Antonym Match', color: 'var(--color-red)' },
+    etymology_drill: { label: 'Etymology Drill', color: 'var(--color-orange)' },
+    contextual_cloze: { label: 'Contextual Cloze', color: 'var(--color-green)' },
+    spelling_challenge: { label: 'Spelling Challenge', color: 'var(--color-purple)' },
+  };
+
+  const isOptionsType = mode === 'quiz' && q?.options && q.type !== 'spelling_challenge';
+  const isSpellingType = mode === 'quiz' && q?.type === 'spelling_challenge';
+  const typeInfo = q ? typeLabels[q.type] || { label: q.type.replace(/_/g, ' '), color: 'var(--color-blue)' } : null;
+
+  // Format question text — highlight blanks for fill_blank / contextual_cloze
+  const formatQuestion = (text: string, type: QuizType) => {
+    if ((type === 'fill_blank' || type === 'contextual_cloze') && text.includes('___')) {
+      const parts = text.split('___');
+      return (
+        <span>
+          {parts[0]}
+          <span className="px-2 py-0.5 mx-1 rounded bg-[var(--color-orange)]/20 border border-[var(--color-orange)]/40 text-[var(--color-orange)] font-mono">___</span>
+          {parts.slice(1).join('___')}
+        </span>
+      );
+    }
+    return text;
+  };
+
   return (
     <div className="space-y-4">
       {/* Progress bar */}
@@ -563,10 +767,22 @@ export default function ReviewTab() {
           exit={{ opacity: 0, x: -30 }}
           className="p-5 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]"
         >
-          <p className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wider mb-2">
-            {mode === 'recall' ? 'Free Recall' : (q?.type || 'multiple choice').replace(/_/g, ' ')}
+          {/* Type badge */}
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{
+              background: `${typeInfo?.color}20`, color: typeInfo?.color,
+            }}>
+              {mode === 'recall' ? 'Free Recall' : typeInfo?.label}
+            </span>
+            {q?.type === 'spelling_challenge' && <PenTool size={12} className="text-[var(--color-purple)]" />}
+            {(q?.type === 'fill_blank' || q?.type === 'contextual_cloze') && <Type size={12} className="text-[var(--color-orange)]" />}
+            {q?.type === 'use_in_sentence' && <BookOpen size={12} className="text-[var(--color-green)]" />}
+          </div>
+
+          {/* Question text */}
+          <p className="text-base font-bold text-white mb-4">
+            {q ? formatQuestion(q.question, q.type) : ''}
           </p>
-          <p className="text-base font-bold text-white mb-4">{q?.question}</p>
 
           {/* Hint */}
           {q?.hint && (
@@ -575,10 +791,10 @@ export default function ReviewTab() {
             </button>
           )}
 
-          {/* Multiple choice options */}
-          {mode === 'quiz' && q?.options && (
+          {/* ── Options-based quiz types (MC, reverse, fill_blank, use_in_sentence, synonym, antonym, etymology, cloze) ── */}
+          {isOptionsType && (
             <div className="space-y-2">
-              {q.options.map((opt, i) => {
+              {q.options!.map((opt, i) => {
                 let bg = 'var(--color-bg-hover)';
                 let border = 'var(--color-border)';
                 if (showAnswer) {
@@ -587,12 +803,17 @@ export default function ReviewTab() {
                 } else if (i === selectedAnswer) {
                   bg = 'var(--color-bg-card)'; border = 'var(--color-blue)';
                 }
+                // Shorter options (word-level) get a compact grid layout
+                const isWordOption = (q.type === 'reverse_choice' || q.type === 'fill_blank' || q.type === 'contextual_cloze'
+                  || q.type === 'synonym_match' || q.type === 'antonym_match') && opt.split(' ').length <= 3;
                 return (
                   <button
                     key={i}
                     onClick={() => handleMCAnswer(i)}
                     disabled={showAnswer}
-                    className="w-full text-left p-3 rounded-md text-sm transition-all border"
+                    className={`text-left rounded-md text-sm transition-all border ${
+                      isWordOption ? 'inline-block mr-2 mb-1 px-4 py-2' : 'w-full p-3'
+                    }`}
                     style={{ background: bg, borderColor: border }}
                   >
                     <span className="font-mono text-[var(--color-text-secondary)] mr-2">{String.fromCharCode(65 + i)}.</span>
@@ -617,7 +838,60 @@ export default function ReviewTab() {
             </div>
           )}
 
-          {/* Free recall mode */}
+          {/* ── Spelling challenge ── */}
+          {isSpellingType && (
+            <div className="space-y-3">
+              {!showAnswer ? (
+                <>
+                  <input
+                    value={spellingInput}
+                    onChange={e => setSpellingInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && spellingInput.trim()) handleSpellingSubmit(); }}
+                    placeholder="Type the word..."
+                    autoFocus
+                    className="w-full p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)] text-lg text-white font-mono tracking-wider focus:outline-none focus:border-[var(--color-purple)]"
+                  />
+                  <button
+                    onClick={handleSpellingSubmit}
+                    disabled={!spellingInput.trim()}
+                    className="w-full py-2.5 rounded-lg text-sm font-bold bg-[var(--color-purple)] text-white hover:brightness-110 transition-all disabled:opacity-40"
+                  >
+                    Check Spelling
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                    <p className="text-[10px] uppercase font-bold text-[var(--color-green)] mb-1">Correct Spelling</p>
+                    <p className="text-lg text-white font-mono tracking-wider">{q.correctSpelling || q.word}</p>
+                  </div>
+                  <div className="p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                    <p className="text-[10px] uppercase font-bold mb-1" style={{
+                      color: spellingInput.toLowerCase().trim() === (q.correctSpelling || q.word).toLowerCase().trim()
+                        ? 'var(--color-green)' : 'var(--color-red)',
+                    }}>Your Answer</p>
+                    <p className="text-lg font-mono tracking-wider" style={{
+                      color: spellingInput.toLowerCase().trim() === (q.correctSpelling || q.word).toLowerCase().trim()
+                        ? 'var(--color-green)' : 'var(--color-red)',
+                    }}>{spellingInput}</p>
+                  </div>
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-1">
+                    <button
+                      onClick={() => {
+                        if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                        advanceQuestion();
+                      }}
+                      className="w-full py-1.5 rounded-lg text-xs text-[var(--color-text-muted)] hover:text-white hover:bg-[var(--color-bg-hover)] transition-all flex items-center justify-center gap-1"
+                    >
+                      {currentIdx < questions.length - 1 ? 'Next →' : 'Finish →'}
+                    </button>
+                  </motion.div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Free recall mode ── */}
           {mode === 'recall' && (
             <div className="space-y-3">
               {!showAnswer ? (
@@ -638,7 +912,6 @@ export default function ReviewTab() {
                 </>
               ) : (
                 <>
-                  {/* Show the correct definition */}
                   <div className="p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
                     <p className="text-[10px] uppercase font-bold text-[var(--color-green)] mb-1">Correct Definition</p>
                     <p className="text-sm text-white">{currentWord?.definition}</p>
