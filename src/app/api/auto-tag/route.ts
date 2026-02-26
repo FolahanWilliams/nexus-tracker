@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { genAI } from '@/lib/gemini';
+import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
@@ -52,7 +52,8 @@ Analyze the following task:`;
         const response = result.response;
         const text = response.text();
 
-        const data = JSON.parse(text);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = extractJSON(text) as any;
 
         // Validation
         const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { genAI } from '@/lib/gemini';
+import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
@@ -55,7 +55,8 @@ Interpret this command:`;
 
         const result = await model.generateContent(`${systemPrompt}\n\n"${command}"`);
         const text = result.response.text();
-        const data = JSON.parse(text);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = extractJSON(text) as any;
 
         // Validate action
         const validActions = ['delete', 'edit', 'complete', 'none'];
