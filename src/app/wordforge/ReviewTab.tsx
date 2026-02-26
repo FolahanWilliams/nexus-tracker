@@ -252,7 +252,7 @@ export default function ReviewTab() {
     if (correct) {
       autoAdvanceRef.current = setTimeout(() => {
         advanceQuestion();
-      }, 2500);
+      }, isEndless ? 2000 : 2500);
     }
   };
 
@@ -308,7 +308,7 @@ export default function ReviewTab() {
     }
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     if (correct) {
-      autoAdvanceRef.current = setTimeout(() => advanceQuestion(), 2500);
+      autoAdvanceRef.current = setTimeout(() => advanceQuestion(), isEndless ? 2000 : 2500);
     }
   };
 
@@ -1139,6 +1139,18 @@ export default function ReviewTab() {
                     )}
                   </div>
 
+                  {/* Quick definition flash — shown on correct answers in endless mode */}
+                  {isEndless && selectedAnswer === q.correctIndex && currentWord && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-2 p-3 rounded-lg bg-[var(--color-green)]/5 border border-[var(--color-green)]/15 space-y-1"
+                    >
+                      <p className="text-xs font-bold text-white">{currentWord.word} <span className="font-normal text-[var(--color-text-muted)]">&middot; {currentWord.partOfSpeech}</span></p>
+                      <p className="text-sm text-[var(--color-text-primary)]">{currentWord.definition}</p>
+                    </motion.div>
+                  )}
+
                   {/* Correction card — shown on wrong answers */}
                   {selectedAnswer !== q.correctIndex && currentWord && (
                     <div className="mt-2 p-3.5 rounded-lg bg-[var(--color-red)]/5 border border-[var(--color-red)]/15 space-y-2.5">
@@ -1219,6 +1231,18 @@ export default function ReviewTab() {
                         ? 'var(--color-green)' : 'var(--color-red)',
                     }}>{spellingInput}</p>
                   </div>
+
+                  {/* Quick definition flash — shown on correct spelling in endless mode */}
+                  {isEndless && spellingInput.toLowerCase().trim() === (q.correctSpelling || q.word).toLowerCase().trim() && currentWord && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 rounded-lg bg-[var(--color-green)]/5 border border-[var(--color-green)]/15 space-y-1"
+                    >
+                      <p className="text-xs font-bold text-white">{currentWord.word} <span className="font-normal text-[var(--color-text-muted)]">&middot; {currentWord.partOfSpeech}</span></p>
+                      <p className="text-sm text-[var(--color-text-primary)]">{currentWord.definition}</p>
+                    </motion.div>
+                  )}
 
                   {/* Correction card for wrong spelling */}
                   {spellingInput.toLowerCase().trim() !== (q.correctSpelling || q.word).toLowerCase().trim() && currentWord && (
