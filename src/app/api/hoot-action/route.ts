@@ -1,4 +1,4 @@
-import { SchemaType, DynamicRetrievalMode } from '@google/generative-ai';
+import { SchemaType } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
@@ -349,15 +349,8 @@ export async function POST(request: Request) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 { functionDeclarations: hootFunctions as any },
                 // Always-on Google Search grounding for study tips, facts, coaching
-                {
-                    googleSearch: {
-                        dynamicRetrievalConfig: {
-                            mode: DynamicRetrievalMode.MODE_DYNAMIC,
-                            dynamicThreshold: 0.5,
-                        },
-                    },
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } as any,
+                { googleSearch: {} } as any,
             ],
         });
 
