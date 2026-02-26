@@ -344,13 +344,10 @@ export async function POST(request: Request) {
         const pageDescription = PAGE_CONTEXT[currentPage] || `Page: ${currentPage}`;
 
         const model = genAI.getGenerativeModel({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.0-flash',
             tools: [
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 { functionDeclarations: hootFunctions as any },
-                // Always-on Google Search grounding for study tips, facts, coaching
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                { googleSearch: {} } as any,
             ],
         });
 
@@ -374,7 +371,7 @@ ${context ? `\nPLAYER STATE:\n${context}` : ''}
 ${grounding ? `\nWEB SEARCH GROUNDING:\n${grounding}\n(Use the above information to provide a grounded, accurate response.)` : ''}${planSection}
 
 YOUR CAPABILITIES:
-1. **Chat & Coach**: Answer questions, give productivity & study tips, motivate the user. You have access to Google Search for real-time information — USE IT for study tips, productivity research, and factual questions.
+1. **Chat & Coach**: Answer questions, give productivity & study tips, motivate the user. Use the perform_web_search action when the user needs real-time information, study tips, or factual answers.
 2. **Take Actions**: You can manage quests, habits, goals, milestones, intentions, reflections, inventory, focus sessions, shop purchases, and navigation. Use function calls for these.
 3. **Vocab & Learning**: You can generate vocab words, reschedule reviews, and provide vocabulary coaching.
 4. **Strategic Intelligence**: Generate productivity summaries, analyze quest difficulty, provide boss battle strategy, and create weekly plans.
@@ -388,7 +385,7 @@ RULES:
 - When taking actions, confirm what you did in your message
 - Use function calls when the user explicitly asks you to do something or when it's clearly the right response
 - For navigation, only suggest it if relevant to the conversation
-- Use Google Search proactively for study tips, coaching advice, and factual questions — ground your advice in real data
+- Use the perform_web_search action for study tips, coaching advice, and factual questions when real-time data would help
 - When giving coaching or study advice, cite specific techniques or research when possible
 - If you notice patterns in the user's data (declining streaks, vocab backlog, energy trends), proactively mention them
 - Always respond in character as Hoot the owl
@@ -441,23 +438,10 @@ RULES:
             textMessage = confirmResult.response.text();
         }
 
-        // Extract grounding sources if available
-        let sources: Array<{ title: string; url: string }> | null = null;
-        const metadata = response.candidates?.[0]?.groundingMetadata;
-        if (metadata?.groundingChunks && metadata.groundingChunks.length > 0) {
-            sources = metadata.groundingChunks
-                .filter((c: { web?: { uri?: string; title?: string } }) => c.web?.uri)
-                .slice(0, 3)
-                .map((c: { web?: { uri?: string; title?: string } }) => ({
-                    title: c.web?.title || 'Source',
-                    url: c.web?.uri || '',
-                }));
-        }
-
         return NextResponse.json({
             message: textMessage || "Hoo! I'm here but words escaped me. Try again? 🦉",
             actions,
-            sources: sources && sources.length > 0 ? sources : null,
+            sources: null,
         });
     } catch (error) {
         logger.error('Hoot Action Error', 'hoot-action', error);
