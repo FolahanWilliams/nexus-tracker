@@ -19,7 +19,8 @@ import {
   Flag,
   BookOpen,
   Library,
-  LogOut
+  LogOut,
+  HelpCircle
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -63,6 +64,7 @@ const navGroups = [
     label: 'RECORDS',
     items: [
       { href: '/analytics', label: 'Progress & Records', icon: BarChart3 },
+      { href: '/tutorial', label: 'Guide & Tutorial', icon: HelpCircle },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },

@@ -19,6 +19,7 @@ import {
   User,
   BookOpen,
   Library,
+  HelpCircle,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -37,6 +38,7 @@ const secondaryNavItems = [
   { href: '/character', label: 'Character', icon: User },
   { href: '/inventory', label: 'Items', icon: Sparkles },
   { href: '/analytics', label: 'Progress', icon: BarChart3 },
+  { href: '/tutorial', label: 'Guide', icon: HelpCircle },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
