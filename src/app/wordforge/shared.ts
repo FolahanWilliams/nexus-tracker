@@ -26,7 +26,8 @@ export const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 export type QuizType =
   | 'multiple_choice' | 'reverse_choice' | 'fill_blank' | 'free_recall' | 'use_in_sentence'
-  | 'synonym_match' | 'antonym_match' | 'etymology_drill' | 'contextual_cloze' | 'spelling_challenge';
+  | 'synonym_match' | 'antonym_match' | 'etymology_drill' | 'contextual_cloze' | 'spelling_challenge'
+  | 'sentence_construction' | 'paraphrase_challenge';
 
 export interface QuizQuestion {
   word: string;
@@ -37,4 +38,19 @@ export interface QuizQuestion {
   hint: string;
   /** The correct spelling for spelling_challenge type */
   correctSpelling?: string;
+  /** The original sentence to paraphrase (for paraphrase_challenge) */
+  originalSentence?: string;
+  /** The target word to incorporate (for paraphrase_challenge) */
+  targetWord?: string;
+}
+
+/** AI grading result for sentence construction and paraphrase challenges */
+export interface SentenceGradeResult {
+  correct: boolean;
+  score: number; // 0-100
+  correctUsage: boolean;
+  grammar: boolean;
+  naturalness: boolean;
+  feedback: string;
+  improvedVersion?: string;
 }

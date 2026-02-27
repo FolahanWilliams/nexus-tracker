@@ -51,16 +51,16 @@ function selectAdaptiveType(w: QuizWord): string {
 
     // Reviewing → harder types
     if (status === 'reviewing') {
-        const types = ['reverse_choice', 'fill_blank', 'use_in_sentence'];
+        const types = ['reverse_choice', 'fill_blank', 'use_in_sentence', 'sentence_construction'];
         if (w.etymology) types.push('etymology_drill');
         if (w.relatedWords?.length) types.push('synonym_match');
         if (w.antonym && w.antonym !== 'none') types.push('antonym_match');
         return types[Math.floor(Math.random() * types.length)];
     }
 
-    // Mastered → hardest types (use_in_sentence, contextual_cloze, spelling)
+    // Mastered → hardest types (use_in_sentence, contextual_cloze, spelling, sentence construction, paraphrase)
     if (status === 'mastered') {
-        const types = ['use_in_sentence', 'contextual_cloze', 'spelling_challenge', 'fill_blank'];
+        const types = ['use_in_sentence', 'contextual_cloze', 'spelling_challenge', 'fill_blank', 'sentence_construction', 'paraphrase_challenge'];
         if (w.etymology) types.push('etymology_drill');
         return types[Math.floor(Math.random() * types.length)];
     }
@@ -111,7 +111,24 @@ export async function POST(request: Request) {
                 entry: `- "${w.word}" (${w.partOfSpeech}): ${w.definition}${w.etymology ? ` [origin: ${w.etymology}]` : ''}${w.relatedWords?.length ? ` [related: ${w.relatedWords.join(', ')}]` : ''}${w.antonym && w.antonym !== 'none' ? ` [antonym: ${w.antonym}]` : ''} → TYPE: ${assignedType}`,
             };
         });
-        const wordList = wordEntries.map(e => e.entry).join('\n');
+
+        // Sentence construction questions are fully client-side (no AI generation needed)
+        const sentenceConstructionEntries = wordEntries.filter(e => e.assignedType === 'sentence_construction');
+        const aiGeneratedEntries = wordEntries.filter(e => e.assignedType !== 'sentence_construction');
+
+        const sentenceConstructionQuestions = sentenceConstructionEntries.map(e => ({
+            word: e.word,
+            type: 'sentence_construction',
+            question: `Write a sentence using the word "${e.word}" that demonstrates its meaning.`,
+            hint: `${e.partOfSpeech} — ${e.definition}`,
+        }));
+
+        // If all words are sentence_construction, skip the AI call
+        if (aiGeneratedEntries.length === 0) {
+            return NextResponse.json({ questions: sentenceConstructionQuestions });
+        }
+
+        const wordList = aiGeneratedEntries.map(e => e.entry).join('\n');
 
         // Provide extra words for plausible distractors
         const extraWords = (allWords || [])
@@ -138,6 +155,8 @@ Question types:
 7. "etymology_drill" — Ask about the word's origin/root meaning with 4 options
 8. "contextual_cloze" — A paragraph with ___ requiring deeper context understanding, with 4 word options
 9. "spelling_challenge" — Show the definition and pronunciation, ask "Spell the word". No options needed, include correctSpelling field
+10. "paraphrase_challenge" — Generate a natural sentence (NOT using the target word), then ask the user to rewrite it using the target word. Set options to [], correctIndex to 0. Include "originalSentence" field with the generated sentence and "targetWord" field with the word.
+Note: "sentence_construction" type is handled separately — do NOT generate it here.
 
 Rules:
 - Wrong options must be plausible (same part of speech, similar difficulty)
@@ -145,10 +164,11 @@ Rules:
 - For use_in_sentence, wrong sentences should misuse the word subtly
 - correctIndex is the 0-based index of the correct answer
 - For spelling_challenge: set options to [] and correctIndex to 0, add "correctSpelling" field with the word
+- For paraphrase_challenge: set options to [] and correctIndex to 0, add "originalSentence" (a natural sentence NOT using the target word) and "targetWord" fields
 - Shuffle the correct answer position
 - Include a brief hint for each question
 
-Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "...", "question": "...", "options": ["A","B","C","D"], "correctIndex": 0-3, "hint": "...", "correctSpelling": "..." }] }`;
+Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "...", "question": "...", "options": ["A","B","C","D"], "correctIndex": 0-3, "hint": "...", "correctSpelling": "...", "originalSentence": "...", "targetWord": "..." }] }`;
 
         const result = await model.generateContent(prompt);
         const text = result.response.text();
@@ -165,17 +185,23 @@ Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "...", "questio
             if (q.type === 'spelling_challenge') {
                 return typeof q.correctSpelling === 'string' || typeof q.word === 'string';
             }
+            // Paraphrase challenges need an originalSentence
+            if (q.type === 'paraphrase_challenge') {
+                return typeof q.originalSentence === 'string' && typeof q.targetWord === 'string';
+            }
             return Array.isArray(q.options) &&
                 typeof q.correctIndex === 'number' &&
                 q.correctIndex >= 0 &&
                 q.correctIndex < (q.options as unknown[]).length;
         });
 
-        if (validQuestions.length === 0) {
+        if (validQuestions.length === 0 && sentenceConstructionQuestions.length === 0) {
             throw new Error('All questions failed validation');
         }
 
-        return NextResponse.json({ questions: validQuestions });
+        // Merge AI-generated and client-graded questions
+        const allQuestions = [...validQuestions, ...sentenceConstructionQuestions];
+        return NextResponse.json({ questions: allQuestions });
     } catch (error) {
         logger.error('Quiz generation error', 'generate-quiz', error);
         return NextResponse.json({

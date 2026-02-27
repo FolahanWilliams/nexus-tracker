@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useGameStore, xpForLevel } from '@/store/useGameStore';
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight, Sword, User, Backpack, BarChart3, Settings, Map, BookOpen, Library } from 'lucide-react';
+import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight, Sword, User, Backpack, BarChart3, Settings, Map, BookOpen, Library, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
@@ -70,6 +70,7 @@ const menuItems = [
   { href: '/goals', icon: Flag, label: 'Goals', color: 'var(--color-orange)' },
   { href: '/reflection', icon: BookOpen, label: 'Daily Check-In', color: 'var(--color-yellow)' },
   { href: '/wordforge', icon: Library, label: 'WordForge', color: 'var(--color-blue)' },
+  { href: '/mindforge', icon: Brain, label: 'MindForge', color: 'var(--color-orange)' },
   { href: '/chains', icon: Map, label: 'Quest Chains', color: 'var(--color-blue)' },
   { href: '/bosses', icon: Sword, label: 'Boss Battles', color: 'var(--color-red)' },
   { href: '/character', icon: User, label: 'Character & Skills', color: 'var(--color-purple-light)' },

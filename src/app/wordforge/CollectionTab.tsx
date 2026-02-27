@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search, X, Filter, Trash2, Calendar, ArrowUpDown,
   CheckSquare, Square, PenLine, Brain, ChevronDown, ChevronUp,
-  Volume2, GitBranch,
+  Volume2, GitBranch, Network, Link2,
 } from 'lucide-react';
 import { useGameStore, VocabWord, VocabDifficulty } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
@@ -45,6 +45,9 @@ export default function CollectionTab() {
   const [sortAsc, setSortAsc] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // View mode: list vs relationship map
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
 
   // Batch mode
   const [batchMode, setBatchMode] = useState(false);
@@ -167,8 +170,208 @@ export default function CollectionTab() {
     addToast(`${count} word${count !== 1 ? 's' : ''} set to ${difficulty}`, 'success');
   }, [selectedIds, batchSetVocabDifficulty, exitBatchMode, addToast]);
 
+  // Build relationship clusters for the map view
+  const relationshipClusters = useMemo(() => {
+    if (viewMode !== 'map' || vocabWords.length === 0) return [];
+
+    // Build an adjacency map: word → connected words with relationship type
+    type RelEdge = { target: string; type: 'synonym' | 'antonym' | 'etymology' | 'category' };
+    const edges = new Map<string, RelEdge[]>();
+    const addEdge = (a: string, b: string, type: RelEdge['type']) => {
+      if (a === b) return;
+      if (!edges.has(a)) edges.set(a, []);
+      if (!edges.has(b)) edges.set(b, []);
+      // Avoid duplicates
+      if (!edges.get(a)!.some(e => e.target === b && e.type === type)) {
+        edges.get(a)!.push({ target: b, type });
+        edges.get(b)!.push({ target: a, type });
+      }
+    };
+
+    const wordSet = new Set(vocabWords.map(w => w.word.toLowerCase()));
+
+    vocabWords.forEach(w => {
+      // Synonym connections via relatedWords
+      w.relatedWords?.forEach(rw => {
+        if (wordSet.has(rw.toLowerCase())) addEdge(w.word, rw, 'synonym');
+      });
+      // Antonym connection
+      if (w.antonym && w.antonym !== 'none' && wordSet.has(w.antonym.toLowerCase())) {
+        addEdge(w.word, w.antonym, 'antonym');
+      }
+    });
+
+    // Etymology clustering: group words sharing root fragments (3+ chars)
+    const etymRoots = new Map<string, string[]>();
+    vocabWords.forEach(w => {
+      if (!w.etymology) return;
+      // Extract likely root words (Latin/Greek fragments)
+      const roots = w.etymology.toLowerCase().match(/\b[a-z]{4,}\b/g) || [];
+      roots.forEach(root => {
+        if (!etymRoots.has(root)) etymRoots.set(root, []);
+        etymRoots.get(root)!.push(w.word);
+      });
+    });
+    etymRoots.forEach(words => {
+      if (words.length < 2) return;
+      for (let i = 0; i < words.length; i++) {
+        for (let j = i + 1; j < words.length; j++) {
+          addEdge(words[i], words[j], 'etymology');
+        }
+      }
+    });
+
+    // Build clusters using union-find
+    const parent = new Map<string, string>();
+    vocabWords.forEach(w => parent.set(w.word, w.word));
+    const find = (x: string): string => {
+      while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x)!)!); x = parent.get(x)!; }
+      return x;
+    };
+    const union = (a: string, b: string) => { parent.set(find(a), find(b)); };
+
+    edges.forEach((edgeList, word) => {
+      edgeList.forEach(e => union(word, e.target));
+    });
+
+    // Group into clusters
+    const clusterMap = new Map<string, string[]>();
+    vocabWords.forEach(w => {
+      const root = find(w.word);
+      if (!clusterMap.has(root)) clusterMap.set(root, []);
+      clusterMap.get(root)!.push(w.word);
+    });
+
+    return Array.from(clusterMap.entries())
+      .map(([, words]) => ({
+        words,
+        edges: words.flatMap(w => (edges.get(w) || []).filter(e => words.includes(e.target)).map(e => ({ source: w, ...e }))),
+      }))
+      .sort((a, b) => b.words.length - a.words.length);
+  }, [vocabWords, viewMode]);
+
   return (
     <div className="space-y-3">
+      {/* View mode toggle */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setViewMode('list')}
+          className="text-[10px] font-bold px-2.5 py-1 rounded transition-all border flex items-center gap-1"
+          style={{
+            background: viewMode === 'list' ? 'var(--color-bg-card)' : 'transparent',
+            borderColor: viewMode === 'list' ? 'var(--color-blue)' : 'var(--color-border)',
+            color: viewMode === 'list' ? 'var(--color-blue)' : 'var(--color-text-muted)',
+          }}
+        >
+          <ArrowUpDown size={10} /> List View
+        </button>
+        <button
+          onClick={() => setViewMode('map')}
+          className="text-[10px] font-bold px-2.5 py-1 rounded transition-all border flex items-center gap-1"
+          style={{
+            background: viewMode === 'map' ? 'var(--color-bg-card)' : 'transparent',
+            borderColor: viewMode === 'map' ? 'var(--color-purple)' : 'var(--color-border)',
+            color: viewMode === 'map' ? 'var(--color-purple)' : 'var(--color-text-muted)',
+          }}
+          disabled={vocabWords.length === 0}
+        >
+          <Network size={10} /> Relationship Map
+        </button>
+      </div>
+
+      {/* Relationship Map View */}
+      {viewMode === 'map' && (
+        <div className="space-y-3">
+          <p className="text-[10px] text-[var(--color-text-muted)]">
+            Showing connections between {vocabWords.length} words based on synonyms, antonyms, and shared etymology.
+          </p>
+
+          {/* Legend */}
+          <div className="flex items-center gap-3 text-[9px]">
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[var(--color-blue)] inline-block rounded" /> Synonym</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[var(--color-red)] inline-block rounded" /> Antonym</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-[var(--color-orange)] inline-block rounded" /> Etymology</span>
+          </div>
+
+          {/* Connected clusters */}
+          {relationshipClusters.filter(c => c.edges.length > 0).length > 0 ? (
+            <div className="space-y-3">
+              {relationshipClusters.filter(c => c.edges.length > 0).map((cluster, ci) => {
+                const uniqueEdges = new Map<string, typeof cluster.edges[0]>();
+                cluster.edges.forEach(e => {
+                  const key = [e.source, e.target].sort().join('|') + e.type;
+                  if (!uniqueEdges.has(key)) uniqueEdges.set(key, e);
+                });
+                return (
+                  <div key={ci} className="p-3 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]">
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {cluster.words.map(w => {
+                        const wordObj = vocabWords.find(v => v.word === w);
+                        const statusColor = wordObj ? (STATUS_LABELS[wordObj.status]?.color || 'var(--color-blue)') : 'var(--color-blue)';
+                        return (
+                          <span
+                            key={w}
+                            className="text-xs font-bold px-2.5 py-1.5 rounded-lg border"
+                            style={{
+                              background: `color-mix(in srgb, ${statusColor} 10%, transparent)`,
+                              borderColor: statusColor,
+                              color: 'white',
+                            }}
+                          >
+                            {w}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      {Array.from(uniqueEdges.values()).map((e, ei) => (
+                        <span key={ei} className="text-[10px] flex items-center gap-1">
+                          <span className="text-[var(--color-text-secondary)]">{e.source}</span>
+                          <Link2 size={8} style={{
+                            color: e.type === 'synonym' ? 'var(--color-blue)' : e.type === 'antonym' ? 'var(--color-red)' : 'var(--color-orange)',
+                          }} />
+                          <span className="text-[var(--color-text-secondary)]">{e.target}</span>
+                          <span className="text-[8px] px-1 py-0 rounded" style={{
+                            color: e.type === 'synonym' ? 'var(--color-blue)' : e.type === 'antonym' ? 'var(--color-red)' : 'var(--color-orange)',
+                            background: e.type === 'synonym' ? 'rgba(59,130,246,0.1)' : e.type === 'antonym' ? 'rgba(248,113,113,0.1)' : 'rgba(251,146,60,0.1)',
+                          }}>
+                            {e.type}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Unconnected words */}
+              {relationshipClusters.filter(c => c.edges.length === 0).length > 0 && (
+                <div className="p-3 rounded-lg bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                  <p className="text-[10px] uppercase font-bold text-[var(--color-text-muted)] tracking-wider mb-2">
+                    Unconnected Words ({relationshipClusters.filter(c => c.edges.length === 0).reduce((sum, c) => sum + c.words.length, 0)})
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {relationshipClusters.filter(c => c.edges.length === 0).flatMap(c => c.words).map(w => (
+                      <span key={w} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--color-bg-card)] border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+                        {w}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-[var(--color-text-secondary)]">
+              <Network size={32} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No word connections found yet.</p>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1">Connections appear as your vocabulary grows with related words, antonyms, and shared etymologies.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* List View */}
+      {viewMode === 'list' && (<>
       {/* Search bar */}
       <div className="relative">
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
@@ -362,6 +565,7 @@ export default function CollectionTab() {
           ))}
         </div>
       )}
+      </>)}
     </div>
   );
 }
