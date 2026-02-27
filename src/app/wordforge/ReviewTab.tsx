@@ -7,12 +7,13 @@ import {
   Brain, BarChart3, HelpCircle,
   Layers, ThumbsUp, ThumbsDown, Minus, ArrowRight,
   Lightbulb, Type, PenTool, BookOpen, Square, Infinity,
+  MessageSquare, Repeat2,
 } from 'lucide-react';
 import { logger } from '@/lib/logger';
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
-import { shuffleArray, QuizQuestion, QuizType } from './shared';
+import { shuffleArray, QuizQuestion, QuizType, SentenceGradeResult } from './shared';
 import { VOCAB_REVIEW_XP } from '@/lib/constants';
 
 export default function ReviewTab() {
@@ -63,6 +64,11 @@ export default function ReviewTab() {
   const prefetchedQuestionsRef = useRef<QuizQuestion[] | null>(null);
   const prefetchedBatchRef = useRef<ReturnType<typeof useGameStore.getState>['vocabWords'] | null>(null);
   const prefetchInProgressRef = useRef(false);
+
+  // Sentence construction & paraphrase challenge state
+  const [sentenceInput, setSentenceInput] = useState('');
+  const [sentenceGrading, setSentenceGrading] = useState(false);
+  const [sentenceGrade, setSentenceGrade] = useState<SentenceGradeResult | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const dueWords = useMemo(
@@ -312,6 +318,53 @@ export default function ReviewTab() {
     }
   };
 
+  const handleSentenceSubmit = async () => {
+    const q = questions[currentIdx];
+    const wordObj = vocabWords.find(w => w.word === q.word);
+    const responseTimeMs = Date.now() - answerStartTime;
+    setSentenceGrading(true);
+    try {
+      const res = await fetch('/api/vocab/grade-sentence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          word: q.word,
+          definition: wordObj?.definition || '',
+          partOfSpeech: wordObj?.partOfSpeech || '',
+          sentence: sentenceInput,
+          challengeType: q.type,
+        }),
+      });
+      const data = await res.json();
+      const grade: SentenceGradeResult = data.result;
+      setSentenceGrade(grade);
+      setShowAnswer(true);
+
+      const correct = grade.correct;
+      if (wordObj) {
+        const quality = correct ? (grade.score >= 80 ? 5 : 4) : (grade.score >= 40 ? 2 : 1);
+        const conf = confidenceRatings[wordObj.id];
+        reviewVocabWord(wordObj.id, quality as 0 | 1 | 2 | 3 | 4 | 5, {
+          confidence: conf, responseTimeMs, quizType: q.type,
+        });
+      }
+      const conf = wordObj ? confidenceRatings[wordObj.id] : undefined;
+      const resultEntry = { word: q.word, correct, confidence: conf };
+      setSessionResults(prev => [...prev, resultEntry]);
+      if (isEndless) endlessResultsRef.current.push(resultEntry);
+      if (correct) {
+        triggerXPFloat(`+${VOCAB_REVIEW_XP.high} XP`, '#4ade80');
+      }
+    } catch {
+      setSentenceGrade({
+        correct: false, score: 0, correctUsage: false, grammar: false,
+        naturalness: false, feedback: 'Could not grade. Please try again.',
+      });
+      setShowAnswer(true);
+    }
+    setSentenceGrading(false);
+  };
+
   const endEndlessSession = () => {
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     prefetchedQuestionsRef.current = null;
@@ -473,6 +526,8 @@ export default function ReviewTab() {
       setShowAnswer(false);
       setRecallInput('');
       setSpellingInput('');
+      setSentenceInput('');
+      setSentenceGrade(null);
       setShowHint(false);
       setAnswerStartTime(Date.now());
 
@@ -511,6 +566,8 @@ export default function ReviewTab() {
     { type: 'contextual_cloze', label: 'Context Cloze', icon: '📖', color: 'var(--color-green)', desc: 'Fill paragraph gaps' },
     { type: 'spelling_challenge', label: 'Spelling', icon: '✍️', color: 'var(--color-purple)', desc: 'Spell from definition' },
     { type: 'use_in_sentence', label: 'Usage', icon: '💬', color: 'var(--color-blue)', desc: 'Correct sentence usage' },
+    { type: 'sentence_construction', label: 'Construct', icon: '🏗️', color: 'var(--color-green)', desc: 'Write your own sentence' },
+    { type: 'paraphrase_challenge', label: 'Paraphrase', icon: '🔀', color: 'var(--color-purple)', desc: 'Rewrite using word' },
   ];
 
   const selectedModeName = quizMode === 'adaptive'
@@ -981,10 +1038,13 @@ export default function ReviewTab() {
     etymology_drill: { label: 'Etymology Drill', color: 'var(--color-orange)' },
     contextual_cloze: { label: 'Contextual Cloze', color: 'var(--color-green)' },
     spelling_challenge: { label: 'Spelling Challenge', color: 'var(--color-purple)' },
+    sentence_construction: { label: 'Sentence Construction', color: 'var(--color-green)' },
+    paraphrase_challenge: { label: 'Paraphrase Challenge', color: 'var(--color-purple)' },
   };
 
-  const isOptionsType = mode === 'quiz' && q?.options && q.type !== 'spelling_challenge';
+  const isOptionsType = mode === 'quiz' && q?.options && q.type !== 'spelling_challenge' && q.type !== 'sentence_construction' && q.type !== 'paraphrase_challenge';
   const isSpellingType = mode === 'quiz' && q?.type === 'spelling_challenge';
+  const isSentenceType = mode === 'quiz' && (q?.type === 'sentence_construction' || q?.type === 'paraphrase_challenge');
   const typeInfo = q ? typeLabels[q.type] || { label: q.type.replace(/_/g, ' '), color: 'var(--color-blue)' } : null;
 
   // Format question text — highlight blanks for fill_blank / contextual_cloze
@@ -1059,6 +1119,8 @@ export default function ReviewTab() {
             {q?.type === 'spelling_challenge' && <PenTool size={12} className="text-[var(--color-purple)]" />}
             {(q?.type === 'fill_blank' || q?.type === 'contextual_cloze') && <Type size={12} className="text-[var(--color-orange)]" />}
             {q?.type === 'use_in_sentence' && <BookOpen size={12} className="text-[var(--color-green)]" />}
+            {q?.type === 'sentence_construction' && <MessageSquare size={12} className="text-[var(--color-green)]" />}
+            {q?.type === 'paraphrase_challenge' && <Repeat2 size={12} className="text-[var(--color-purple)]" />}
           </div>
 
           {/* Question text */}
@@ -1312,6 +1374,146 @@ export default function ReviewTab() {
                           Got it <ArrowRight size={10} />
                         </button>
                       )}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── Sentence Construction & Paraphrase Challenge ── */}
+          {isSentenceType && (
+            <div className="space-y-3">
+              {/* Show original sentence for paraphrase */}
+              {q.type === 'paraphrase_challenge' && q.originalSentence && (
+                <div className="p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                  <p className="text-[10px] uppercase font-bold text-[var(--color-purple)] mb-1 flex items-center gap-1">
+                    <Repeat2 size={10} /> Original Sentence
+                  </p>
+                  <p className="text-sm text-white italic">&ldquo;{q.originalSentence}&rdquo;</p>
+                </div>
+              )}
+
+              {!showAnswer ? (
+                <>
+                  <textarea
+                    value={sentenceInput}
+                    onChange={e => setSentenceInput(e.target.value)}
+                    placeholder={q.type === 'paraphrase_challenge'
+                      ? `Rewrite the sentence above using "${q.word}"...`
+                      : `Write a sentence using "${q.word}"...`}
+                    autoFocus
+                    className="w-full p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)] text-sm text-white resize-none focus:outline-none focus:border-[var(--color-green)]"
+                    rows={3}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey && sentenceInput.trim()) {
+                        e.preventDefault();
+                        handleSentenceSubmit();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={handleSentenceSubmit}
+                    disabled={!sentenceInput.trim() || sentenceGrading}
+                    className="w-full py-2.5 rounded-lg text-sm font-bold bg-[var(--color-green)] text-white hover:brightness-110 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                  >
+                    {sentenceGrading ? (
+                      <><RefreshCw size={14} className="animate-spin" /> Grading...</>
+                    ) : (
+                      <><MessageSquare size={14} /> Submit Sentence</>
+                    )}
+                  </button>
+                </>
+              ) : sentenceGrade && (
+                <>
+                  {/* Score display */}
+                  <div className="p-4 rounded-lg border space-y-2" style={{
+                    background: sentenceGrade.correct ? 'rgba(74,222,128,0.08)' : 'rgba(248,113,113,0.08)',
+                    borderColor: sentenceGrade.correct ? 'var(--color-green)' : 'var(--color-red)',
+                  }}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {sentenceGrade.correct
+                          ? <CheckCircle size={16} className="text-[var(--color-green)]" />
+                          : <XCircle size={16} className="text-[var(--color-red)]" />}
+                        <span className="text-sm font-bold" style={{ color: sentenceGrade.correct ? 'var(--color-green)' : 'var(--color-red)' }}>
+                          {sentenceGrade.score}/100
+                        </span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        {[
+                          { key: 'correctUsage', label: 'Usage', ok: sentenceGrade.correctUsage },
+                          { key: 'grammar', label: 'Grammar', ok: sentenceGrade.grammar },
+                          { key: 'naturalness', label: 'Natural', ok: sentenceGrade.naturalness },
+                        ].map(c => (
+                          <span key={c.key} className="text-[9px] px-1.5 py-0.5 rounded border" style={{
+                            color: c.ok ? 'var(--color-green)' : 'var(--color-red)',
+                            borderColor: c.ok ? 'var(--color-green)' : 'var(--color-red)',
+                            background: c.ok ? 'rgba(74,222,128,0.1)' : 'rgba(248,113,113,0.1)',
+                          }}>
+                            {c.ok ? '✓' : '✗'} {c.label}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <p className="text-sm text-[var(--color-text-primary)]">{sentenceGrade.feedback}</p>
+                    {sentenceGrade.improvedVersion && (
+                      <div className="pt-2 mt-2 border-t border-[var(--color-border)]/30">
+                        <p className="text-[10px] uppercase font-bold text-[var(--color-blue)] mb-1">Improved Version</p>
+                        <p className="text-xs text-[var(--color-text-secondary)] italic">&ldquo;{sentenceGrade.improvedVersion}&rdquo;</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Your sentence */}
+                  <div className="p-3 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
+                    <p className="text-[10px] uppercase font-bold text-[var(--color-text-muted)] mb-1">Your Sentence</p>
+                    <p className="text-sm text-[var(--color-text-secondary)]">&ldquo;{sentenceInput}&rdquo;</p>
+                  </div>
+
+                  {/* Definition reminder for endless mode */}
+                  {isEndless && currentWord && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="p-3 rounded-lg bg-[var(--color-green)]/5 border border-[var(--color-green)]/15 space-y-1"
+                    >
+                      <p className="text-xs font-bold text-white">{currentWord.word} <span className="font-normal text-[var(--color-text-muted)]">&middot; {currentWord.partOfSpeech}</span></p>
+                      <p className="text-sm text-[var(--color-text-primary)]">{currentWord.definition}</p>
+                    </motion.div>
+                  )}
+
+                  {/* Confidence + advance */}
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-3 mt-1 border-t border-[var(--color-border)]/30">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-[var(--color-text-muted)]">How was it?</span>
+                      {[
+                        { val: 1, label: 'Hard', color: 'var(--color-red)' },
+                        { val: 3, label: 'OK', color: 'var(--color-blue)' },
+                        { val: 5, label: 'Easy', color: 'var(--color-green)' },
+                      ].map(opt => (
+                        <button
+                          key={opt.val}
+                          onClick={() => handleQuizConfidence(opt.val)}
+                          className="text-[10px] px-3 py-1 rounded border transition-all hover:brightness-110"
+                          style={{
+                            borderColor: opt.color,
+                            color: opt.color,
+                            background: `color-mix(in srgb, ${opt.color} 10%, transparent)`,
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => {
+                          if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
+                          advanceQuestion();
+                        }}
+                        className="ml-auto text-[10px] text-[var(--color-text-muted)] hover:text-white transition-colors"
+                      >
+                        {currentIdx < questions.length - 1 ? 'Next →' : 'Finish →'}
+                      </button>
                     </div>
                   </motion.div>
                 </>
