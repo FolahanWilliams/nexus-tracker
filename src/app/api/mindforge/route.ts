@@ -3,7 +3,7 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
-type ChallengeType = 'argument' | 'analogy' | 'summary';
+type ChallengeType = 'argument' | 'analogy' | 'summary' | 'speaking';
 
 interface ArgumentRequest {
     type: 'argument';
@@ -33,7 +33,15 @@ interface SummaryRequest {
     vocabWords?: string[];
 }
 
-type MindForgeRequest = ArgumentRequest | AnalogyRequest | SummaryRequest;
+interface SpeakingRequest {
+    type: 'speaking';
+    action: 'generate_prompt' | 'analyze';
+    transcript?: string;
+    topic?: string;
+    vocabWords?: string[];
+}
+
+type MindForgeRequest = ArgumentRequest | AnalogyRequest | SummaryRequest | SpeakingRequest;
 
 export async function POST(request: Request) {
     try {
@@ -233,6 +241,81 @@ Rate each dimension 1-5:
 Give an overall score 0-100, brief feedback (2-3 sentences), list any key missed points, and provide a model summary (1-2 sentences).
 
 Output ONLY valid JSON: { "score": 0-100, "keyPoints": 1-5, "conciseness": 1-5, "clarity": 1-5, "vocabUsage": 0-5, "feedback": "...", "missedPoints": ["..."], "modelSummary": "..." }`
+                );
+                const data = extractJSON(result.response.text());
+                return NextResponse.json({ result: data });
+            }
+        }
+
+        // ── IMPROMPTU SPEAKING ──
+        if (body.type === 'speaking') {
+            if (body.action === 'generate_prompt') {
+                const mockPrompts = [
+                    { topic: 'Describe a technology that changed your daily life and explain why.', difficulty: 'beginner', prepTime: 30, speakTime: 60 },
+                    { topic: 'Argue for or against the idea that social media has improved human connection.', difficulty: 'intermediate', prepTime: 30, speakTime: 90 },
+                    { topic: 'If you could redesign the education system from scratch, what would you change and why?', difficulty: 'advanced', prepTime: 30, speakTime: 120 },
+                ];
+                const mock = hasApiKeyOrMock({ prompts: mockPrompts });
+                if (mock) return mock;
+
+                const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+                const vocabHint = body.vocabWords?.length
+                    ? `\nThe user is learning these vocabulary words — pick topics where they might naturally use some: ${body.vocabWords.slice(0, 15).join(', ')}`
+                    : '';
+
+                const result = await model.generateContent(
+                    `Generate 3 impromptu speaking prompts for a cognitive/articulation training exercise. Topics should be thought-provoking and encourage structured, articulate responses. Vary difficulty.${vocabHint}
+
+Each prompt should include a suggested preparation time (30 seconds) and speaking time (60-120 seconds based on difficulty).
+
+Output ONLY valid JSON: { "prompts": [{ "topic": "...", "difficulty": "beginner|intermediate|advanced", "prepTime": 30, "speakTime": 60|90|120 }] }`
+                );
+                const data = extractJSON(result.response.text());
+                return NextResponse.json(data);
+            }
+
+            if (body.action === 'analyze') {
+                const mockResult = {
+                    score: 68,
+                    vocabDiversity: 3,
+                    structure: 3,
+                    clarity: 4,
+                    coherence: 3,
+                    vocabUsage: 0,
+                    fillerCount: 4,
+                    fillerWords: ['um', 'like', 'you know', 'um'],
+                    wordCount: 87,
+                    sentenceCount: 6,
+                    feedback: 'Good effort! Your ideas were clear but could use more structure. Try to reduce filler words.',
+                    strengths: ['Clear main idea', 'Good use of examples'],
+                    improvements: ['Reduce filler words (4 detected)', 'Add a stronger conclusion'],
+                    vocabWordsUsed: [],
+                };
+                const mock = hasApiKeyOrMock({ result: mockResult });
+                if (mock) return mock;
+
+                const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+                const vocabHint = body.vocabWords?.length
+                    ? `\nBonus: The user is learning these vocab words: ${body.vocabWords.join(', ')}. Award vocabUsage points (0-5) for naturally incorporating them. List which ones were used in vocabWordsUsed.`
+                    : '';
+
+                const result = await model.generateContent(
+                    `You are a speech analysis expert. Analyze this impromptu speech transcript for articulation quality.
+
+Topic: "${body.topic}"
+Transcript: "${body.transcript}"
+${vocabHint}
+
+Analyze the following:
+1. Count filler words (um, uh, like, you know, basically, literally, actually, so, right, I mean)
+2. Assess vocabulary diversity (1-5): variety and sophistication of word choices
+3. Assess structure (1-5): logical flow, introduction, body, conclusion
+4. Assess clarity (1-5): how clearly ideas are expressed
+5. Assess coherence (1-5): how well ideas connect and build on each other
+
+Give an overall score 0-100, brief feedback (2-3 sentences), list 2 strengths, and list 2 specific improvements.
+
+Output ONLY valid JSON: { "score": 0-100, "vocabDiversity": 1-5, "structure": 1-5, "clarity": 1-5, "coherence": 1-5, "vocabUsage": 0-5, "fillerCount": N, "fillerWords": ["..."], "wordCount": N, "sentenceCount": N, "feedback": "...", "strengths": ["..."], "improvements": ["..."], "vocabWordsUsed": ["..."] }`
                 );
                 const data = extractJSON(result.response.text());
                 return NextResponse.json({ result: data });

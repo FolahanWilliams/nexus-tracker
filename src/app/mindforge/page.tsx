@@ -3,18 +3,20 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Swords, Lightbulb, FileText } from 'lucide-react';
+import { ChevronLeft, Swords, Lightbulb, FileText, Mic } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import ArgumentBuilder from './ArgumentBuilder';
 import AnalogyEngine from './AnalogyEngine';
 import SummaryChallenge from './SummaryChallenge';
+import ImpromptuSpeaking from './ImpromptuSpeaking';
 
-type Tab = 'argument' | 'analogy' | 'summary';
+type Tab = 'argument' | 'analogy' | 'summary' | 'speaking';
 
 const TABS: { id: Tab; label: string; icon: typeof Swords; color: string; desc: string }[] = [
   { id: 'argument', label: 'Argument Builder', icon: Swords, color: 'var(--color-red)', desc: 'Build structured arguments' },
   { id: 'analogy', label: 'Analogy Engine', icon: Lightbulb, color: 'var(--color-orange)', desc: 'Create analogies between concepts' },
   { id: 'summary', label: 'Summary Challenge', icon: FileText, color: 'var(--color-blue)', desc: 'Condense passages concisely' },
+  { id: 'speaking', label: 'Impromptu Speaking', icon: Mic, color: 'var(--color-green)', desc: 'Practice articulate speech' },
 ];
 
 export default function MindForgePage() {
@@ -78,6 +80,7 @@ export default function MindForgePage() {
         {tab === 'argument' && <ArgumentBuilder vocabWords={learnedWords} />}
         {tab === 'analogy' && <AnalogyEngine vocabWords={learnedWords} />}
         {tab === 'summary' && <SummaryChallenge vocabWords={learnedWords} />}
+        {tab === 'speaking' && <ImpromptuSpeaking vocabWords={learnedWords} />}
       </div>
     </motion.div>
   );
