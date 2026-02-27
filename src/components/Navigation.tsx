@@ -20,7 +20,8 @@ import {
   BookOpen,
   Library,
   LogOut,
-  HelpCircle
+  HelpCircle,
+  Brain,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -44,6 +45,7 @@ const navGroups = [
       { href: '/goals', label: 'Goals', icon: Flag },
       { href: '/reflection', label: 'Check-In', icon: BookOpen },
       { href: '/wordforge', label: 'WordForge', icon: Library },
+      { href: '/mindforge', label: 'MindForge', icon: Brain },
     ],
   },
   {
