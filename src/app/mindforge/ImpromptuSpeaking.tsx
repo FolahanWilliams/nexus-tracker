@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  RefreshCw, Mic, MicOff, Play, Square, Clock,
+  RefreshCw, Mic, Play, Square, Clock,
   CheckCircle, AlertTriangle, BarChart3, Sparkles, MessageCircle,
 } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
@@ -65,6 +65,9 @@ export default function ImpromptuSpeaking({ vocabWords }: { vocabWords: string[]
     };
   }, []);
 
+  // Store selectedPrompt in a ref so async callbacks always see latest value
+  const selectedPromptRef = useRef<SpeakingPrompt | null>(null);
+
   const generatePrompts = async () => {
     setPhase('loading');
     try {
@@ -87,26 +90,82 @@ export default function ImpromptuSpeaking({ vocabWords }: { vocabWords: string[]
     }
   };
 
-  const startPrep = (prompt: SpeakingPrompt) => {
-    setSelectedPrompt(prompt);
-    setTranscript('');
-    setResult(null);
-    setMicError('');
-    setPrepTimeLeft(prompt.prepTime);
-    setSpeakTimeLeft(prompt.speakTime);
-    setPhase('prep');
-
-    let timeLeft = prompt.prepTime;
-    prepTimerRef.current = setInterval(() => {
-      timeLeft -= 1;
-      setPrepTimeLeft(timeLeft);
-      if (timeLeft <= 0) {
-        if (prepTimerRef.current) clearInterval(prepTimerRef.current);
-        prepTimerRef.current = null;
-        startRecording(prompt);
+  const analyzeSpeech = useCallback(async (text: string) => {
+    const prompt = selectedPromptRef.current;
+    if (!prompt) return;
+    setPhase('analyzing');
+    try {
+      const res = await fetch('/api/mindforge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'speaking',
+          action: 'analyze',
+          transcript: text,
+          topic: prompt.topic,
+          vocabWords: vocabWords.slice(0, 15),
+        }),
+      });
+      const data = await res.json();
+      if (data.result) {
+        setResult(data.result);
+        setPhase('result');
+        const xp = Math.round(data.result.score / 5) + 5;
+        addXP(xp);
+        triggerXPFloat(`+${xp} XP`, '#4ade80');
+        logActivity('xp_earned', '🎤', `Impromptu Speaking: ${data.result.score}/100`, prompt.topic.slice(0, 50));
+      } else {
+        addToast('Could not analyze speech.', 'error');
+        setPhase('idle');
       }
-    }, 1000);
-  };
+    } catch {
+      addToast('Analysis error.', 'error');
+      setPhase('idle');
+    }
+  }, [vocabWords, addXP, logActivity, addToast]);
+
+  const transcribeAudio = useCallback(async (audioBlob: Blob) => {
+    setPhase('transcribing');
+    try {
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+
+      const res = await fetch('/api/mindforge/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (data.text) {
+        setTranscript(data.text);
+        await analyzeSpeech(data.text);
+      } else {
+        addToast('Transcription failed.', 'error');
+        setPhase('idle');
+      }
+    } catch {
+      addToast('Transcription error.', 'error');
+      setPhase('idle');
+    }
+  }, [analyzeSpeech, addToast]);
+
+  const stopRecording = useCallback(() => {
+    if (speakTimerRef.current) {
+      clearInterval(speakTimerRef.current);
+      speakTimerRef.current = null;
+    }
+
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state === 'recording') {
+      recorder.stop();
+
+      // Wait for final data to be collected, then transcribe
+      recorder.addEventListener('stop', async () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        await transcribeAudio(blob);
+      }, { once: true });
+    }
+  }, [transcribeAudio]);
 
   const startRecording = useCallback(async (prompt: SpeakingPrompt) => {
     try {
@@ -143,82 +202,28 @@ export default function ImpromptuSpeaking({ vocabWords }: { vocabWords: string[]
       setMicError('Could not access microphone. Please allow microphone access and try again.');
       setPhase('idle');
     }
-  }, []);
+  }, [stopRecording]);
 
-  const stopRecording = useCallback(() => {
-    if (speakTimerRef.current) {
-      clearInterval(speakTimerRef.current);
-      speakTimerRef.current = null;
-    }
+  const startPrep = (prompt: SpeakingPrompt) => {
+    setSelectedPrompt(prompt);
+    selectedPromptRef.current = prompt;
+    setTranscript('');
+    setResult(null);
+    setMicError('');
+    setPrepTimeLeft(prompt.prepTime);
+    setSpeakTimeLeft(prompt.speakTime);
+    setPhase('prep');
 
-    const recorder = mediaRecorderRef.current;
-    if (recorder && recorder.state === 'recording') {
-      recorder.stop();
-
-      // Wait for final data to be collected, then transcribe
-      recorder.addEventListener('stop', async () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        await transcribeAudio(blob);
-      }, { once: true });
-    }
-  }, []);
-
-  const transcribeAudio = async (audioBlob: Blob) => {
-    setPhase('transcribing');
-    try {
-      const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.webm');
-
-      const res = await fetch('/api/mindforge/transcribe', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (data.text) {
-        setTranscript(data.text);
-        await analyzeSpeech(data.text);
-      } else {
-        addToast('Transcription failed.', 'error');
-        setPhase('idle');
+    let timeLeft = prompt.prepTime;
+    prepTimerRef.current = setInterval(() => {
+      timeLeft -= 1;
+      setPrepTimeLeft(timeLeft);
+      if (timeLeft <= 0) {
+        if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+        prepTimerRef.current = null;
+        startRecording(prompt);
       }
-    } catch {
-      addToast('Transcription error.', 'error');
-      setPhase('idle');
-    }
-  };
-
-  const analyzeSpeech = async (text: string) => {
-    if (!selectedPrompt) return;
-    setPhase('analyzing');
-    try {
-      const res = await fetch('/api/mindforge', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'speaking',
-          action: 'analyze',
-          transcript: text,
-          topic: selectedPrompt.topic,
-          vocabWords: vocabWords.slice(0, 15),
-        }),
-      });
-      const data = await res.json();
-      if (data.result) {
-        setResult(data.result);
-        setPhase('result');
-        const xp = Math.round(data.result.score / 5) + 5;
-        addXP(xp);
-        triggerXPFloat(`+${xp} XP`, '#4ade80');
-        logActivity('xp_earned', '🎤', `Impromptu Speaking: ${data.result.score}/100`, selectedPrompt.topic.slice(0, 50));
-      } else {
-        addToast('Could not analyze speech.', 'error');
-        setPhase('idle');
-      }
-    } catch {
-      addToast('Analysis error.', 'error');
-      setPhase('idle');
-    }
+    }, 1000);
   };
 
   const skipPrep = () => {

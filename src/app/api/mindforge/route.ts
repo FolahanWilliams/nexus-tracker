@@ -3,8 +3,6 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
-type ChallengeType = 'argument' | 'analogy' | 'summary' | 'speaking';
-
 interface ArgumentRequest {
     type: 'argument';
     action: 'generate_topic' | 'evaluate';
