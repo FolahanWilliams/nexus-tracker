@@ -1201,8 +1201,8 @@ export default function ReviewTab() {
                     )}
                   </div>
 
-                  {/* Quick definition flash — shown on correct answers in endless mode */}
-                  {isEndless && selectedAnswer === q.correctIndex && currentWord && (
+                  {/* Quick definition flash — shown on correct answers */}
+                  {selectedAnswer === q.correctIndex && currentWord && (
                     <motion.div
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1294,8 +1294,8 @@ export default function ReviewTab() {
                     }}>{spellingInput}</p>
                   </div>
 
-                  {/* Quick definition flash — shown on correct spelling in endless mode */}
-                  {isEndless && spellingInput.toLowerCase().trim() === (q.correctSpelling || q.word).toLowerCase().trim() && currentWord && (
+                  {/* Quick definition flash — shown on correct spelling */}
+                  {spellingInput.toLowerCase().trim() === (q.correctSpelling || q.word).toLowerCase().trim() && currentWord && (
                     <motion.div
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -1471,8 +1471,8 @@ export default function ReviewTab() {
                     <p className="text-sm text-[var(--color-text-secondary)]">&ldquo;{sentenceInput}&rdquo;</p>
                   </div>
 
-                  {/* Definition reminder for endless mode */}
-                  {isEndless && currentWord && (
+                  {/* Definition reminder */}
+                  {currentWord && (
                     <motion.div
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
