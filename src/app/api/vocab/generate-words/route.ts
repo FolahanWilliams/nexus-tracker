@@ -57,7 +57,7 @@ const MOCK_WORDS = [
 export async function POST(request: Request) {
     try {
         const { currentLevel, existingWords, count } = await request.json();
-        const wordCount = Math.min(Math.max(count || 4, 3), 5);
+        const wordCount = Math.min(Math.max(count || 4, 1), 4);
 
         const mock = hasApiKeyOrMock({
             words: MOCK_WORDS.slice(0, wordCount),

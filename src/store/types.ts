@@ -247,6 +247,7 @@ export interface Settings {
     musicEnabled: boolean;
     sfxVolume: number;
     musicVolume: number;
+    dailyWordCount: 1 | 2 | 3 | 4;
 }
 
 // ─── Slice interfaces ────────────────────────────────────────────

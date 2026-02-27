@@ -258,7 +258,7 @@ export default function ReviewTab() {
     if (correct) {
       autoAdvanceRef.current = setTimeout(() => {
         advanceQuestion();
-      }, isEndless ? 2000 : 2500);
+      }, 2500);
     }
   };
 
@@ -314,7 +314,7 @@ export default function ReviewTab() {
     }
     if (autoAdvanceRef.current) clearTimeout(autoAdvanceRef.current);
     if (correct) {
-      autoAdvanceRef.current = setTimeout(() => advanceQuestion(), isEndless ? 2000 : 2500);
+      autoAdvanceRef.current = setTimeout(() => advanceQuestion(), 2500);
     }
   };
 
