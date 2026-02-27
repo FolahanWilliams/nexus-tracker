@@ -12,13 +12,15 @@ import { logger } from '@/lib/logger';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { DIFFICULTY_COLORS, STATUS_LABELS } from './shared';
-import { VOCAB_DAILY_GENERATION_XP, VOCAB_DAILY_WORD_COUNT } from '@/lib/constants';
+import { VOCAB_DAILY_GENERATION_XP } from '@/lib/constants';
 
 export default function DailyWordsTab() {
   const {
     vocabWords, vocabDailyDate, vocabCurrentLevel,
     addVocabWords, setVocabDailyDate, logActivity, addXP,
+    settings, updateSettings,
   } = useGameStore();
+  const dailyWordCount = settings.dailyWordCount ?? 4;
   const { addToast } = useToastStore();
 
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ export default function DailyWordsTab() {
         body: JSON.stringify({
           currentLevel: vocabCurrentLevel,
           existingWords: existingWordList,
-          count: VOCAB_DAILY_WORD_COUNT,
+          count: dailyWordCount,
         }),
       });
       if (!res.ok) {
@@ -63,35 +65,60 @@ export default function DailyWordsTab() {
     } finally {
       setLoading(false);
     }
-  }, [vocabWords, vocabCurrentLevel, addVocabWords, setVocabDailyDate, today, addToast, addXP, logActivity]);
+  }, [vocabWords, vocabCurrentLevel, addVocabWords, setVocabDailyDate, today, addToast, addXP, logActivity, dailyWordCount]);
 
   return (
     <div className="space-y-4">
       {/* Level indicator + generate */}
-      <div className="flex items-center justify-between p-4 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)]">
-        <div>
-          <p className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wider mb-1">Current Level</p>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ background: DIFFICULTY_COLORS[vocabCurrentLevel] }} />
-            <span className="text-sm font-bold capitalize">{vocabCurrentLevel}</span>
+      <div className="p-4 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs text-[var(--color-text-secondary)] uppercase tracking-wider mb-1">Current Level</p>
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full" style={{ background: DIFFICULTY_COLORS[vocabCurrentLevel] }} />
+              <span className="text-sm font-bold capitalize">{vocabCurrentLevel}</span>
+            </div>
           </div>
+          <button
+            onClick={fetchDailyWords}
+            disabled={loading || alreadyGenerated}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-40"
+            style={{
+              background: alreadyGenerated ? 'var(--color-bg-hover)' : 'var(--color-blue)',
+              color: 'white',
+            }}
+          >
+            {loading ? (
+              <RefreshCw size={16} className="animate-spin" />
+            ) : (
+              <Sparkles size={16} />
+            )}
+            {alreadyGenerated ? 'Words Delivered' : loading ? 'Generating...' : 'Generate Daily Words'}
+          </button>
         </div>
-        <button
-          onClick={fetchDailyWords}
-          disabled={loading || alreadyGenerated}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-40"
-          style={{
-            background: alreadyGenerated ? 'var(--color-bg-hover)' : 'var(--color-blue)',
-            color: 'white',
-          }}
-        >
-          {loading ? (
-            <RefreshCw size={16} className="animate-spin" />
-          ) : (
-            <Sparkles size={16} />
-          )}
-          {alreadyGenerated ? 'Words Delivered' : loading ? 'Generating...' : 'Generate Daily Words'}
-        </button>
+
+        {/* Daily word count selector */}
+        {!alreadyGenerated && (
+          <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]/30">
+            <p className="text-[10px] uppercase font-bold text-[var(--color-text-muted)] tracking-wider">New words per day</p>
+            <div className="flex gap-1">
+              {([1, 2, 3, 4] as const).map(n => (
+                <button
+                  key={n}
+                  onClick={() => updateSettings({ dailyWordCount: n })}
+                  className="w-8 h-8 rounded-md text-xs font-bold transition-all"
+                  style={{
+                    background: dailyWordCount === n ? 'var(--color-blue)' : 'var(--color-bg-hover)',
+                    color: dailyWordCount === n ? 'white' : 'var(--color-text-muted)',
+                    border: dailyWordCount === n ? '1px solid var(--color-blue)' : '1px solid var(--color-border)',
+                  }}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Word cards */}
