@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check if user already has a stripe customer ID
-    const { data: profile } = await supabaseAdmin
+    const { data: profile } = await getSupabaseAdmin()
       .from('profiles')
       .select('stripe_customer_id')
       .eq('id', userId)
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest) {
       customerId = customer.id;
 
       // Save customer ID to Supabase profile
-      await supabaseAdmin
+      await getSupabaseAdmin()
         .from('profiles')
         .update({ stripe_customer_id: customerId })
         .eq('id', userId);

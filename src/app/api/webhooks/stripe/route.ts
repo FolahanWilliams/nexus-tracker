@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 // Disable Next.js body parsing so Stripe can verify the raw body
 export const runtime = 'nodejs';
@@ -38,7 +40,7 @@ export async function POST(req: NextRequest) {
         // Get subscription details to check status
         const subscription = await getStripeServer().subscriptions.retrieve(subscriptionId);
 
-        await supabaseAdmin
+        await getSupabaseAdmin()
           .from('profiles')
           .update({
             subscription_status: subscription.status, // 'trialing', 'active', etc.
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object;
         const customerId = subscription.customer as string;
 
-        await supabaseAdmin
+        await getSupabaseAdmin()
           .from('profiles')
           .update({
             subscription_status: subscription.status,
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest) {
         const subscription = event.data.object;
         const customerId = subscription.customer as string;
 
-        await supabaseAdmin
+        await getSupabaseAdmin()
           .from('profiles')
           .update({
             subscription_status: 'canceled',
@@ -83,7 +85,7 @@ export async function POST(req: NextRequest) {
         const invoice = event.data.object;
         const customerId = invoice.customer as string;
 
-        await supabaseAdmin
+        await getSupabaseAdmin()
           .from('profiles')
           .update({
             subscription_status: 'past_due',
