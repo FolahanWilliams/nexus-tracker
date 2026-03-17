@@ -41,7 +41,7 @@ export default function QuestsPage() {
       addToast(`Item found! ${lastDroppedItem} added to inventory`, 'success');
       clearDroppedItem();
     }
-  }, [lastDroppedItem]);
+  }, [lastDroppedItem, addToast, clearDroppedItem]);
 
   // Show critical hit toast when lucky-star doubles the XP reward
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function QuestsPage() {
       addToast(`⚡ CRITICAL HIT! Lucky Star doubled your XP — +${lastCriticalHit} XP!`, 'success');
       clearCriticalHit();
     }
-  }, [lastCriticalHit]);
+  }, [lastCriticalHit, addToast, clearCriticalHit]);
 
   const [title, setTitle] = useState('');
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | 'Epic'>('Medium');

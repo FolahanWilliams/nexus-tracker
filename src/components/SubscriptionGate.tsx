@@ -11,13 +11,7 @@ export default function SubscriptionGate({ children }: { children: React.ReactNo
   const [status, setStatus] = useState<'loading' | 'active' | 'inactive'>('loading');
 
   useEffect(() => {
-    if (authLoading) return;
-
-    // Not signed in — let the overview page handle redirect to /login
-    if (!user) {
-      setStatus('active'); // pass through, overview page handles auth redirect
-      return;
-    }
+    if (authLoading || !user) return;
 
     const checkSubscription = async () => {
       try {
@@ -43,6 +37,11 @@ export default function SubscriptionGate({ children }: { children: React.ReactNo
 
     checkSubscription();
   }, [user, authLoading, router]);
+
+  // Not signed in — pass through, overview page handles auth redirect
+  if (!authLoading && !user) {
+    return <>{children}</>;
+  }
 
   if (status === 'loading') {
     return (

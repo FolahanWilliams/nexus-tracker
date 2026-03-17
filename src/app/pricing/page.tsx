@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Shield, Sparkles, Check, ChevronLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 
 function PricingContent() {
   const { user, loading: authLoading, signIn } = useAuth();
@@ -24,7 +24,7 @@ function PricingContent() {
     'Cross-device Sync'
   ];
 
-  const triggerCheckout = async () => {
+  const triggerCheckout = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -49,7 +49,7 @@ function PricingContent() {
       console.error('Checkout error:', error);
       setLoading(false);
     }
-  };
+  }, [user]);
 
   // Auto-trigger checkout when redirected back from sign-in with ?checkout=true
   useEffect(() => {
@@ -62,9 +62,11 @@ function PricingContent() {
       checkoutTriggered.current = true;
       // Clean up the URL
       router.replace('/pricing', { scroll: false });
-      triggerCheckout();
+      // Schedule outside effect body to avoid synchronous setState in effect
+      const timerId = setTimeout(triggerCheckout, 0);
+      return () => clearTimeout(timerId);
     }
-  }, [user, authLoading, searchParams]);
+  }, [user, authLoading, searchParams, router, triggerCheckout]);
 
   const handleSubscribe = async () => {
     if (!user) {

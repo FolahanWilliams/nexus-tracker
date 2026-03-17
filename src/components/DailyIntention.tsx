@@ -50,7 +50,7 @@ export default function DailyIntention() {
       const timer = setTimeout(() => setShowEvening(true), 2000);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [hour, lastIntentionDate, lastReflectionDate, today]);
 
   const handleMorningSubmit = () => {
     if (!intention.trim()) return;
