@@ -44,7 +44,6 @@ export default function FocusPage() {
     setRunning(false);
   }, []);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const handleSessionComplete = useCallback(() => {
     stopTimer();
     setFocusTimerRunning(false, null);
@@ -74,7 +73,7 @@ export default function FocusPage() {
       setMode('focus');
       setTimeLeft(MODES['focus'].duration);
     }
-  }, [mode, sessionsThisSession, stopTimer, addXP, addGold, addFocusSession, addToast]);
+  }, [mode, sessionsThisSession, stopTimer, addXP, addGold, addFocusSession, addToast, setFocusTimerRunning]);
 
   useEffect(() => {
     if (!running) {

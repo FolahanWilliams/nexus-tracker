@@ -75,7 +75,7 @@ export default function BossBattlesPage() {
 
   useEffect(() => {
     checkDailyQuests();
-  }, []);
+  }, [checkDailyQuests]);
 
   useEffect(() => {
     if (selectedBoss) {
@@ -94,7 +94,7 @@ export default function BossBattlesPage() {
       }, 1000);
       return () => clearInterval(timer);
     }
-  }, [selectedBoss]);
+  }, [selectedBoss, addToast, failBossBattle]);
 
   const handleStartBattle = (template: typeof BOSS_TEMPLATES[0]) => {
     const expiresAt = new Date();

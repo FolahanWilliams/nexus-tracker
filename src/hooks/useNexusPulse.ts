@@ -615,15 +615,8 @@ export function useNexusPulse(): NexusPulseData {
     const prevStreakRef = useRef(state.streak);
 
     // Compute local insights (runs on every render, but cheap — no API)
-    const insights = useMemo(() => {
-        const fullState = useGameStore.getState();
-        return detectInsights(fullState);
-    }, [
-        state.tasks, state.habits, state.reflectionNotes,
-        state.vocabWords, state.streak, state.hp,
-        state.focusSessionsTotal, state.activityLog,
-        state.goals,
-    ]);
+    // Cheap local heuristic — no API call, safe to recompute on any state change
+    const insights = useMemo(() => detectInsights(state), [state]);
 
     // Domain-specific insight filter for page-level components
     const insightsForDomain = useCallback((domain: InsightDomain) => {

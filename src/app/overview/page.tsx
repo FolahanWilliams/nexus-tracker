@@ -98,10 +98,10 @@ function DashboardContent() {
   const {
     level, xp, gold, gems, streak, title,
     characterName, characterClass,
-    dailyQuests, checkDailyQuests, generateDailyQuests, toggleDailyQuest,
+    dailyQuests, checkDailyQuests, toggleDailyQuest,
     claimDailyReward, lastDailyRewardClaim, loginStreak,
     addTask, totalQuestsCompleted, checkBuffs, activeBuffs,
-    tasks, habits, goals, reflectionNotes, todayEnergyRating,
+    tasks, habits, goals,
     completeHabit, streakFreezes, lastFreezedDate,
     comebackBonusAmount, clearComebackBonus
   } = useGameStore();
@@ -114,12 +114,12 @@ function DashboardContent() {
       addToast(`Welcome back! Comeback bonus: +${comebackBonusAmount} XP for returning! 💪`, 'success');
       clearComebackBonus();
     }
-  }, [comebackBonusAmount]);
+  }, [comebackBonusAmount, addToast, clearComebackBonus]);
 
   useEffect(() => {
     checkDailyQuests();
     checkBuffs();
-  }, []);
+  }, [checkDailyQuests, checkBuffs]);
 
 
   const today = new Date().toISOString().split('T')[0];

@@ -2,6 +2,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useGameStore } from '@/store/useGameStore';
 import {
@@ -145,7 +146,7 @@ function UserSection({ characterName }: { characterName: string }) {
   return (
     <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
       {avatarUrl ? (
-        <img src={avatarUrl} alt="" className="w-8 h-8 rounded" referrerPolicy="no-referrer" />
+        <Image src={avatarUrl} alt="" width={32} height={32} className="w-8 h-8 rounded" referrerPolicy="no-referrer" />
       ) : (
         <div className="w-8 h-8 rounded bg-[var(--color-bg-card)] flex items-center justify-center">
           <User size={14} className="text-[var(--color-text-secondary)]" />
