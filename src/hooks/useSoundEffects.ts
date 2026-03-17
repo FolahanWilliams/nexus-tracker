@@ -1,7 +1,13 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
+import { logger } from '@/lib/logger';
+
+// Safari exposes AudioContext under a prefixed name.
+declare global {
+  interface Window { webkitAudioContext?: typeof AudioContext; }
+}
 
 // Sound effect types
 type SoundType = 'click' | 'success' | 'error' | 'levelup' | 'quest' | 'achievement' | 'boss' | 'craft' | 'coin' | 'battle_clash' | 'ambient_wind' | 'level_fanfare' | 'hit' | 'victory';
@@ -29,8 +35,7 @@ let audioContext: AudioContext | null = null;
 // Generate a rich synthetic sound
 const generateSound = (type: SoundType): AudioBuffer => {
   if (!audioContext) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
   }
 
   const ctx = audioContext;
@@ -167,7 +172,7 @@ const initSounds = () => {
       sounds[type] = generateSound(type);
     });
   } catch {
-    console.warn('Audio not supported');
+    logger.warn('Audio not supported', 'audio');
   }
 };
 
@@ -175,15 +180,18 @@ export const useSoundEffects = () => {
   const { settings } = useGameStore();
   const initialized = useRef(false);
 
-  useEffect(() => {
+  const playSound = useCallback((type: SoundType) => {
+    if (!settings.soundEnabled) return;
+
+    // Lazily initialize AudioContext + sounds on first user-triggered play.
+    // This avoids Chrome's autoplay policy which blocks AudioContext creation
+    // before a user gesture.
     if (!initialized.current) {
       initSounds();
       initialized.current = true;
     }
-  }, []);
 
-  const playSound = useCallback((type: SoundType) => {
-    if (!settings.soundEnabled || !audioContext || !sounds[type]) return;
+    if (!audioContext || !sounds[type]) return;
 
     try {
       if (audioContext.state === 'suspended') {

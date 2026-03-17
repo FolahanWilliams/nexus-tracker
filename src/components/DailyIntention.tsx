@@ -24,8 +24,6 @@ export default function DailyIntention() {
     setDailyIntention,
     addReflectionNote,
     tasks,
-    habits,
-    streak,
   } = useGameStore();
   const { addToast } = useToastStore();
 
@@ -65,7 +63,6 @@ export default function DailyIntention() {
   const handleEveningSubmit = () => {
     const today2 = new Date().toISOString().split('T')[0];
     const completedToday = tasks.filter(t => t.completed && t.completedAt?.startsWith(today2)).length;
-    const habitsToday = habits.filter(h => h.completedDates.includes(today2)).length;
     const xpBonus = stars * 10 + (completedToday * 5);
     addReflectionNote(reflectionNote, stars, xpBonus);
     if (xpBonus > 0) triggerXPFloat(`+${xpBonus} XP`, '#4ade80');

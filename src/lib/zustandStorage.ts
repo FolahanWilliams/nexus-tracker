@@ -1,90 +1,119 @@
-// Custom Zustand storage that uses IndexedDB with Supabase cloud sync
+// Custom Zustand storage: IndexedDB (local cache) + Supabase (source of truth)
+//
+// Simplified approach:
+//   getItem  → load from Supabase if logged in, fall back to local cache
+//   setItem  → write to local cache immediately, debounce save to Supabase
 import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
 import { saveToSupabase, loadFromSupabase } from './supabaseSync';
-import { supabase } from './supabase';
+import { logger } from './logger';
 
-// Debounce Firestore writes to avoid excessive calls
+// ── Debounce ─────────────────────────────────────────────────────────────
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
-const DEBOUNCE_MS = 2000;
+const DEBOUNCE_MS = 3000;
 
-// Flag to suppress Firestore saves when applying incoming remote snapshots.
-// This prevents infinite loops: snapshot → setState → setItem → save → snapshot…
-export let _isRemoteUpdate = false;
-export function setRemoteUpdateFlag(value: boolean) {
-  _isRemoteUpdate = value;
-}
-
-async function getUid(): Promise<string | null> {
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const uid = session?.user?.id || null;
-    return uid;
-  } catch (e) {
-    console.error('[zustandStorage] getUid error:', e);
-    return null;
+// ── Hydration guard ──────────────────────────────────────────────────────
+// Prevents setItem from flushing stale state while getItem is in-flight.
+let _hasHydrated = false;
+export function setHasHydrated(value: boolean) {
+  _hasHydrated = value;
+  if (!value && saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
   }
 }
 
+// ── Cached UID ───────────────────────────────────────────────────────────
+// AuthProvider pushes the UID here synchronously from onAuthStateChange so
+// the storage adapter never needs to call supabase.auth.getSession() (which
+// would deadlock when called inside the auth callback's Navigator Lock).
+let _cachedUid: string | null = null;
+export function setCachedUid(uid: string | null) {
+  _cachedUid = uid;
+}
+
+// ── Storage adapter ──────────────────────────────────────────────────────
 export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
-  getItem: async (_name: string): Promise<StorageValue<T> | null> => {
+  getItem: async (): Promise<StorageValue<T> | null> => {
     if (typeof window === 'undefined') return null;
+
     try {
-      // Try Supabase first if user is authenticated
-      const uid = await getUid();
-      console.log('[zustandStorage] getItem: uid =', uid);
+      // 1. If logged in, Supabase is the source of truth
+      const uid = _cachedUid;
       if (uid) {
-        const cloudData = await loadFromSupabase(uid);
-        console.log('[zustandStorage] getItem: cloudData keys =', cloudData ? Object.keys(cloudData) : null);
+        const TIMEOUT_MS = 8000;
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+        const cloudData = await Promise.race([
+          loadFromSupabase(uid).finally(() => {
+            if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+          }),
+          new Promise<null>((resolve) => {
+            timeoutId = setTimeout(() => {
+              timeoutId = null;
+              logger.warn('Cloud load timed out', 'sync');
+              resolve(null);
+            }, TIMEOUT_MS);
+          }),
+        ]);
+
         if (cloudData) {
-          const serialized = JSON.stringify(cloudData);
-          await hybridStorage.save(serialized);
-          return cloudData as StorageValue<T>;
+          // Cache cloud data locally for offline / fast next load
+          const value = { state: cloudData.state } as StorageValue<T>;
+          await hybridStorage.save(JSON.stringify(value));
+          return value;
         }
       }
 
-      // Fall back to local IndexedDB
-      const data = await hybridStorage.load();
-      if (!data) return null;
-      return JSON.parse(data) as StorageValue<T>;
+      // 2. Fall back to local cache (offline or anonymous user)
+      const raw = await hybridStorage.load();
+      return raw ? (JSON.parse(raw) as StorageValue<T>) : null;
     } catch (error) {
-      console.error('[zustandStorage] getItem error:', error);
+      logger.error('getItem error', 'sync', error);
       return null;
     }
   },
 
   setItem: async (name: string, value: StorageValue<T>): Promise<void> => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !_hasHydrated) return;
+
     const serialized = JSON.stringify(value);
     try {
-      // Always save locally first (fast)
+      // Always write to local cache first (fast, offline-safe)
       await hybridStorage.save(serialized);
 
-      // Debounced Supabase sync if authenticated.
-      const uid = await getUid();
-      console.log('[zustandStorage] setItem: uid =', uid, '| isRemoteUpdate =', _isRemoteUpdate);
-      if (uid && !_isRemoteUpdate) {
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(() => {
-          console.log('[zustandStorage] Firing saveToSupabase for uid:', uid);
-          saveToSupabase(uid, value.state)
-            .then(() => console.log('[zustandStorage] saveToSupabase SUCCESS'))
-            .catch((err) => console.error('[zustandStorage] saveToSupabase FAILED:', err));
-        }, DEBOUNCE_MS);
-      }
+      const uid = _cachedUid;
+      if (!uid || !navigator.onLine) return;
+
+      // Debounced cloud save
+      if (saveTimeout) clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(async () => {
+        if (!_hasHydrated) return;
+        saveTimeout = null;
+
+        // Read latest local state (may have changed during debounce)
+        const latestRaw = await hybridStorage.load();
+        if (!latestRaw) return;
+
+        try {
+          const parsed = JSON.parse(latestRaw) as { state?: Record<string, unknown> };
+          const state = parsed.state || (parsed as unknown as Record<string, unknown>);
+          await saveToSupabase(uid, state);
+        } catch {
+          // Save failed — will be retried on next state change
+        }
+      }, DEBOUNCE_MS);
     } catch (error) {
-      console.error('[zustandStorage] setItem error:', error);
+      logger.error('setItem error', 'sync', error);
       localStorage.setItem(name, serialized);
     }
   },
 
-  removeItem: async (_name: string): Promise<void> => {
+  removeItem: async (name: string): Promise<void> => {
     if (typeof window === 'undefined') return;
     try {
       await hybridStorage.clear();
-    } catch (error) {
-      console.error('Storage removeItem error:', error);
-      localStorage.removeItem(_name);
+    } catch {
+      localStorage.removeItem(name);
     }
   },
 });

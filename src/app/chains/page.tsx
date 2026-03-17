@@ -3,19 +3,17 @@
 import { useGameStore, QuestChain, QuestStep, StepBranch } from '@/store/useGameStore';
 import { useState } from 'react';
 import { useToastStore } from '@/components/ToastContainer';
+import { logger } from '@/lib/logger';
 import {
   Map,
   Check,
   ChevronLeft,
   Plus,
   Lock,
-  Unlock,
   Trophy,
   Target,
   Zap,
-  Star,
   Coins,
-  Package,
   Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,7 +27,7 @@ const DIFFICULTY_COLORS = {
 };
 
 export default function QuestChainsPage() {
-  const { questChains, addQuestChain, completeQuestStep, chooseBranch, tasks, addItem } = useGameStore();
+  const { questChains, addQuestChain, completeQuestStep, chooseBranch } = useGameStore();
   const { addToast } = useToastStore();
   const [selectedChain, setSelectedChain] = useState<QuestChain | null>(null);
   const [showAddChain, setShowAddChain] = useState(false);
@@ -112,7 +110,7 @@ export default function QuestChainsPage() {
       addToast('AI Quest Chain generated! Review and create.', 'success');
       setGeneratePrompt('');
     } catch (error) {
-      console.error('Failed to generate chain:', error);
+      logger.error('Failed to generate chain', 'chains', error);
       addToast('Failed to generate chain. Try again.', 'error');
     } finally {
       setIsGenerating(false);

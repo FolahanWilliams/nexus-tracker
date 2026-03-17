@@ -1,26 +1,24 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
-
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
 
 export async function POST(request: Request) {
     try {
-        const { tasks, chains, reflections, habits, streaks, playerContext } = await request.json();
+        const { tasks, chains, reflections, habits, playerContext, pulseData } = await request.json();
 
-        if (!process.env.GOOGLE_API_KEY) {
-            return NextResponse.json({
-                briefing: "Your weekly plan is ready! Focus on clearing your highest-priority quests first.",
-                days: [
-                    { day: "Monday", focus: "Start with your most important incomplete quest.", tasks: [] },
-                    { day: "Tuesday", focus: "Continue momentum from Monday.", tasks: [] },
-                    { day: "Wednesday", focus: "Mid-week check-in. Tackle any blocked items.", tasks: [] },
-                    { day: "Thursday", focus: "Push through harder quests while energy is still high.", tasks: [] },
-                    { day: "Friday", focus: "Wrap up lingering tasks and reflect on progress.", tasks: [] },
-                ],
-                insight: "Keep your streaks alive and focus on one Epic quest at a time.",
-                isMock: true
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            briefing: "Your weekly plan is ready! Focus on clearing your highest-priority quests first.",
+            days: [
+                { day: "Monday", focus: "Start with your most important incomplete quest.", tasks: [] },
+                { day: "Tuesday", focus: "Continue momentum from Monday.", tasks: [] },
+                { day: "Wednesday", focus: "Mid-week check-in. Tackle any blocked items.", tasks: [] },
+                { day: "Thursday", focus: "Push through harder quests while energy is still high.", tasks: [] },
+                { day: "Friday", focus: "Wrap up lingering tasks and reflect on progress.", tasks: [] },
+            ],
+            insight: "Keep your streaks alive and focus on one Epic quest at a time.",
+        });
+        if (mock) return mock;
 
         const model = genAI.getGenerativeModel({
             model: "gemini-3-flash-preview",
@@ -65,16 +63,25 @@ Create a strategic weekly plan. Output ONLY valid JSON with:
   - tasks: Array of strings — specific quest titles or actions to do that day.
 - insight: String. One actionable insight based on their energy/reflection patterns (e.g., "Your energy dips on Thursdays — schedule lighter tasks").
 
+${pulseData ? `
+Nexus Pulse Intelligence:
+- Current Momentum: ${pulseData.momentum || 'unknown'}
+- Burnout Risk: ${pulseData.burnoutRisk ?? 'unknown'} (0=fresh, 1=severe)
+- AI Insight: ${pulseData.topInsight || 'N/A'}
+- Suggestion: ${pulseData.suggestion || 'N/A'}
+Factor this into your planning — if burnout risk is high, schedule lighter days early in the week. If momentum is rising, front-load challenging quests.` : ''}
+
 Distribute tasks intelligently based on difficulty, duration, and energy patterns.
 Prioritize Epic/Hard quests on high-energy days and Easy quests on recovery days.`;
 
         const result = await model.generateContent(systemPrompt);
         const text = result.response.text();
-        const data = JSON.parse(text);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = extractJSON(text) as any;
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Weekly Plan Error:', error);
+        logger.error('Weekly Plan Error', 'weekly-plan', error);
         return NextResponse.json({
             briefing: "Couldn't generate your plan right now. Focus on your highest-priority quest!",
             days: [],

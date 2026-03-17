@@ -1,0 +1,21 @@
+# Supabase CLI configuration for QuestFlow
+# See: https://supabase.com/docs/guides/cli/config
+
+[project]
+id = "" # Set via `supabase link --project-ref <ref>` or SUPABASE_PROJECT_REF env var
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[db]
+port = 54322
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+
+[auth.external.google]
+enabled = true

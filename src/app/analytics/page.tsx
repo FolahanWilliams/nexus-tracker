@@ -34,6 +34,10 @@ const ACHIEVEMENTS_DATA = [
   { id: 'STREAK_30', name: 'Streak Legend', description: 'Maintain a 30-day streak', icon: '👑', rarity: 'legendary' },
   { id: 'LEVEL_20', name: 'Veteran', description: 'Reach Level 20', icon: '💎', rarity: 'legendary' },
   { id: 'LOGIN_30', name: 'Dedicated', description: 'Login 30 days in a row', icon: '📅', rarity: 'legendary' },
+  // Vocabulary achievements
+  { id: 'WORDSMITH', name: 'Wordsmith', description: 'Master 10 vocabulary words', icon: '📖', rarity: 'rare' },
+  { id: 'LEXICON_LORD', name: 'Lexicon Lord', description: 'Master 50 vocabulary words', icon: '📚', rarity: 'legendary' },
+  { id: 'VOCAB_STREAK_7', name: 'Word Warrior', description: 'Maintain a 7-day vocab review streak', icon: '🔤', rarity: 'epic' },
 ];
 
 const RARITY_COLORS: Record<string, string> = {
@@ -59,6 +63,9 @@ const ACHIEVEMENT_PROGRESS: Record<string, (s: GameState) => { current: number; 
   STREAK_30:      s => ({ current: Math.min(s.streak, 30), max: 30 }),
   LEVEL_20:       s => ({ current: Math.min(s.level, 20), max: 20 }),
   LOGIN_30:       s => ({ current: Math.min(s.loginStreak, 30), max: 30 }),
+  WORDSMITH:      s => ({ current: Math.min(s.vocabWords.filter(w => w.status === 'mastered').length, 10), max: 10 }),
+  LEXICON_LORD:   s => ({ current: Math.min(s.vocabWords.filter(w => w.status === 'mastered').length, 50), max: 50 }),
+  VOCAB_STREAK_7: s => ({ current: Math.min(s.vocabStreak, 7), max: 7 }),
 };
 
 // ── Timeline constants ──
@@ -83,7 +90,7 @@ function buildAreaPath(points: { x: number; y: number }[], h: number): string {
 
 // ─────────────────────────────────────────────
 function StatsTab() {
-  const { xp, level, streak, tasks, habits } = useGameStore();
+  const { xp, level, streak, tasks, habits, vocabWords, vocabStreak, vocabCurrentLevel } = useGameStore();
   const completedTasks = tasks.filter(t => t.completed).length;
   const totalTasks = tasks.length;
 
@@ -295,7 +302,76 @@ function StatsTab() {
         </motion.div>
       )}
 
-      <motion.div className="rpg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }}>
+      {/* Vocabulary Stats */}
+      {vocabWords.length > 0 && (
+        <motion.div className="rpg-card mb-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.2 }}>
+          <div className="flex items-center justify-between mb-5">
+            <h2 className="text-xl font-bold">Vocabulary Progress</h2>
+            <span className="text-xs font-bold text-[var(--color-blue)] capitalize">Level: {vocabCurrentLevel}</span>
+          </div>
+
+          {/* Top stats row */}
+          <div className="grid grid-cols-4 gap-3 mb-5">
+            {[
+              { label: 'Total', value: vocabWords.length, color: 'var(--color-blue)' },
+              { label: 'Mastered', value: vocabWords.filter(w => w.status === 'mastered').length, color: 'var(--color-green)' },
+              { label: 'Accuracy', value: `${vocabWords.reduce((s, w) => s + w.totalReviews, 0) > 0 ? Math.round((vocabWords.reduce((s, w) => s + w.correctReviews, 0) / vocabWords.reduce((s, w) => s + w.totalReviews, 0)) * 100) : 0}%`, color: 'var(--color-purple)' },
+              { label: 'Streak', value: `${vocabStreak}d`, color: 'var(--color-orange)' },
+            ].map(s => (
+              <div key={s.label} className="text-center p-2 bg-[var(--color-bg-dark)] rounded-lg">
+                <p className="text-lg font-bold" style={{ color: s.color }}>{s.value}</p>
+                <p className="text-[10px] text-[var(--color-text-muted)]">{s.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Status bars */}
+          <div className="space-y-2.5">
+            {[
+              { label: 'New', count: vocabWords.filter(w => w.status === 'new').length, color: 'var(--color-blue)' },
+              { label: 'Learning', count: vocabWords.filter(w => w.status === 'learning').length, color: 'var(--color-orange)' },
+              { label: 'Reviewing', count: vocabWords.filter(w => w.status === 'reviewing').length, color: 'var(--color-purple)' },
+              { label: 'Mastered', count: vocabWords.filter(w => w.status === 'mastered').length, color: 'var(--color-green)' },
+            ].map(s => {
+              const pct = vocabWords.length > 0 ? (s.count / vocabWords.length) * 100 : 0;
+              return (
+                <div key={s.label}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-semibold" style={{ color: s.color }}>{s.label}</span>
+                    <span className="text-[var(--color-text-muted)]">{s.count} ({pct.toFixed(0)}%)</span>
+                  </div>
+                  <div className="h-1.5 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+                    <motion.div className="h-full rounded-full" style={{ backgroundColor: s.color }}
+                      initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Category breakdown */}
+          {(() => {
+            const cats: Record<string, number> = {};
+            vocabWords.forEach(w => { cats[w.category] = (cats[w.category] || 0) + 1; });
+            const entries = Object.entries(cats).sort(([, a], [, b]) => b - a);
+            if (entries.length === 0) return null;
+            return (
+              <div className="mt-4 pt-4 border-t border-[var(--color-border)]">
+                <p className="text-xs text-[var(--color-text-muted)] mb-2 font-semibold">Word Categories</p>
+                <div className="flex flex-wrap gap-2">
+                  {entries.map(([cat, count]) => (
+                    <span key={cat} className="text-xs px-2 py-1 rounded bg-[var(--color-bg-dark)] border border-[var(--color-border)] text-[var(--color-text-secondary)]">
+                      {cat}: {count}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </motion.div>
+      )}
+
+      <motion.div className="rpg-card" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.25 }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold">Activity Heatmap</h2>
           <span className="text-xs text-[var(--color-text-muted)]">{allActivityDates.length} total actions</span>

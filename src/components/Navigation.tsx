@@ -18,9 +18,21 @@ import {
   Timer,
   Flag,
   BookOpen,
-  LogOut
+  Library,
+  LogOut,
+  HelpCircle,
+  Brain,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
+import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
+
+const SYNC_CONFIG: Record<SyncStatus, { color: string; label: string; pulse: boolean }> = {
+  idle:    { color: 'bg-[var(--color-text-secondary)]', label: 'IDLE',    pulse: false },
+  syncing: { color: 'bg-[var(--color-blue)]',           label: 'SYNCING', pulse: true  },
+  synced:  { color: 'bg-[var(--color-green)]',          label: 'SYNCED',  pulse: false },
+  error:   { color: 'bg-red-400',                       label: 'SYNC ERR', pulse: false },
+  offline: { color: 'bg-orange-400',                    label: 'OFFLINE', pulse: false },
+};
 
 const navGroups = [
   {
@@ -32,6 +44,8 @@ const navGroups = [
       { href: '/focus', label: 'Focus Timer', icon: Timer },
       { href: '/goals', label: 'Goals', icon: Flag },
       { href: '/reflection', label: 'Check-In', icon: BookOpen },
+      { href: '/wordforge', label: 'WordForge', icon: Library },
+      { href: '/mindforge', label: 'MindForge', icon: Brain },
     ],
   },
   {
@@ -52,6 +66,7 @@ const navGroups = [
     label: 'RECORDS',
     items: [
       { href: '/analytics', label: 'Progress & Records', icon: BarChart3 },
+      { href: '/tutorial', label: 'Guide & Tutorial', icon: HelpCircle },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },
@@ -120,9 +135,12 @@ export default function Navigation() {
 
 function UserSection({ characterName }: { characterName: string }) {
   const { user, signOut } = useAuth();
+  const syncStatus = useSyncStore((s) => s.status);
+  const syncError = useSyncStore((s) => s.error);
 
   const avatarUrl = user?.user_metadata?.avatar_url;
   const fullName = user?.user_metadata?.full_name;
+  const cfg = SYNC_CONFIG[syncStatus];
 
   return (
     <div className="flex items-center gap-3 p-2 rounded-md bg-[var(--color-bg-hover)] border border-[var(--color-border)]">
@@ -135,9 +153,9 @@ function UserSection({ characterName }: { characterName: string }) {
       )}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-white truncate">{fullName || characterName}</p>
-        <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-[var(--color-green)] animate-pulse" />
-          <p className="text-[10px] text-[var(--color-text-secondary)]">ONLINE</p>
+        <div className="flex items-center gap-1" title={syncError || undefined}>
+          <div className={`w-1.5 h-1.5 rounded-full ${cfg.color} ${cfg.pulse ? 'animate-pulse' : ''}`} />
+          <p className="text-[10px] text-[var(--color-text-secondary)]">{cfg.label}</p>
         </div>
       </div>
       {user && (

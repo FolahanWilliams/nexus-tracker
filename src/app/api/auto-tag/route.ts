@@ -1,8 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
-
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+import { genAI, extractJSON } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
@@ -13,7 +11,7 @@ export async function POST(request: Request) {
         }
 
         if (!process.env.GOOGLE_API_KEY) {
-            console.warn("No GOOGLE_API_KEY found. Using fallback tagging.");
+            logger.warn('No GOOGLE_API_KEY found, using fallback tagging', 'auto-tag');
             return NextResponse.json({
                 cleanTitle: title,
                 difficulty: 'Medium',
@@ -54,7 +52,8 @@ Analyze the following task:`;
         const response = result.response;
         const text = response.text();
 
-        const data = JSON.parse(text);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data = extractJSON(text) as any;
 
         // Validation
         const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
@@ -71,9 +70,9 @@ Analyze the following task:`;
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Gemini Auto-Tag Error:', error);
+        logger.error('Gemini Auto-Tag Error', 'auto-tag', error);
         return NextResponse.json({
-            cleanTitle: '',
+            cleanTitle: 'Untitled Quest',
             difficulty: 'Medium',
             category: 'Other',
             xpReward: 25,

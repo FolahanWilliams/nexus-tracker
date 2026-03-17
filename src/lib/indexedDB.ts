@@ -1,4 +1,6 @@
 // IndexedDB wrapper for better data persistence
+import { logger } from './logger';
+
 const DB_NAME = 'QuestFlowDB';
 const DB_VERSION = 1;
 const STORE_NAME = 'gameData';
@@ -89,13 +91,24 @@ class IndexedDBStorage {
     });
   }
 
-  async export(): Promise<string | null> {
-    return this.load();
+  async getUpdatedAt(): Promise<string | null> {
+    if (!isClient) return null;
+    if (!this.db) await this.init();
+    if (!this.db) throw new Error('Database not initialized');
+
+    return new Promise((resolve, reject) => {
+      const transaction = this.db!.transaction([STORE_NAME], 'readonly');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.get('gameState');
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const result = request.result as DBSchema | undefined;
+        resolve(result?.updatedAt ?? null);
+      };
+    });
   }
 
-  async import(data: string): Promise<void> {
-    return this.save(data);
-  }
 }
 
 // Singleton instance
@@ -108,7 +121,7 @@ export const hybridStorage = {
     try {
       await indexedDBStorage.save(data);
     } catch (error) {
-      console.warn('IndexedDB save failed, falling back to localStorage:', error);
+      logger.warn('IndexedDB save failed, falling back to localStorage', 'storage', error);
       localStorage.setItem('questflow-game-storage', data);
     }
   },
@@ -119,9 +132,18 @@ export const hybridStorage = {
       const data = await indexedDBStorage.load();
       if (data) return data;
     } catch (error) {
-      console.warn('IndexedDB load failed, falling back to localStorage:', error);
+      logger.warn('IndexedDB load failed, falling back to localStorage', 'storage', error);
     }
     return localStorage.getItem('questflow-game-storage');
+  },
+
+  async getUpdatedAt(): Promise<string | null> {
+    if (!isClient) return null;
+    try {
+      return await indexedDBStorage.getUpdatedAt();
+    } catch {
+      return null;
+    }
   },
 
   async clear(): Promise<void> {
@@ -129,23 +151,9 @@ export const hybridStorage = {
     try {
       await indexedDBStorage.clear();
     } catch (error) {
-      console.warn('IndexedDB clear failed:', error);
+      logger.warn('IndexedDB clear failed', 'storage', error);
     }
     localStorage.removeItem('questflow-game-storage');
   },
 };
-
-// Migrate existing localStorage data to IndexedDB
-export async function migrateToIndexedDB(): Promise<void> {
-  if (!isClient) return;
-  const localData = localStorage.getItem('questflow-game-storage');
-  if (localData) {
-    try {
-      await indexedDBStorage.save(localData);
-      console.log('Successfully migrated data to IndexedDB');
-    } catch (error) {
-      console.error('Failed to migrate to IndexedDB:', error);
-    }
-  }
-}
 

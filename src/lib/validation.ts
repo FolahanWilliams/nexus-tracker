@@ -168,14 +168,11 @@ export function validateTimelineSubject(subject: string): string {
   return sanitizeInput(subject);
 }
 
-// Basic XSS sanitization
+// Identity function — React's JSX escapes output at render time,
+// so encoding HTML entities at input time corrupts stored data
+// (e.g. "AT&T" becomes "AT&amp;T").
 function sanitizeInput(input: string): string {
-  return input
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
+  return input;
 }
 
 // Cost validation

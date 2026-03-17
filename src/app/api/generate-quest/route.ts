@@ -1,40 +1,20 @@
-import { GoogleGenerativeAI, DynamicRetrievalMode } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
-
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
-
-/**
- * Extract JSON from a Gemini response that may contain markdown fences or prose.
- */
-function extractJSON(text: string): unknown {
-    try { return JSON.parse(text); } catch { /* continue */ }
-    const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (fenced) {
-        try { return JSON.parse(fenced[1].trim()); } catch { /* continue */ }
-    }
-    const braces = text.match(/\{[\s\S]*\}/);
-    if (braces) {
-        try { return JSON.parse(braces[0]); } catch { /* continue */ }
-    }
-    throw new Error('Could not extract JSON from response');
-}
+import { genAI, extractJSON } from '@/lib/gemini';
+import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
         const { prompt, context } = await request.json();
 
-        if (!process.env.GOOGLE_API_KEY) {
-            console.warn("No GOOGLE_API_KEY found.");
-            return NextResponse.json({
-                quests: [
-                    { title: `[MOCK] Research: ${prompt}`, xp: 20, difficulty: 'Easy' },
-                    { title: `[MOCK] Plan: ${prompt}`, xp: 50, difficulty: 'Medium' },
-                    { title: `[MOCK] Execute: ${prompt}`, xp: 100, difficulty: 'Hard' }
-                ],
-                isMock: true
-            });
-        }
+        const mock = hasApiKeyOrMock({
+            quests: [
+                { title: `[MOCK] Research: ${prompt}`, xp: 20, difficulty: 'Easy' },
+                { title: `[MOCK] Plan: ${prompt}`, xp: 50, difficulty: 'Medium' },
+                { title: `[MOCK] Execute: ${prompt}`, xp: 100, difficulty: 'Hard' }
+            ],
+        });
+        if (mock) return mock;
 
         // Google Search Grounding lets the AI research the user's goal in real-time
         // so quests reference accurate, current information (e.g., latest docs, tutorials).
@@ -42,6 +22,7 @@ export async function POST(request: Request) {
             model: "gemini-3-flash-preview",
             tools: [{
                 googleSearch: {},
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
             } as any],
         });
 
@@ -54,6 +35,15 @@ Player Profile:
 - Total Quests Completed: ${context.totalQuestsCompleted || 0}
 - Current Streak: ${context.streak || 0} days
 Tailor the quests to suit a ${context.characterClass || 'general'} player at level ${context.level || 1}.` : '';
+
+        // Nexus Pulse context: AI-generated awareness of player patterns
+        const pulseSection = context?.pulseData ? `
+Nexus Pulse Intelligence:
+- Momentum: ${context.pulseData.momentum || 'unknown'}
+- Burnout Risk: ${context.pulseData.burnoutRisk ?? 'unknown'}
+- AI Insight: ${context.pulseData.topInsight || 'N/A'}
+- Suggestion: ${context.pulseData.suggestion || 'N/A'}
+Use this to calibrate quest difficulty. If burnout risk is high (>0.6), lean toward Easy/Medium quests. If momentum is rising, feel free to suggest Hard/Epic challenges.` : '';
 
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG. Break down the user's goal into 1-2 executable "quests" (tasks).
 
@@ -68,7 +58,7 @@ For each quest, output a JSON object with:
 - difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic'
 
 Scale difficulty based on effort required. Focus on quality over quantity - generate only the most essential tasks.
-${playerContext}
+${playerContext}${pulseSection}
 Output ONLY a valid JSON object with a "quests" array. No other text.`;
 
         const result = await model.generateContent(`${systemPrompt}\n\nUser Goal: ${prompt}`);
@@ -79,7 +69,7 @@ Output ONLY a valid JSON object with a "quests" array. No other text.`;
 
         return NextResponse.json(data);
     } catch (error) {
-        console.error('Gemini Generation Error:', error);
+        logger.error('Gemini Generation Error', 'generate-quest', error);
         return NextResponse.json({
             quests: [
                 { title: 'Plan your approach', xp: 10, difficulty: 'Easy' },

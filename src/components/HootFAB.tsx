@@ -3,29 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/useGameStore';
+import { useHootStore, QuickReply, HootAction } from '@/store/useHootStore';
 import { useAuth } from '@/components/AuthProvider';
 import { useToastStore } from '@/components/ToastContainer';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, X, ExternalLink, Loader2, Sparkles } from 'lucide-react';
+import { Send, X, ExternalLink, Loader2, Sparkles, Trash2, ListChecks } from 'lucide-react';
+import { logger } from '@/lib/logger';
+import ReactMarkdown from 'react-markdown';
 import useSoundEffects from '@/hooks/useSoundEffects';
-
-interface HootSource {
-    title: string;
-    url: string;
-}
-
-interface HootAction {
-    action: string;
-    params: Record<string, unknown>;
-}
-
-interface HootMessage {
-    role: 'user' | 'hoot';
-    text: string;
-    actions?: HootAction[];
-    sources?: HootSource[] | null;
-    actionResults?: string[];
-}
+import { buildPlayerNarrative } from '@/lib/hootNarrative';
+import type { CharacterClass } from '@/store/types';
 
 interface Nudge {
     id: string;
@@ -36,25 +23,132 @@ interface Nudge {
     type: 'quest' | 'habit' | 'hp' | 'celebration';
 }
 
+// ── Quick-reply generation ───────────────────────────────────────────────
+function generateQuickReplies(
+    actions: HootAction[],
+    pathname: string,
+    state: ReturnType<typeof useGameStore.getState>,
+): QuickReply[] {
+    const chips: QuickReply[] = [];
+    const today = new Date().toISOString().split('T')[0];
+
+    // Action-based follow-ups
+    for (const { action } of actions) {
+        switch (action) {
+            case 'add_task':
+                chips.push({ label: '➕ Add another quest', message: 'Add another quest for me' });
+                chips.push({ label: '📊 My progress', message: 'How am I doing this week?' });
+                break;
+            case 'complete_task':
+                chips.push({ label: '🎉 What\'s next?', message: 'What should I work on next?' });
+                chips.push({ label: '📊 My progress', message: 'How am I doing this week?' });
+                break;
+            case 'add_habit':
+            case 'complete_habit':
+                chips.push({ label: '🔥 Streak check', message: 'How are my habit streaks looking?' });
+                break;
+            case 'add_goal':
+                chips.push({ label: '📋 View goals', message: 'Show me my active goals' });
+                break;
+            case 'navigate':
+                break;
+            case 'get_productivity_summary':
+                chips.push({ label: '💡 Tips', message: 'Any productivity tips for me?' });
+                break;
+            case 'perform_web_search':
+                chips.push({ label: '🔍 Tell me more', message: 'Tell me more about that' });
+                break;
+            case 'generate_vocab_words':
+                chips.push({ label: '📖 Review words', message: 'Take me to WordForge to review' });
+                chips.push({ label: '➕ More words', message: 'Generate more vocab words' });
+                break;
+            case 'start_boss_battle':
+                chips.push({ label: '⚔️ Strategy', message: 'What\'s my battle strategy?' });
+                break;
+            case 'set_weekly_plan':
+                chips.push({ label: '📋 Show plan', message: 'Show me my current plan' });
+                chips.push({ label: '✅ Next step', message: 'What\'s my next step?' });
+                break;
+            case 'save_memory_note':
+                chips.push({ label: '🧠 What do you know?', message: 'What do you remember about me?' });
+                break;
+        }
+    }
+
+    // If no action-based chips yet, add context-based ones
+    if (chips.length === 0) {
+        switch (pathname) {
+            case '/':
+                chips.push({ label: '📊 Weekly summary', message: 'Give me a productivity summary' });
+                break;
+            case '/quests':
+                chips.push({ label: '✨ Add a quest', message: 'Help me create a new quest' });
+                break;
+            case '/habits':
+                chips.push({ label: '🔥 Streak check', message: 'How are my habit streaks?' });
+                break;
+            case '/goals':
+                chips.push({ label: '🎯 New goal', message: 'Help me set a new goal' });
+                break;
+            case '/reflection':
+                chips.push({ label: '📝 Coach me', message: 'Give me coaching based on my reflections' });
+                break;
+            case '/bosses':
+                chips.push({ label: '⚔️ Strategy', message: 'What\'s my boss battle strategy?' });
+                break;
+            case '/focus':
+                chips.push({ label: '⏱️ Start focus', message: 'Start a 25-minute focus session' });
+                break;
+            case '/wordforge':
+                chips.push({ label: '📖 New words', message: 'Generate some new vocab words for me' });
+                break;
+            default:
+                chips.push({ label: '📊 How am I doing?', message: 'How am I doing this week?' });
+                break;
+        }
+    }
+
+    // State-based universal follow-ups (add if room)
+    if (chips.length < 3) {
+        const undoneHabits = state.habits.filter(h => !h.completedDates.includes(today));
+        if (undoneHabits.length > 0 && pathname !== '/habits') {
+            chips.push({ label: `✅ ${undoneHabits.length} habits left`, message: 'Which habits should I do next?' });
+        }
+    }
+
+    if (chips.length < 3 && state.hp < 40) {
+        chips.push({ label: '❤️ Heal up', message: 'Use a health potion' });
+    }
+
+    // Cap at 3 chips
+    return chips.slice(0, 3);
+}
+
 export default function HootFAB() {
     const { user } = useAuth();
     const pathname = usePathname();
     const router = useRouter();
     const { addToast } = useToastStore();
 
-    const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<HootMessage[]>([]);
+    // Hoot persistent store
+    const {
+        messages, addMessage, updateLastHootMessage, clearMessages,
+        isOpen, setOpen,
+        planningContext, setPlanningContext, advancePlanStep,
+    } = useHootStore();
+
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isAnimating, setIsAnimating] = useState(false);
+    const [isSummarizing, setIsSummarizing] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
     // Zustand store actions
     const store = useGameStore();
     const {
-        tasks, habits, hp, maxHp, isFocusTimerRunning,
-        setFocusTimerRunning, setMusicDucked, gold, level
+        tasks, habits, hp, isFocusTimerRunning,
+        setMusicDucked, reflectionNotes
     } = store;
 
     const { playQuest } = useSoundEffects();
@@ -63,6 +157,9 @@ export default function HootFAB() {
     const [activeNudge, setActiveNudge] = useState<Nudge | null>(null);
     const lastTriggerTimeRef = useRef<Record<string, number>>({});
     const activeNudgeRef = useRef<Nudge | null>(null);
+
+    // Track reflection count for auto-coaching
+    const lastReflectionCountRef = useRef(reflectionNotes.length);
 
     // Keep ref in sync with state for use inside effects without causing re-renders
     useEffect(() => { activeNudgeRef.current = activeNudge; }, [activeNudge]);
@@ -83,6 +180,16 @@ export default function HootFAB() {
         }
     }, [isOpen]);
 
+    // Escape key to close
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setOpen(false);
+        };
+        document.addEventListener('keydown', handleKey);
+        return () => document.removeEventListener('keydown', handleKey);
+    }, [isOpen, setOpen]);
+
     // Periodic subtle animation on the FAB
     useEffect(() => {
         if (isOpen || activeNudge) return;
@@ -93,17 +200,44 @@ export default function HootFAB() {
         return () => clearInterval(interval);
     }, [isOpen, activeNudge]);
 
-    // -- Guardian Mode: Trigger Engine --
-    // Runs on an interval instead of reactive deps to prevent infinite re-render loops.
+    // ── AI Coach Unification: Auto-coach on new reflection ─────────────────
+    useEffect(() => {
+        if (reflectionNotes.length <= lastReflectionCountRef.current) {
+            lastReflectionCountRef.current = reflectionNotes.length;
+            return;
+        }
+        lastReflectionCountRef.current = reflectionNotes.length;
+
+        // A new reflection was added — auto-trigger coaching via Hoot
+        const latest = reflectionNotes[reflectionNotes.length - 1];
+        if (!latest) return;
+
+        const today = new Date().toISOString().split('T')[0];
+        if (latest.date !== today) return;
+
+        // Auto-open Hoot and send coaching request
+        setOpen(true);
+        const coachPrompt = latest.note
+            ? `I just wrote my evening reflection: "${latest.note}" (${latest.stars}/5 stars). Give me some coaching advice.`
+            : `I just finished my evening reflection (${latest.stars}/5 stars). Any coaching tips for me?`;
+
+        // Small delay so the panel opens first
+        setTimeout(() => sendMessage(coachPrompt, true), 500);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [reflectionNotes.length]);
+
+    // -- Guardian Mode: Pulse-Powered Trigger Engine --
+    // Uses Nexus Pulse insights for smarter, data-driven nudges instead of
+    // simple threshold checks. Falls back to basic triggers if no pulse data.
     useEffect(() => {
         if (isOpen || isFocusTimerRunning) return;
 
         const runTriggerCheck = () => {
-            if (activeNudgeRef.current) return; // Already showing a nudge
+            if (activeNudgeRef.current) return;
 
             const now = Date.now();
-            const COOLDOWN = 60000; // 1 minute per specific trigger type
-            const GLOBAL_COOLDOWN = 15000; // 15 seconds between any nudge
+            const COOLDOWN = 60000;
+            const GLOBAL_COOLDOWN = 15000;
             const times = lastTriggerTimeRef.current;
 
             const lastGlobal = Math.max(...Object.values(times), 0);
@@ -119,7 +253,17 @@ export default function HootFAB() {
                 return false;
             };
 
-            // 1. Critical HP Check
+            // Read cached pulse data for smarter triggers
+            let pulseData: { burnoutRisk?: number; momentum?: string; topInsight?: string } | null = null;
+            try {
+                const raw = localStorage.getItem('nexus-pulse-ai');
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (parsed?.data) pulseData = parsed.data;
+                }
+            } catch { /* ignore */ }
+
+            // TRIGGER 1: Critical HP (kept from original — immediate danger)
             if (checkTrigger('critical_hp', () => hp < 30, {
                 text: "Your health is low! Use a potion before your next quest?",
                 actionLabel: "Heal Me",
@@ -128,9 +272,28 @@ export default function HootFAB() {
                 type: 'hp'
             })) return;
 
-            // 2. Urgent Quest (Due soon/Hard difficulty but incomplete)
+            // TRIGGER 2: Burnout warning (pulse-powered — replaces generic hard quest nudge)
+            if (pulseData && checkTrigger('burnout_warning', () => (pulseData?.burnoutRisk ?? 0) > 0.6, {
+                text: "Nexus Pulse detects high burnout risk. Consider lighter tasks or a break today.",
+                actionLabel: "Lighter tasks",
+                actions: [{ action: 'navigate', params: { path: '/quests' } }],
+                priority: 'high',
+                type: 'quest'
+            })) return;
+
+            // TRIGGER 3: Declining momentum + hard tasks available (smarter quest nudge)
             const incomplete = tasks.filter(t => !t.completed);
-            if (incomplete.length > 0 && checkTrigger('urgent_quest', () => incomplete.some(t => t.difficulty === 'Hard'), {
+            const hasHardQuest = incomplete.some(t => t.difficulty === 'Hard' || t.difficulty === 'Epic');
+            if (hasHardQuest && pulseData?.momentum === 'rising' && checkTrigger('momentum_push', () => true, {
+                text: "Your momentum is rising — perfect time to tackle a Hard quest!",
+                actionLabel: "Let's go",
+                actions: [{ action: 'navigate', params: { path: '/quests' } }],
+                priority: 'medium',
+                type: 'quest'
+            })) return;
+
+            // TRIGGER 4: Hard quest breakdown (fallback when no pulse data)
+            if (!pulseData && hasHardQuest && checkTrigger('urgent_quest', () => true, {
                 text: "That Hard quest looks tough. Want to break it down?",
                 actionLabel: "Help Me",
                 actions: [{ action: 'hoot_search', params: { query: `how to handle ${incomplete.find(t => t.difficulty === 'Hard')?.title}` } }],
@@ -138,20 +301,41 @@ export default function HootFAB() {
                 type: 'quest'
             })) return;
 
-            // 3. Habit Streak Risk (Late in the day, habit not done)
+            // TRIGGER 5: Habit streak risk (enhanced with time awareness)
             const today = new Date().toISOString().split('T')[0];
             const hour = new Date().getHours();
-            const undoneHabit = habits.find(h => !h.completedDates.includes(today));
-            if (undoneHabit && hour >= 18 && checkTrigger('habit_risk', () => true, {
-                text: `Don't lose your streak on ${undoneHabit.name}!`,
+            const habitsAtRisk = habits.filter(h => h.streak >= 3 && !h.completedDates.includes(today));
+            if (habitsAtRisk.length > 0 && hour >= 18 && checkTrigger('habit_risk', () => true, {
+                text: habitsAtRisk.length > 1
+                    ? `${habitsAtRisk.length} habit streaks at risk! ${habitsAtRisk.slice(0, 2).map(h => h.name).join(' & ')} need attention.`
+                    : `Don't lose your ${habitsAtRisk[0].streak}-day streak on ${habitsAtRisk[0].name}!`,
                 actionLabel: "Do it now",
-                actions: [{ action: 'complete_habit', params: { id: undoneHabit.id } }],
+                actions: [{ action: 'complete_habit', params: { habitName: habitsAtRisk[0].name } }],
                 priority: 'high',
                 type: 'habit'
             })) return;
+
+            // TRIGGER 6: Vocab review pile-up (new pulse-driven trigger)
+            const state = useGameStore.getState();
+            const dueVocab = state.vocabWords.filter(w => w.nextReviewDate <= today).length;
+            if (dueVocab >= 10 && checkTrigger('vocab_pileup', () => true, {
+                text: `${dueVocab} vocab words are due for review. A quick 5-minute session can keep your memory fresh!`,
+                actionLabel: "Review now",
+                actions: [{ action: 'navigate', params: { path: '/wordforge' } }],
+                priority: 'medium',
+                type: 'quest'
+            })) return;
+
+            // TRIGGER 7: Celebration nudge (pulse-powered positive reinforcement)
+            if (pulseData?.momentum === 'rising' && (pulseData?.burnoutRisk ?? 1) < 0.3 && checkTrigger('celebration', () => true, {
+                text: pulseData?.topInsight || "You're on fire — keep this momentum going!",
+                actionLabel: "Thanks Hoot!",
+                actions: [],
+                priority: 'low',
+                type: 'celebration'
+            })) return;
         };
 
-        // Run once immediately then on a 10-second interval
         runTriggerCheck();
         const interval = setInterval(runTriggerCheck, 10000);
         return () => clearInterval(interval);
@@ -162,128 +346,31 @@ export default function HootFAB() {
         if (activeNudge) {
             playQuestRef.current();
             setMusicDucked(true);
-
-            // Auto-unduck after 8 seconds if not dismissed/accepted
-            const timer = setTimeout(() => {
-                setMusicDucked(false);
-            }, 8000);
-            return () => {
-                clearTimeout(timer);
-                setMusicDucked(false);
-            };
+            const timer = setTimeout(() => { setMusicDucked(false); }, 8000);
+            return () => { clearTimeout(timer); setMusicDucked(false); };
         } else {
             setMusicDucked(false);
         }
     }, [activeNudge, setMusicDucked]);
 
-    const handleNudgeDismiss = () => {
-        setActiveNudge(null);
-    };
+    const handleNudgeDismiss = () => { setActiveNudge(null); };
 
     const handleNudgeAccept = async () => {
         if (!activeNudge) return;
-        setIsOpen(true);
+        setOpen(true);
         const nudge = activeNudge;
         setActiveNudge(null);
 
-        // Add a message from hoot mimicking the nudge
-        setMessages(prev => [...prev, {
-            role: 'hoot',
-            text: nudge.text,
-            actions: nudge.actions,
-        }]);
-
-        // Automatically execute the actions
+        addMessage({ role: 'hoot', text: nudge.text, actions: nudge.actions });
         const results = await executeActions(nudge.actions);
-
-        setMessages(prev => {
-            const last = prev[prev.length - 1];
-            if (last && last.role === 'hoot') {
-                return [...prev.slice(0, -1), { ...last, actionResults: results }];
-            }
-            return prev;
-        });
+        updateLastHootMessage({ actionResults: results });
     };
 
-    // Build context snapshot for the current page
+    // Build context snapshot using the unified narrative builder
     const buildContext = useCallback((): string => {
         const state = useGameStore.getState();
-        const today = new Date().toISOString().split('T')[0];
-        const parts: string[] = [];
-
-        parts.push(`Player: ${state.characterName || 'Adventurer'} (Level ${state.level} ${state.characterClass || 'Novice'})`);
-        parts.push(`XP: ${state.xp} | Gold: ${state.gold} | Gems: ${state.gems} | Streak: ${state.streak} days`);
-
-        switch (pathname) {
-            case '/':
-            case '/quests': {
-                const active = state.tasks.filter(t => !t.completed);
-                const doneToday = state.tasks.filter(t => t.completed && t.completedAt?.startsWith(today));
-                parts.push(`Active quests (${active.length}): ${active.slice(0, 5).map(t => t.title).join(', ') || 'None'}`);
-                parts.push(`Completed today: ${doneToday.length}`);
-                break;
-            }
-            case '/habits': {
-                const todayHabits = state.habits.map(h => ({
-                    name: h.name,
-                    done: h.completedDates.includes(today),
-                    streak: h.streak,
-                }));
-                parts.push(`Habits: ${todayHabits.map(h => `${h.name} (${h.done ? '✅' : '⬜'}, streak: ${h.streak})`).join(', ') || 'None'}`);
-                break;
-            }
-            case '/goals': {
-                const active = state.goals.filter(g => !g.completed);
-                parts.push(`Active goals (${active.length}): ${active.slice(0, 3).map(g => `${g.title} (${g.milestones.filter(m => m.completed).length}/${g.milestones.length} milestones)`).join(', ') || 'None'}`);
-                break;
-            }
-            case '/reflection': {
-                const recent = state.reflectionNotes.slice(-3);
-                parts.push(`Recent reflections: ${recent.map(r => `${r.date}: ${r.stars}★`).join(', ') || 'None yet'}`);
-                parts.push(`Today's energy: ${state.todayEnergyRating || 'Not set'}`);
-                break;
-            }
-            case '/focus':
-                parts.push(`Total focus sessions: ${state.focusSessionsTotal || 0}`);
-                parts.push(`Total focus minutes: ${state.focusMinutesTotal || 0}`);
-                break;
-            case '/bosses': {
-                const activeBoss = state.bossBattles.find(b => !b.completed && !b.failed);
-                parts.push(activeBoss ? `Active boss: ${activeBoss.name} (${activeBoss.hp}/${activeBoss.maxHp} HP)` : 'No active boss battle');
-                break;
-            }
-            case '/chains': {
-                const activeChains = state.questChains?.filter(c => !c.completed) || [];
-                parts.push(`Active quest chains: ${activeChains.map(c => `${c.name} (step ${c.currentStep + 1}/${c.steps.length})`).join(', ') || 'None'}`);
-                break;
-            }
-            case '/character':
-                parts.push(`Class: ${state.characterClass || 'Not chosen'} | Title: ${state.title}`);
-                break;
-            case '/inventory': {
-                const equippedNames = [
-                    state.equippedItems?.weapon?.name,
-                    state.equippedItems?.armor?.name,
-                    state.equippedItems?.accessory?.name,
-                ].filter(Boolean);
-                parts.push(`Inventory: ${state.inventory.length} items`);
-                parts.push(`Equipped: ${equippedNames.length > 0 ? equippedNames.join(', ') : 'Nothing equipped'}`);
-                const consumables = state.inventory.filter(i => i.usable || i.consumableEffect);
-                if (consumables.length > 0) parts.push(`Consumables: ${consumables.map(c => `${c.name} x${c.quantity}`).join(', ')}`);
-                break;
-            }
-            case '/shop': {
-                const affordable = state.shopItems.filter(r => !r.purchased && r.cost <= state.gold);
-                parts.push(`Gold: ${state.gold} | Shop items you can afford: ${affordable.length}`);
-                if (affordable.length > 0) parts.push(`Available: ${affordable.map(r => `${r.name} (${r.cost}g)`).join(', ')}`);
-                break;
-            }
-            default:
-                break;
-        }
-
-        return parts.join('\n');
-    }, [pathname, store]);
+        return buildPlayerNarrative(state, pathname);
+    }, [pathname]);
 
     // Execute actions returned by the API
     async function executeActions(actions: HootAction[]): Promise<string[]> {
@@ -303,7 +390,8 @@ export default function HootFAB() {
                         break;
                     }
                     case 'complete_task': {
-                        const taskName = (params.taskName as string).toLowerCase();
+                        const taskName = (params.taskName as string | undefined)?.toLowerCase();
+                        if (!taskName) { results.push(`⚠️ No task name provided`); break; }
                         const task = state.tasks.find(t =>
                             !t.completed && t.title.toLowerCase().includes(taskName)
                         );
@@ -327,7 +415,8 @@ export default function HootFAB() {
                         break;
                     }
                     case 'complete_habit': {
-                        const habitName = (params.habitName as string).toLowerCase();
+                        const habitName = (params.habitName as string | undefined)?.toLowerCase();
+                        if (!habitName) { results.push(`⚠️ No habit name provided`); break; }
                         const today = new Date().toISOString().split('T')[0];
                         const habit = state.habits.find(h =>
                             h.name.toLowerCase().includes(habitName) && !h.completedDates.includes(today)
@@ -375,9 +464,9 @@ export default function HootFAB() {
                         results.push(`🧭 Navigating to ${page}${reason ? ` — ${reason}` : ''}`);
                         break;
                     }
-                    // ── Power Actions ──────────────────────────────────────
                     case 'equip_item': {
-                        const itemName = (params.itemName as string).toLowerCase();
+                        const itemName = (params.itemName as string | undefined)?.toLowerCase();
+                        if (!itemName) { results.push(`⚠️ No item name provided`); break; }
                         const act = (params.action as string) || 'equip';
                         const item = state.inventory.find(i => i.name.toLowerCase().includes(itemName));
                         if (!item) {
@@ -402,7 +491,8 @@ export default function HootFAB() {
                         break;
                     }
                     case 'buy_item': {
-                        const itemName = (params.itemName as string).toLowerCase();
+                        const itemName = (params.itemName as string | undefined)?.toLowerCase();
+                        if (!itemName) { results.push(`⚠️ No item name provided`); break; }
                         const shopItem = state.shopItems.find(r => !r.purchased && r.name.toLowerCase().includes(itemName));
                         if (!shopItem) {
                             results.push(`⚠️ Couldn't find "${params.itemName}" in the shop`);
@@ -416,8 +506,9 @@ export default function HootFAB() {
                         break;
                     }
                     case 'complete_milestone': {
-                        const goalName = (params.goalName as string).toLowerCase();
-                        const msName = (params.milestoneName as string).toLowerCase();
+                        const goalName = (params.goalName as string | undefined)?.toLowerCase();
+                        const msName = (params.milestoneName as string | undefined)?.toLowerCase();
+                        if (!goalName || !msName) { results.push(`⚠️ Missing goal or milestone name`); break; }
                         const goal = state.goals.find(g => !g.completed && g.title.toLowerCase().includes(goalName));
                         if (!goal) {
                             results.push(`⚠️ Couldn't find an active goal matching "${params.goalName}"`);
@@ -434,14 +525,14 @@ export default function HootFAB() {
                         }
                         break;
                     }
-                    // ── Strategic Intelligence ────────────────────────────
                     case 'get_productivity_summary': {
                         const summary = buildProductivitySummary(state);
                         results.push(summary);
                         break;
                     }
                     case 'suggest_quest_tags': {
-                        const taskName = (params.taskName as string).toLowerCase();
+                        const taskName = (params.taskName as string | undefined)?.toLowerCase();
+                        if (!taskName) { results.push(`⚠️ No task name provided`); break; }
                         const task = state.tasks.find(t => t.title.toLowerCase().includes(taskName));
                         if (!task) {
                             results.push(`⚠️ Couldn't find a quest matching "${params.taskName}"`);
@@ -470,16 +561,155 @@ export default function HootFAB() {
                                 results.push(`⚠️ Web search failed or returned no results.`);
                             }
                         } catch (err) {
-                            console.error('Web search error', err);
+                            logger.error('Web search error', 'Hoot', err);
                             results.push(`⚠️ Web search encountered an error.`);
                         }
+                        break;
+                    }
+                    case 'generate_vocab_words': {
+                        const count = Math.min(5, Math.max(1, (params.count as number) || 3));
+                        const difficulty = (params.difficulty as string) || state.vocabCurrentLevel || 'intermediate';
+                        const category = params.category as string;
+                        try {
+                            const genRes = await fetch('/api/generate-words', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    level: difficulty,
+                                    count,
+                                    existingWords: state.vocabWords.map(w => w.word),
+                                    ...(category ? { category } : {}),
+                                }),
+                            });
+                            const genData = await genRes.json();
+                            if (genData.words && genData.words.length > 0) {
+                                state.addVocabWords(genData.words);
+                                results.push(`✅ Generated ${genData.words.length} new vocab words: ${genData.words.map((w: { word: string }) => w.word).join(', ')}`);
+                                addToast(`🦉 Added ${genData.words.length} new words!`, 'success');
+                            } else {
+                                results.push(`⚠️ Couldn't generate vocabulary words right now.`);
+                            }
+                        } catch (err) {
+                            logger.error('Vocab generation error', 'Hoot', err);
+                            results.push(`⚠️ Failed to generate vocabulary words.`);
+                        }
+                        break;
+                    }
+                    case 'batch_reschedule_vocab': {
+                        const today = new Date().toISOString().split('T')[0];
+                        const overdueIds = state.vocabWords
+                            .filter(w => w.nextReviewDate < today)
+                            .map(w => w.id);
+                        if (overdueIds.length === 0) {
+                            results.push(`✅ No overdue vocab words — you're all caught up!`);
+                        } else {
+                            state.batchRescheduleVocabWords(overdueIds);
+                            results.push(`✅ Rescheduled ${overdueIds.length} overdue vocab words to today`);
+                            addToast(`🦉 Rescheduled ${overdueIds.length} words`, 'success');
+                        }
+                        break;
+                    }
+                    case 'start_boss_battle': {
+                        const difficulty = (params.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic') || 'Medium';
+                        const theme = (params.theme as string) || '';
+                        const hours = (params.durationHours as number) || 48;
+                        const bossNames: Record<string, string[]> = {
+                            Easy: ['Shadow Wisp', 'Goblin Scout', 'Dust Sprite'],
+                            Medium: ['Iron Golem', 'Storm Wraith', 'Frost Wolf'],
+                            Hard: ['Obsidian Dragon', 'Void Sentinel', 'Chaos Knight'],
+                            Epic: ['The Procrastinator King', 'Entropy Incarnate', 'The Final Exam'],
+                        };
+                        const names = bossNames[difficulty] || bossNames.Medium;
+                        const name = theme
+                            ? `${theme.charAt(0).toUpperCase() + theme.slice(1)} ${names[0]}`
+                            : names[Math.floor(Math.random() * names.length)];
+                        const hpMap = { Easy: 200, Medium: 500, Hard: 1000, Epic: 2000 };
+                        const xpMap = { Easy: 100, Medium: 250, Hard: 500, Epic: 1000 };
+                        const goldMap = { Easy: 50, Medium: 150, Hard: 300, Epic: 600 };
+                        state.startBossBattle({
+                            name,
+                            description: theme ? `A boss born from ${theme}!` : `A ${difficulty.toLowerCase()} challenge awaits!`,
+                            difficulty,
+                            hp: hpMap[difficulty],
+                            maxHp: hpMap[difficulty],
+                            xpReward: xpMap[difficulty],
+                            goldReward: goldMap[difficulty],
+                            expiresAt: new Date(Date.now() + hours * 3600000).toISOString(),
+                        });
+                        results.push(`✅ Boss battle started: ${name} (${difficulty}, ${hpMap[difficulty]} HP, ${hours}h deadline)`);
+                        addToast(`🦉 Boss spawned: ${name}!`, 'success');
+                        break;
+                    }
+                    case 'respec_class': {
+                        const newClass = params.newClass as string;
+                        const validClasses = ['Warrior', 'Mage', 'Rogue', 'Healer', 'Ranger'];
+                        if (!validClasses.includes(newClass)) {
+                            results.push(`⚠️ Invalid class "${newClass}". Choose: ${validClasses.join(', ')}`);
+                        } else {
+                            const success = state.respecClass(newClass as CharacterClass);
+                            if (success) {
+                                results.push(`✅ Class changed to ${newClass}!`);
+                                addToast(`🦉 Respecced to ${newClass}!`, 'success');
+                            } else {
+                                results.push(`⚠️ Not enough gold! Class respec costs 200g, you have ${state.gold}g`);
+                            }
+                        }
+                        break;
+                    }
+                    case 'use_item': {
+                        const itemName = (params.itemName as string | undefined)?.toLowerCase();
+                        if (!itemName) { results.push(`⚠️ No item name provided`); break; }
+                        const item = state.inventory.find(i =>
+                            i.name.toLowerCase().includes(itemName) && (i.usable || i.consumableEffect)
+                        );
+                        if (!item) {
+                            results.push(`⚠️ Couldn't find a usable item matching "${params.itemName}"`);
+                        } else {
+                            state.useItem(item.id);
+                            results.push(`✅ Used ${item.name}${item.consumableEffect ? ` (${item.consumableEffect.type} +${item.consumableEffect.value})` : ''}`);
+                            addToast(`🦉 Used ${item.name}`, 'success');
+                        }
+                        break;
+                    }
+                    case 'set_weekly_plan': {
+                        const goal = params.goal as string;
+                        const steps = (params.steps as string[]) || [];
+                        if (steps.length === 0) {
+                            results.push(`⚠️ No steps provided for the plan`);
+                        } else {
+                            // Create tasks for each step
+                            for (const step of steps) {
+                                state.addTask(step, 'Medium', undefined, 'Study');
+                            }
+                            // Set planning context in Hoot store
+                            setPlanningContext({
+                                goal,
+                                steps: steps.map(s => ({ label: s, done: false })),
+                                currentStepIndex: 0,
+                            });
+                            results.push(`✅ Created weekly plan: "${goal}" with ${steps.length} steps (all added as quests)`);
+                            addToast(`🦉 Plan created with ${steps.length} steps!`, 'success');
+                        }
+                        break;
+                    }
+                    case 'save_memory_note': {
+                        const text = params.text as string;
+                        const category = (params.category as 'preference' | 'insight' | 'goal' | 'struggle' | 'general') || 'general';
+                        state.addHootMemoryNote(text, category);
+                        results.push(`✅ Saved to memory: "${text}"`);
+                        break;
+                    }
+                    case 'get_coaching_insight': {
+                        // This is handled by Google Search grounding in the API route.
+                        // We just acknowledge it client-side.
+                        results.push(`🧠 Coaching insight provided via Google Search grounding`);
                         break;
                     }
                     default:
                         results.push(`⚠️ Unknown action: ${action}`);
                 }
             } catch (err) {
-                console.error(`Hoot action ${action} failed:`, err);
+                logger.error(`Hoot action ${action} failed`, 'Hoot', err);
                 results.push(`❌ Failed to execute: ${action}`);
             }
         }
@@ -494,23 +724,19 @@ export default function HootFAB() {
         const weekAgoStr = weekAgo.toISOString().split('T')[0];
         const todayStr = today.toISOString().split('T')[0];
 
-        // Tasks completed this week
         const completedThisWeek = state.tasks.filter(t =>
             t.completed && t.completedAt && t.completedAt >= weekAgoStr
         ).length;
 
-        // Habits at risk (have a streak but not done today)
         const habitsAtRisk = state.habits.filter(h =>
             h.streak > 0 && !h.completedDates.includes(todayStr)
         );
 
-        // Goals nearing deadline (within 7 days)
         const nextWeekStr = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0];
         const urgentGoals = state.goals.filter(g =>
             !g.completed && g.targetDate <= nextWeekStr
         );
 
-        // Active tasks
         const activeTasks = state.tasks.filter(t => !t.completed);
 
         const lines: string[] = [
@@ -562,13 +788,11 @@ export default function HootFAB() {
             lines.push(`  No active quests — create some to damage the boss!`);
         }
 
-        // Check equipped items
         const weapon = state.equippedItems?.weapon;
         if (weapon) {
             lines.push(`\n🗡️ Equipped weapon: ${weapon.name}${weapon.stats?.xpBonus ? ` (+${weapon.stats.xpBonus} XP bonus)` : ''}`);
         }
 
-        // Check for usable consumables
         const consumables = state.inventory.filter(i => i.usable || i.consumableEffect);
         if (consumables.length > 0) {
             lines.push(`🧪 Available consumables: ${consumables.map(c => `${c.name} x${c.quantity}`).join(', ')}`);
@@ -577,85 +801,145 @@ export default function HootFAB() {
         return lines.join('\n');
     }
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        const trimmed = input.trim();
-        if (!trimmed || isLoading) return;
+    // ── Core send function ──────────────────────────────────────────────
+    async function sendMessage(text: string, isAutoCoach = false) {
+        if (!text.trim() || isLoading) return;
 
-        setInput('');
-        setMessages(prev => [...prev, { role: 'user', text: trimmed }]);
+        addMessage({ role: 'user', text });
         setIsLoading(true);
+
+        // Update last interaction date in persistent memory
+        useGameStore.getState().updateHootLastInteraction();
 
         try {
             const context = buildContext();
 
-            // ── Pass 1: Initial Action/Intent Detection ──────────────────────
+            // Build conversation history for multi-turn context
+            const recentMessages = messages.slice(-6).map(m => ({
+                role: m.role === 'user' ? 'user' : 'hoot',
+                text: m.text,
+            }));
+
             const res = await fetch('/api/hoot-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    message: trimmed,
+                    message: text,
                     currentPage: pathname,
-                    context,
+                    context: isAutoCoach
+                        ? context + `\n\n--- COACHING MODE ---\nThis is an auto-coaching request after the user submitted a daily reflection. Include a trend insight if you see patterns in their reflection history. Be encouraging and give one actionable tip. Use Google Search to find a relevant study tip or resource.`
+                        : context,
+                    planningContext,
+                    conversationHistory: recentMessages,
                 }),
             });
 
             let data = await res.json();
 
-            // Execute any actions the AI requested
             let actionResults: string[] = [];
             if (data.actions && data.actions.length > 0) {
                 actionResults = await executeActions(data.actions);
+
+                // Check if a plan step was completed
+                if (planningContext) {
+                    const stepActions = ['complete_task', 'add_task', 'complete_habit', 'complete_milestone'];
+                    const hasStepAction = data.actions.some((a: HootAction) => stepActions.includes(a.action));
+                    if (hasStepAction) {
+                        advancePlanStep();
+                    }
+                }
             }
 
-            // ── Detection: Did Hoot perform a web search? ───────────────────
+            // Detect web search and do a synthesis pass
             const searchResult = actionResults.find(r => r.startsWith('🌐 Search Result:'));
-
             if (searchResult) {
-                // ── Pass 2: Synthesis Loop ──────────────────────────────────
-                // Feed the search result back to Hoot for a final grounded summary
                 const synthesisRes = await fetch('/api/hoot-action', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        message: trimmed, // Keep original message as intent
+                        message: text,
                         currentPage: pathname,
                         context,
-                        grounding: searchResult, // Pass the search result as grounding
+                        grounding: searchResult,
+                        conversationHistory: recentMessages,
                     }),
                 });
-
                 const synthesisData = await synthesisRes.json();
-
-                // Update data with synthesized response
-                data = {
-                    ...synthesisData,
-                    // Keep the original actions if they were successful, 
-                    // but we might want to hide the raw search result from Pass 1 
-                    // if Pass 2 is successful.
-                    actions: data.actions,
-                };
-
-                // Remove the raw search result from actionResults so it doesn't double-print
+                data = { ...synthesisData, actions: data.actions };
                 actionResults = actionResults.filter(r => !r.startsWith('🌐 Search Result:'));
             }
 
-            setMessages(prev => [...prev, {
+            // Generate quick-reply chips
+            const quickReplies = generateQuickReplies(
+                data.actions || [],
+                pathname,
+                useGameStore.getState(),
+            );
+
+            addMessage({
                 role: 'hoot',
-                text: data.message,
+                text: data.message || "Hoo! I'm here but words escaped me. Try again? 🦉",
                 actions: data.actions,
                 sources: data.sources,
                 actionResults,
-            }]);
+                quickReplies,
+            });
         } catch (error) {
-            console.error('Hoot error:', error);
-            setMessages(prev => [...prev, {
+            logger.error('Hoot error', 'Hoot', error);
+            addMessage({
                 role: 'hoot',
                 text: "Hoo! Something went wrong. Try again in a moment! 🦉",
-            }]);
+            });
         } finally {
             setIsLoading(false);
         }
+    }
+
+    // Summarize conversation and persist to memory before clearing
+    async function handleClearWithSummary() {
+        if (messages.length < 4) {
+            // Too few messages to summarize meaningfully
+            clearMessages();
+            return;
+        }
+        setIsSummarizing(true);
+        try {
+            // Extract key info from messages
+            const userMsgs = messages.filter(m => m.role === 'user').map(m => m.text);
+            const hootActions = messages
+                .filter(m => m.role === 'hoot' && m.actions && m.actions.length > 0)
+                .flatMap(m => m.actions!.map(a => a.action));
+            const topics = [...new Set([
+                ...userMsgs.slice(0, 5).map(t => t.slice(0, 50)),
+            ])];
+            const actionsTaken = [...new Set(hootActions)];
+
+            // Generate a brief summary
+            const summaryText = `${userMsgs.length} messages exchanged. Topics: ${topics.join('; ')}. Actions: ${actionsTaken.length > 0 ? actionsTaken.join(', ') : 'chat only'}.`;
+
+            useGameStore.getState().addHootConversationSummary(
+                summaryText,
+                topics.slice(0, 5),
+                actionsTaken.slice(0, 10),
+            );
+        } catch (err) {
+            logger.error('Summary save error', 'Hoot', err);
+        } finally {
+            setIsSummarizing(false);
+            clearMessages();
+        }
+    }
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        const trimmed = input.trim();
+        if (!trimmed) return;
+        setInput('');
+        await sendMessage(trimmed);
+    }
+
+    function handleQuickReply(reply: QuickReply) {
+        sendMessage(reply.message);
     }
 
     // Don't show if not logged in
@@ -698,7 +982,6 @@ export default function HootFAB() {
                                 <Sparkles size={12} className="group-hover:animate-pulse" />
                             </button>
 
-                            {/* Speech bubble tail */}
                             <div className="absolute -bottom-2 right-8 w-4 h-4 bg-[var(--color-bg-secondary)] border-r border-b border-[var(--color-border)] rotate-45" />
                         </div>
                     </motion.div>
@@ -718,7 +1001,7 @@ export default function HootFAB() {
                         exit={{ scale: 0, opacity: 0 }}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
-                        onClick={() => setIsOpen(true)}
+                        onClick={() => setOpen(true)}
                         className={`fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${activeNudge ? 'ring-2 ring-[var(--color-purple)]' : 'shadow-[var(--color-purple)]/30'}`}
                         style={{
                             background: 'linear-gradient(135deg, var(--color-purple), var(--color-blue))',
@@ -733,7 +1016,6 @@ export default function HootFAB() {
                             🦉
                         </motion.span>
 
-                        {/* Notification dot when there's no messages yet */}
                         {messages.length === 0 && (
                             <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-green)] border-2 border-[var(--color-bg-primary)]" />
                         )}
@@ -751,7 +1033,7 @@ export default function HootFAB() {
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
                             className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none lg:pointer-events-none"
-                            onClick={() => setIsOpen(false)}
+                            onClick={() => setOpen(false)}
                         />
 
                         {/* Panel */}
@@ -779,18 +1061,56 @@ export default function HootFAB() {
                                         <p className="text-sm font-bold text-[var(--color-text-primary)]">Hoot</p>
                                         <p className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-1">
                                             <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-green)] inline-block" />
-                                            {pathname === '/' ? 'Dashboard' : pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)} • Search Grounded
+                                            {pathname === '/' ? 'Dashboard' : pathname.slice(1).charAt(0).toUpperCase() + pathname.slice(2)} • AI Coach
                                         </p>
                                     </div>
                                 </div>
-                                <button
-                                    onClick={() => setIsOpen(false)}
-                                    className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
-                                    aria-label="Close Hoot"
-                                >
-                                    <X size={18} className="text-[var(--color-text-muted)]" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    {messages.length > 0 && (
+                                        <button
+                                            onClick={handleClearWithSummary}
+                                            disabled={isSummarizing}
+                                            className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors disabled:opacity-40"
+                                            aria-label="Clear chat"
+                                            title="Clear conversation (saves summary)"
+                                        >
+                                            {isSummarizing
+                                                ? <Loader2 size={14} className="animate-spin text-[var(--color-text-muted)]" />
+                                                : <Trash2 size={14} className="text-[var(--color-text-muted)]" />
+                                            }
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setOpen(false)}
+                                        className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center transition-colors"
+                                        aria-label="Close Hoot"
+                                    >
+                                        <X size={18} className="text-[var(--color-text-muted)]" />
+                                    </button>
+                                </div>
                             </div>
+
+                            {/* Active Plan Indicator */}
+                            {planningContext && (
+                                <div className="px-4 py-2 flex items-center gap-2 text-xs"
+                                    style={{ background: 'rgba(139, 92, 246, 0.08)', borderBottom: '1px solid var(--color-border)' }}
+                                >
+                                    <ListChecks size={14} className="text-[var(--color-purple)] shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-[var(--color-text-primary)] font-medium truncate">{planningContext.goal}</p>
+                                        <p className="text-[var(--color-text-muted)]">
+                                            Step {planningContext.currentStepIndex + 1}/{planningContext.steps.length}: {planningContext.steps[planningContext.currentStepIndex]?.label}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setPlanningContext(null)}
+                                        className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] shrink-0"
+                                        title="Dismiss plan"
+                                    >
+                                        <X size={12} />
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Messages */}
                             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 scrollbar-thin min-h-0">
@@ -801,7 +1121,7 @@ export default function HootFAB() {
                                             Hey{store.characterName && store.characterName !== 'Your Name' ? `, ${store.characterName}` : ''}! I&apos;m Hoot.
                                         </p>
                                         <p className="text-xs text-[var(--color-text-muted)] mb-4 max-w-[280px] mx-auto">
-                                            I can help you manage quests, track habits, set goals, and give you real-time advice — all from right here.
+                                            Your AI assistant and coach. I can manage quests, track habits, give advice, and coach you through reflections.
                                         </p>
                                         <div className="flex flex-wrap justify-center gap-1.5">
                                             {[
@@ -809,12 +1129,13 @@ export default function HootFAB() {
                                                 '📊 How am I doing?',
                                                 '⚔️ Boss strategy',
                                                 '🎯 Set a goal',
-                                                '🎒 Equip my best gear',
-                                                '⏱️ Start a focus session',
+                                                '📖 New vocab words',
+                                                '📝 Coach me',
+                                                '📅 Plan my week',
                                             ].map(suggestion => (
                                                 <button
                                                     key={suggestion}
-                                                    onClick={() => { setInput(suggestion.slice(2).trim()); inputRef.current?.focus(); }}
+                                                    onClick={() => sendMessage(suggestion.slice(2).trim())}
                                                     className="text-[11px] px-2.5 py-1.5 rounded-full border border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-purple)]/50 hover:text-[var(--color-purple)] transition-colors"
                                                 >
                                                     {suggestion}
@@ -824,9 +1145,9 @@ export default function HootFAB() {
                                     </div>
                                 )}
 
-                                {messages.map((msg, i) => (
+                                {messages.map((msg) => (
                                     <motion.div
-                                        key={i}
+                                        key={msg.id}
                                         initial={{ opacity: 0, y: 6 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -841,10 +1162,41 @@ export default function HootFAB() {
                                             <div className="max-w-[85%] space-y-2">
                                                 <div className="flex gap-2 items-start">
                                                     <span className="text-lg mt-0.5 shrink-0">🦉</span>
-                                                    <div className="rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed"
+                                                    <div className="rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm leading-relaxed hoot-markdown"
                                                         style={{ background: 'var(--color-bg-dark)', color: 'var(--color-text-secondary)' }}
                                                     >
-                                                        {msg.text}
+                                                        <ReactMarkdown
+                                                            components={{
+                                                                p: ({ children }) => <p className="mb-1.5 last:mb-0">{children}</p>,
+                                                                strong: ({ children }) => <strong className="font-bold text-[var(--color-text-primary)]">{children}</strong>,
+                                                                em: ({ children }) => <em className="italic">{children}</em>,
+                                                                ul: ({ children }) => <ul className="list-disc list-inside mb-1.5 space-y-0.5">{children}</ul>,
+                                                                ol: ({ children }) => <ol className="list-decimal list-inside mb-1.5 space-y-0.5">{children}</ol>,
+                                                                li: ({ children }) => <li className="text-sm">{children}</li>,
+                                                                code: ({ children }) => (
+                                                                    <code className="text-xs bg-[var(--color-bg-primary)] px-1 py-0.5 rounded font-mono text-[var(--color-purple)]">
+                                                                        {children}
+                                                                    </code>
+                                                                ),
+                                                                a: ({ href, children }) => (
+                                                                    <a href={href} target="_blank" rel="noopener noreferrer"
+                                                                        className="text-[var(--color-blue)] underline decoration-[var(--color-blue)]/30 hover:decoration-[var(--color-blue)] transition-colors">
+                                                                        {children}
+                                                                    </a>
+                                                                ),
+                                                                h1: ({ children }) => <p className="font-bold text-base text-[var(--color-text-primary)] mb-1">{children}</p>,
+                                                                h2: ({ children }) => <p className="font-bold text-sm text-[var(--color-text-primary)] mb-1">{children}</p>,
+                                                                h3: ({ children }) => <p className="font-semibold text-sm text-[var(--color-text-primary)] mb-0.5">{children}</p>,
+                                                                blockquote: ({ children }) => (
+                                                                    <blockquote className="border-l-2 border-[var(--color-purple)]/40 pl-2.5 my-1.5 text-[var(--color-text-muted)] italic">
+                                                                        {children}
+                                                                    </blockquote>
+                                                                ),
+                                                                hr: () => <hr className="border-[var(--color-border)] my-2" />,
+                                                            }}
+                                                        >
+                                                            {msg.text}
+                                                        </ReactMarkdown>
                                                     </div>
                                                 </div>
 
@@ -878,6 +1230,22 @@ export default function HootFAB() {
                                                                 <ExternalLink size={9} className="shrink-0 opacity-60 group-hover:opacity-100" />
                                                                 <span className="truncate underline decoration-[var(--color-blue)]/30">{src.title}</span>
                                                             </a>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Quick-reply chips */}
+                                                {msg.quickReplies && msg.quickReplies.length > 0 && (
+                                                    <div className="ml-7 flex flex-wrap gap-1.5 mt-1">
+                                                        {msg.quickReplies.map((reply, j) => (
+                                                            <button
+                                                                key={j}
+                                                                onClick={() => handleQuickReply(reply)}
+                                                                disabled={isLoading}
+                                                                className="text-[11px] px-2.5 py-1.5 rounded-full border border-[var(--color-purple)]/30 text-[var(--color-purple)] hover:bg-[var(--color-purple)]/10 hover:border-[var(--color-purple)]/50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                                                            >
+                                                                {reply.label}
+                                                            </button>
                                                         ))}
                                                     </div>
                                                 )}
@@ -935,7 +1303,7 @@ export default function HootFAB() {
                                 <div className="flex items-center gap-1.5 mt-1.5 px-1">
                                     <Sparkles size={9} className="text-[var(--color-purple)]/60" />
                                     <p className="text-[9px] text-[var(--color-text-muted)]">
-                                        Gemini 3 Flash + Google Search • Can take actions
+                                        Gemini 3 Flash + Google Search • Actions + Coaching
                                     </p>
                                 </div>
                             </form>

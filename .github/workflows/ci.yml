@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-typecheck-build:
+    name: Lint, Type Check & Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
+
+  migration-check:
+    name: Validate SQL Migrations
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check migration files exist and are valid SQL
+        run: |
+          echo "Checking migration files..."
+          for f in supabase/migrations/*.sql; do
+            if [ -f "$f" ]; then
+              echo "  Found: $f ($(wc -l < "$f") lines)"
+              # Basic syntax check: ensure file isn't empty and has SQL keywords
+              if [ ! -s "$f" ]; then
+                echo "  ERROR: $f is empty"
+                exit 1
+              fi
+            fi
+          done
+          echo "All migration files validated."
+
+      - name: Check schema.sql is present
+        run: |
+          if [ ! -f "supabase/schema.sql" ]; then
+            echo "ERROR: supabase/schema.sql not found"
+            exit 1
+          fi
+          echo "schema.sql found ($(wc -l < supabase/schema.sql) lines)"

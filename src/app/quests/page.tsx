@@ -4,6 +4,7 @@ import { useGameStore, TaskCategory, TaskDuration } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { ValidationError } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
@@ -19,6 +20,8 @@ import {
   Terminal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import PulseInsightStrip from '@/components/PulseInsightStrip';
+import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
 
 interface GeneratedQuest {
   title: string;
@@ -26,8 +29,10 @@ interface GeneratedQuest {
   xp: number;
 }
 
+const QUESTS_PER_PAGE = 20;
+
 export default function QuestsPage() {
-  const { tasks, addTask, toggleTask, deleteTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, lastCriticalHit, clearCriticalHit, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
+  const { tasks, addTask, toggleTask, deleteTask, restoreTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, lastCriticalHit, clearCriticalHit, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
   const { addToast } = useToastStore();
 
   // Show toast when an item drops from the store
@@ -52,6 +57,7 @@ export default function QuestsPage() {
   const [recurring, setRecurring] = useState<'none' | 'daily' | 'weekly'>('none');
   const [duration, setDuration] = useState<TaskDuration>('1-hour');
   const [filterCategory, setFilterCategory] = useState<TaskCategory | 'All'>('All');
+  const [questsVisible, setQuestsVisible] = useState(QUESTS_PER_PAGE);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
   const [isAutoTagging, setIsAutoTagging] = useState(false);
@@ -134,8 +140,9 @@ export default function QuestsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: generatePrompt,
-          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak }
+          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak, pulseData: getPulseDataForRoute() }
         }),
+        signal: AbortSignal.timeout(30000),
       });
 
       const data = await response.json();
@@ -156,8 +163,10 @@ export default function QuestsPage() {
 
       setGeneratePrompt('');
     } catch (error) {
-      console.error('Failed to generate quests:', error);
-      addToast('Network error. Check your connection and try again.', 'error');
+      logger.error('Failed to generate quests', 'quests', error);
+      const msg = error instanceof DOMException && error.name === 'TimeoutError'
+        ? 'AI request timed out. Try again.' : 'Network error. Check your connection and try again.';
+      addToast(msg, 'error');
     } finally {
       setIsGenerating(false);
     }
@@ -176,6 +185,7 @@ export default function QuestsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title }),
+        signal: AbortSignal.timeout(15000),
       });
 
       const data = await response.json();
@@ -196,7 +206,7 @@ export default function QuestsPage() {
       setAiPreview(data);
       addToast('Quest classified by AI! Review and create. ✨', 'success');
     } catch (error) {
-      console.error('Failed to auto-tag:', error);
+      logger.error('Failed to auto-tag', 'quests', error);
       addToast('Network error. Check your connection.', 'error');
     } finally {
       setIsAutoTagging(false);
@@ -211,7 +221,8 @@ export default function QuestsPage() {
       const response = await fetch('/api/quest-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: nlCommand, tasks })
+        body: JSON.stringify({ command: nlCommand, tasks }),
+        signal: AbortSignal.timeout(15000),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error);
@@ -241,7 +252,7 @@ export default function QuestsPage() {
       }
       setNlCommand('');
     } catch (error) {
-      console.error('NL Command error:', error);
+      logger.error('NL Command error', 'quests', error);
       addToast('Failed to process command.', 'error');
     } finally {
       setIsCommandProcessing(false);
@@ -275,7 +286,7 @@ export default function QuestsPage() {
         addToast(`🌟 New Achievement: ${data.icon} ${data.name}!`, 'success');
       }
     } catch (error) {
-      console.error('Smart achievement check failed:', error);
+      logger.error('Smart achievement check failed', 'quests', error);
     }
   };
 
@@ -367,6 +378,9 @@ export default function QuestsPage() {
 
       {/* Main Content */}
       <div className="max-w-5xl mx-auto px-4 py-8">
+        {/* Pulse Insights for Quests */}
+        <PulseInsightStrip domains={['quests', 'energy']} />
+
         {/* Add Quest Form */}
         <motion.div
           className="rpg-card mb-8"
@@ -608,6 +622,7 @@ export default function QuestsPage() {
             <label htmlFor="ai-prompt" className="sr-only">Describe what you want to achieve</label>
             <input
               id="ai-prompt"
+              name="ai-prompt"
               type="text"
               value={generatePrompt}
               onChange={(e) => setGeneratePrompt(e.target.value)}
@@ -650,8 +665,11 @@ export default function QuestsPage() {
             <span className="font-bold text-sm">Quest Command</span>
             <span className="text-xs text-[var(--color-text-muted)]">— Edit quests with natural language</span>
           </div>
+          <label htmlFor="quest-command" className="sr-only">Quest command</label>
           <div className="flex gap-2">
             <input
+              id="quest-command"
+              name="quest-command"
               type="text"
               value={nlCommand}
               onChange={(e) => { setNlCommand(e.target.value); setCommandResult(null); }}
@@ -725,7 +743,7 @@ export default function QuestsPage() {
           ) : (
             <div className="space-y-2">
               <AnimatePresence>
-                {filteredTasks.map((task, index) => (
+                {filteredTasks.slice(0, questsVisible).map((task, index) => (
                   <motion.div
                     key={task.id}
                     className={`flex items-center gap-4 p-4 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded transition-all hover:border-[var(--color-purple)] ${task.completed ? 'opacity-60' : ''
@@ -814,8 +832,9 @@ export default function QuestsPage() {
 
                     <motion.button
                       onClick={() => {
+                        const backup = { ...task };
                         deleteTask(task.id);
-                        addToast('Quest deleted', 'info');
+                        addToast('Quest deleted', 'info', () => restoreTask(backup));
                       }}
                       className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-red)] focus:ring-offset-2 rounded"
                       whileHover={{ scale: 1.1 }}
@@ -834,6 +853,14 @@ export default function QuestsPage() {
                   </motion.div>
                 ))}
               </AnimatePresence>
+              {filteredTasks.length > questsVisible && (
+                <button
+                  onClick={() => setQuestsVisible(prev => prev + QUESTS_PER_PAGE)}
+                  className="w-full mt-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--color-text-secondary)] hover:text-white bg-[var(--color-bg-dark)] border border-[var(--color-border)] hover:border-[var(--color-purple)] transition-all"
+                >
+                  Show more ({filteredTasks.length - questsVisible} remaining)
+                </button>
+              )}
             </div>
           )}
         </motion.div>

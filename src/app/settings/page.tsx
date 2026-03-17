@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Volume2, VolumeX, Moon, Sun, Settings as SettingsIcon, Download, Upload, Trash2, Music, Music2 } from 'lucide-react';
+import { ChevronLeft, Volume2, VolumeX, Moon, Sun, Settings as SettingsIcon, Download, Upload, Trash2, Music, Music2, HelpCircle, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 
@@ -340,6 +340,30 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
+          </motion.div>
+
+          {/* Guide & Tutorial */}
+          <motion.div
+            className="rpg-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.43 }}
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <HelpCircle className="text-[var(--color-blue)]" size={24} />
+              <div>
+                <h3 className="font-bold">Guide & Tutorial</h3>
+                <p className="text-sm text-[var(--color-text-secondary)]">
+                  Learn how to use every feature in QuestFlow
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/tutorial"
+              className="rpg-button !bg-[var(--color-blue)] !text-white inline-flex items-center gap-2"
+            >
+              Open Guide <ArrowRight size={16} />
+            </Link>
           </motion.div>
 
           {/* App Info */}

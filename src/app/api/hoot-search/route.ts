@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Initialize Gemini API
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+import { genAI } from '@/lib/gemini';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
     try {
@@ -21,6 +19,7 @@ export async function POST(req: NextRequest) {
             tools: [
                 {
                     googleSearch: {}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
                 } as any
             ]
         });
@@ -34,7 +33,7 @@ Do not hallucinate; only use information found in the search results.`;
 
         return NextResponse.json({ result: responseText });
     } catch (error) {
-        console.error('Error in /api/hoot-search:', error);
+        logger.error('Error in /api/hoot-search', 'hoot-search', error);
         return NextResponse.json(
             { error: 'Failed to perform web search' },
             { status: 500 }

@@ -2,28 +2,30 @@
 
 import { create } from 'zustand';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle, AlertCircle, Info, X, Undo2 } from 'lucide-react';
 
 interface Toast {
   id: string;
   message: string;
   type: 'success' | 'error' | 'info';
+  onUndo?: () => void;
 }
 
 interface ToastStore {
   toasts: Toast[];
-  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+  addToast: (message: string, type: 'success' | 'error' | 'info', onUndo?: () => void) => void;
   removeToast: (id: string) => void;
 }
 
 export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
-  addToast: (message, type) => {
+  addToast: (message, type, onUndo?) => {
     const id = Math.random().toString(36).substr(2, 9);
-    set((state) => ({ toasts: [...state.toasts, { id, message, type }] }));
+    set((state) => ({ toasts: [...state.toasts, { id, message, type, onUndo }] }));
+    const duration = onUndo ? 5000 : 3000;
     setTimeout(() => {
       set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
-    }, 3000);
+    }, duration);
   },
   removeToast: (id) => {
     set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) }));
@@ -63,6 +65,15 @@ export default function ToastContainer() {
               {toast.type === 'info' && <Info size={18} />}
             </div>
             <span className="flex-1 font-semibold text-sm">{toast.message}</span>
+            {toast.onUndo && (
+              <button
+                onClick={() => { toast.onUndo?.(); removeToast(toast.id); }}
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold text-[var(--color-purple-light)] hover:bg-[var(--color-purple)]/20 transition-colors"
+              >
+                <Undo2 size={12} />
+                Undo
+              </button>
+            )}
             <button
               onClick={() => removeToast(toast.id)}
               className="text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] transition-colors"

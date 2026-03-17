@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, Plus, Trash2, CheckCircle, Circle, Flame, Trophy, Calendar } from 'lucide-react';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { useToastStore } from '@/components/ToastContainer';
+import PulseInsightStrip from '@/components/PulseInsightStrip';
 
 const HABIT_ICONS = ['📚', '🏃', '💧', '🧘', '✍️', '🎯', '🌱', '🏋️', '🎨', '🧠', '💤', '🥗', '📖', '🎵', '🤝'];
 
@@ -43,7 +44,7 @@ function getLast30Days(): string[] {
 }
 
 export default function HabitsPage() {
-  const { habits, addHabit, completeHabit, deleteHabit, checkHabitResets } = useGameStore();
+  const { habits, addHabit, completeHabit, deleteHabit, restoreHabit, checkHabitResets } = useGameStore();
   const { addToast } = useToastStore();
 
   const [showAdd, setShowAdd] = useState(false);
@@ -92,8 +93,6 @@ export default function HabitsPage() {
   const totalHabits = habits.length;
   const completionRate = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0;
 
-  const detailHabit = habits.find(h => h.id === selectedHabit);
-
   return (
     <motion.div
       className="min-h-screen pb-20"
@@ -123,6 +122,9 @@ export default function HabitsPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
+
+        {/* Pulse Insights for Habits */}
+        <PulseInsightStrip domains={['habits', 'streaks']} />
 
         {/* Daily Progress Banner */}
         <motion.div
@@ -347,8 +349,9 @@ export default function HabitsPage() {
                         </motion.button>
                         <motion.button
                           onClick={() => {
+                            const backup = { ...habit };
                             deleteHabit(habit.id);
-                            addToast(`Habit "${habit.name}" deleted`, 'info');
+                            addToast(`Habit "${habit.name}" deleted`, 'info', () => restoreHabit(backup));
                             if (selectedHabit === habit.id) setSelectedHabit(null);
                           }}
                           className="p-2 text-[var(--color-text-muted)] hover:text-[var(--color-red)] transition-colors"

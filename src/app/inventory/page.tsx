@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import {
   Backpack, Shield, Sparkles, Trash2, Plus, ChevronLeft, Zap, Coins, Flame,
-  Hammer, Package, Check, X,
+  Hammer, X,
   Gem, Heart, Coffee, Gamepad2, Tv, Music, Gift
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -239,8 +239,6 @@ function InventoryTab() {
 function CraftingTab() {
   const { craftingRecipes, inventory, craftItem } = useGameStore();
   const { addToast } = useToastStore();
-  const [selectedRecipe, setSelectedRecipe] = useState<CraftingRecipe | null>(null);
-
   const canCraft = (recipe: CraftingRecipe) =>
     recipe.inputs.every(input => {
       const item = inventory.find(i => i.name.toLowerCase().includes(input.itemId.replace('-', ' ')) || i.id === input.itemId);
@@ -325,8 +323,6 @@ function CraftingTab() {
         {armor.map(r => renderRecipeCard(r, 'var(--color-blue)'))}
       </div>
 
-      {/* Suppress unused variable warning */}
-      {selectedRecipe && null}
     </div>
   );
 }
