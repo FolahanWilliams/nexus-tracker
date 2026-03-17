@@ -55,8 +55,8 @@ export async function POST(req: NextRequest) {
       subscription_data: {
         trial_period_days: 3,
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://nexus-tracker-weld.vercel.app'}/overview?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://nexus-tracker-weld.vercel.app'}/pricing`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://questflo.vercel.app'}/overview?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://questflo.vercel.app'}/pricing`,
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
