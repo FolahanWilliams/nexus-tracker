@@ -55,7 +55,7 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)] flex flex-col items-center py-20 px-6">
       <Link href="/" className="absolute top-6 left-6 flex items-center gap-2 text-sm font-bold text-[var(--color-text-muted)] hover:text-white transition-colors">
-        <ChevronLeft size={16} /> Back to Quests
+        <ChevronLeft size={16} /> Back to Home
       </Link>
 
       <motion.div 
