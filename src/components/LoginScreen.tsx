@@ -64,7 +64,7 @@ export default function LoginScreen() {
 
                 {/* Sign In Button */}
                 <motion.button
-                    onClick={signIn}
+                    onClick={() => signIn()}
                     className="rpg-button w-full !bg-white !text-gray-800 font-bold text-base py-3 px-6 rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-3"
                     whileHover={{ scale: 1.02, y: -2 }}
                     whileTap={{ scale: 0.98 }}

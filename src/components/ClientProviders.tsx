@@ -14,6 +14,7 @@ import StreakCelebration from '@/components/StreakCelebration';
 import DailyIntention from '@/components/DailyIntention';
 import QuickAdd from '@/components/QuickAdd';
 import HootFAB from '@/components/HootFAB';
+import SubscriptionGate from '@/components/SubscriptionGate';
 
 const PUBLIC_ROUTES = ['/', '/pricing', '/login'];
 
@@ -33,21 +34,23 @@ export default function ClientProviders({ children }: { children: React.ReactNod
 
     return (
         <AuthProvider>
-            <Navigation />
-            <MobileNavigation />
-            <div className="lg:ml-64 pb-20 lg:pb-0">
-                {children}
-            </div>
-            <Onboarding />
-            <LevelUpModal />
-            <SoundManager />
-            <ConfettiManager />
-            <ToastContainer />
-            <XPFloat />
-            <StreakCelebration />
-            <DailyIntention />
-            <QuickAdd />
-            <HootFAB />
+            <SubscriptionGate>
+                <Navigation />
+                <MobileNavigation />
+                <div className="lg:ml-64 pb-20 lg:pb-0">
+                    {children}
+                </div>
+                <Onboarding />
+                <LevelUpModal />
+                <SoundManager />
+                <ConfettiManager />
+                <ToastContainer />
+                <XPFloat />
+                <StreakCelebration />
+                <DailyIntention />
+                <QuickAdd />
+                <HootFAB />
+            </SubscriptionGate>
         </AuthProvider>
     );
 }

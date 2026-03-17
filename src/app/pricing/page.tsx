@@ -1,14 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Shield, Sparkles, Check, ChevronLeft, Loader2 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
-import { useState } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 
-export default function PricingPage() {
-  const { user, signIn } = useAuth();
+function PricingContent() {
+  const { user, loading: authLoading, signIn } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const checkoutTriggered = useRef(false);
 
   const features = [
     'Unlimited Quests & Habits',
@@ -20,13 +24,8 @@ export default function PricingPage() {
     'Cross-device Sync'
   ];
 
-  const handleSubscribe = async () => {
-    if (!user) {
-      // If not logged in, redirect to login first
-      signIn();
-      return;
-    }
-
+  const triggerCheckout = async () => {
+    if (!user) return;
     setLoading(true);
     try {
       const res = await fetch('/api/checkout-session', {
@@ -44,12 +43,36 @@ export default function PricingPage() {
         window.location.href = data.url;
       } else {
         console.error('No checkout URL returned:', data);
+        setLoading(false);
       }
     } catch (error) {
       console.error('Checkout error:', error);
-    } finally {
       setLoading(false);
     }
+  };
+
+  // Auto-trigger checkout when redirected back from sign-in with ?checkout=true
+  useEffect(() => {
+    if (
+      searchParams.get('checkout') === 'true' &&
+      user &&
+      !authLoading &&
+      !checkoutTriggered.current
+    ) {
+      checkoutTriggered.current = true;
+      // Clean up the URL
+      router.replace('/pricing', { scroll: false });
+      triggerCheckout();
+    }
+  }, [user, authLoading, searchParams]);
+
+  const handleSubscribe = async () => {
+    if (!user) {
+      // Sign in, then redirect back to /pricing?checkout=true
+      signIn('/pricing?checkout=true');
+      return;
+    }
+    triggerCheckout();
   };
 
   return (
@@ -131,5 +154,13 @@ export default function PricingPage() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function PricingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[var(--color-bg-primary)]" />}>
+      <PricingContent />
+    </Suspense>
   );
 }

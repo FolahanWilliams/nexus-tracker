@@ -12,7 +12,7 @@ import { logger } from '@/lib/logger';
 interface AuthContext {
     user: User | null;
     loading: boolean;
-    signIn: () => Promise<void>;
+    signIn: (redirectTo?: string) => Promise<void>;
     signOut: () => Promise<void>;
 }
 
@@ -82,12 +82,16 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
-    const signIn = async () => {
+    const signIn = async (redirectTo?: string) => {
         try {
+            const callbackUrl = new URL(`${window.location.origin}/auth/v1/callback`);
+            if (redirectTo) {
+                callbackUrl.searchParams.set('next', redirectTo);
+            }
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth/v1/callback`
+                    redirectTo: callbackUrl.toString()
                 }
             });
             if (error) throw error;
