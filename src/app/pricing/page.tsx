@@ -2,9 +2,14 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Shield, Sparkles, Check, ChevronLeft } from 'lucide-react';
+import { Shield, Sparkles, Check, ChevronLeft, Loader2 } from 'lucide-react';
+import { useAuth } from '@/components/AuthProvider';
+import { useState } from 'react';
 
 export default function PricingPage() {
+  const { user, signIn } = useAuth();
+  const [loading, setLoading] = useState(false);
+
   const features = [
     'Unlimited Quests & Habits',
     'Full access to Mindforge AI',
@@ -14,6 +19,38 @@ export default function PricingPage() {
     'Detailed Progress Analytics',
     'Cross-device Sync'
   ];
+
+  const handleSubscribe = async () => {
+    if (!user) {
+      // If not logged in, redirect to login first
+      signIn();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          email: user.email,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        console.error('No checkout URL returned:', data);
+      }
+    } catch (error) {
+      console.error('Checkout error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[var(--color-bg-primary)] flex flex-col items-center py-20 px-6">
@@ -77,9 +114,17 @@ export default function PricingPage() {
             ))}
           </div>
 
-          <Link href="/login" className="w-full py-4 rounded-xl font-black text-white bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)] hover:scale-[1.02] transition-transform flex items-center justify-center shadow-[0_4px_24px_rgba(167,139,250,0.4)]">
-            Start Free Trial
-          </Link>
+          <button
+            onClick={handleSubscribe}
+            disabled={loading}
+            className="w-full py-4 rounded-xl font-black text-white bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)] hover:scale-[1.02] transition-transform flex items-center justify-center shadow-[0_4px_24px_rgba(167,139,250,0.4)] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              'Start Free Trial'
+            )}
+          </button>
           <p className="text-center text-xs text-[var(--color-text-muted)] mt-4">
             Cancel anytime. No commitment.
           </p>
