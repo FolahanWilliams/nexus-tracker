@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import AuthProvider from '@/components/AuthProvider';
 import Navigation from '@/components/Navigation';
 import MobileNavigation from '@/components/MobileNavigation';
@@ -14,7 +15,22 @@ import DailyIntention from '@/components/DailyIntention';
 import QuickAdd from '@/components/QuickAdd';
 import HootFAB from '@/components/HootFAB';
 
+const PUBLIC_ROUTES = ['/', '/pricing', '/login'];
+
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
+    const pathname = usePathname();
+    const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
+
+    // On public routes, render children without the app shell
+    if (isPublicRoute) {
+        return (
+            <AuthProvider>
+                {children}
+                <ToastContainer />
+            </AuthProvider>
+        );
+    }
+
     return (
         <AuthProvider>
             <Navigation />
