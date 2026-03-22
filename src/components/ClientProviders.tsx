@@ -15,6 +15,7 @@ import DailyIntention from '@/components/DailyIntention';
 import QuickAdd from '@/components/QuickAdd';
 import HootFAB from '@/components/HootFAB';
 import SubscriptionGate from '@/components/SubscriptionGate';
+import PageTransition from '@/components/PageTransition';
 
 const PUBLIC_ROUTES = ['/', '/pricing', '/login'];
 
@@ -38,7 +39,9 @@ export default function ClientProviders({ children }: { children: React.ReactNod
                 <Navigation />
                 <MobileNavigation />
                 <div className="lg:ml-64 pb-20 lg:pb-0">
-                    {children}
+                    <PageTransition>
+                        {children}
+                    </PageTransition>
                 </div>
                 <Onboarding />
                 <LevelUpModal />

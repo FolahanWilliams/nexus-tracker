@@ -30,6 +30,75 @@ const GROWTH_MILESTONES = [
   { threshold: 0.95, message: 'Your tree is flourishing!' },
 ];
 
+/** Play a proper alarm sound using Web Audio API */
+function playAlarmSound() {
+  try {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const ctx = new AudioCtx();
+
+    // Three ascending chime tones
+    const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
+    notes.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.3);
+      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i * 0.3 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.3 + 0.8);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + i * 0.3);
+      osc.stop(ctx.currentTime + i * 0.3 + 0.8);
+    });
+
+    // Final sustained chord
+    setTimeout(() => {
+      const chord = [523.25, 659.25, 783.99];
+      chord.forEach((freq) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.2, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 1.5);
+      });
+    }, 1000);
+  } catch {
+    // Audio not supported
+  }
+}
+
+/** Send a browser notification */
+function sendTimerNotification(title: string, body: string) {
+  if (typeof window === 'undefined') return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    new Notification(title, {
+      body,
+      icon: '/icons/icon-192x192.png',
+      tag: 'focus-timer',
+    });
+  } catch {
+    // Notifications not supported in this context
+  }
+}
+
+/** Request notification permission (call on user gesture) */
+function requestNotificationPermission() {
+  if (typeof window === 'undefined') return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
 function pad(n: number) {
   return String(n).padStart(2, '0');
 }
@@ -58,6 +127,9 @@ export default function FocusPage() {
     stopTimer();
     setFocusTimerRunning(false, null);
 
+    // Play alarm sound for all session completions
+    playAlarmSound();
+
     if (mode === 'focus') {
       const newSessions = sessionsThisSession + 1;
       setSessionsThisSession(newSessions);
@@ -68,18 +140,25 @@ export default function FocusPage() {
       triggerXPFloat(`+${XP_PER_FOCUS_SESSION} XP`, '#4ade80');
       setTimeout(() => triggerXPFloat(`+${GOLD_PER_FOCUS_SESSION} 🪙`, '#fbbf24'), 200);
 
-      const nextMode: TimerMode = newSessions % SESSIONS_BEFORE_LONG_BREAK === 0 ? 'long-break' : 'short-break';
-      addToast(
-        newSessions % SESSIONS_BEFORE_LONG_BREAK === 0
-          ? `🎉 Session ${newSessions} done! Long break time — you earned it!`
-          : `✅ Focus session done! +${XP_PER_FOCUS_SESSION} XP. Take a short break.`,
-        'success'
+      const isLongBreak = newSessions % SESSIONS_BEFORE_LONG_BREAK === 0;
+      const nextMode: TimerMode = isLongBreak ? 'long-break' : 'short-break';
+      const toastMsg = isLongBreak
+        ? `🎉 Session ${newSessions} done! Long break time — you earned it!`
+        : `✅ Focus session done! +${XP_PER_FOCUS_SESSION} XP. Take a short break.`;
+
+      addToast(toastMsg, 'success');
+      sendTimerNotification(
+        'Focus Session Complete!',
+        isLongBreak
+          ? `Session ${newSessions} done! Time for a long break.`
+          : `+${XP_PER_FOCUS_SESSION} XP earned. Take a short break.`
       );
 
       setMode(nextMode);
       setTimeLeft(MODES[nextMode].duration);
     } else {
       addToast('Break over — back to work! 💪', 'info');
+      sendTimerNotification('Break Over!', 'Time to get back to work. Start your next focus session.');
       setMode('focus');
       setTimeLeft(MODES['focus'].duration);
     }
@@ -173,27 +252,16 @@ export default function FocusPage() {
           ))}
         </div>
 
-        {/* Timer Circle + Growing Tree */}
+        {/* Timer Circle */}
         <div className="flex flex-col items-center">
           <div className="relative">
-            {/* Tree visualization layer — sits behind the ring */}
-            <svg width="220" height="220" viewBox="0 0 220 220" className="absolute inset-0">
-              <GrowingTree
-                progress={progress}
-                running={running}
-                color={currentMode.color}
-                mode={mode}
-              />
-            </svg>
-
-            {/* Progress ring overlay */}
-            <svg width="220" height="220" className="-rotate-90 relative z-10">
+            <svg width="220" height="220" className="-rotate-90">
               {/* Background ring */}
               <circle
                 cx="110" cy="110" r={radius}
                 fill="none"
                 stroke="var(--color-border)"
-                strokeWidth="6"
+                strokeWidth="8"
                 opacity={0.3}
               />
               {/* Progress ring */}
@@ -201,7 +269,7 @@ export default function FocusPage() {
                 cx="110" cy="110" r={radius}
                 fill="none"
                 stroke={currentMode.color}
-                strokeWidth="6"
+                strokeWidth="8"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
@@ -209,36 +277,22 @@ export default function FocusPage() {
               />
             </svg>
 
-            {/* Time display — floats on top */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
+            {/* Time display */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
               <motion.p
-                className="text-5xl font-bold font-mono tabular-nums drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
+                className="text-5xl font-bold font-mono tabular-nums"
                 key={`${minutes}:${seconds}`}
               >
                 {pad(minutes)}:{pad(seconds)}
               </motion.p>
-              <p className="text-xs text-[var(--color-text-muted)] mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" style={{ color: currentMode.color }}>
+              <p className="text-sm text-[var(--color-text-muted)] mt-1" style={{ color: currentMode.color }}>
                 {currentMode.label}
               </p>
             </div>
           </div>
 
-          {/* Growth milestone message */}
-          {mode === 'focus' && (
-            <motion.div
-              className="flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full bg-[var(--color-bg-card)] border border-[var(--color-border)]"
-              key={milestoneMessage}
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <TreePine size={14} className="text-[var(--color-green)]" />
-              <p className="text-xs text-[var(--color-text-secondary)] font-medium">{milestoneMessage}</p>
-            </motion.div>
-          )}
-
           {/* Session dots */}
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-4">
             {Array.from({ length: SESSIONS_BEFORE_LONG_BREAK }).map((_, i) => (
               <motion.div
                 key={i}
@@ -271,7 +325,10 @@ export default function FocusPage() {
           </motion.button>
 
           <motion.button
-            onClick={() => setRunning(v => !v)}
+            onClick={() => {
+              requestNotificationPermission();
+              setRunning(v => !v);
+            }}
             className="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg"
             style={{ backgroundColor: currentMode.color }}
             whileHover={{ scale: 1.05 }}
@@ -283,6 +340,36 @@ export default function FocusPage() {
 
           <div className="w-12" /> {/* spacer */}
         </div>
+
+        {/* Growing Tree — separate section below the timer */}
+        <motion.div
+          className="rpg-card !p-4 overflow-hidden"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <TreePine size={16} className="text-[var(--color-green)]" />
+              <p className="text-sm font-bold text-[var(--color-text-primary)]">Focus Garden</p>
+            </div>
+            {/* Growth milestone message */}
+            <motion.p
+              key={milestoneMessage}
+              className="text-xs text-[var(--color-text-muted)] italic"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.4 }}
+            >
+              {milestoneMessage}
+            </motion.p>
+          </div>
+          <GrowingTree
+            progress={progress}
+            running={running}
+            mode={mode}
+          />
+        </motion.div>
 
         {/* Stats row */}
         <div className="grid grid-cols-3 gap-3">
