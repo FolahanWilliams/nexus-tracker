@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useGameStore } from '@/store/useGameStore';
 import { useHootStore, QuickReply, HootAction } from '@/store/useHootStore';
@@ -189,6 +189,46 @@ export default function HootFAB() {
         document.addEventListener('keydown', handleKey);
         return () => document.removeEventListener('keydown', handleKey);
     }, [isOpen, setOpen]);
+
+    // ── Hoot contextual emotion ──────────────────────────────────────
+    const [recentCompletion, setRecentCompletion] = useState(false);
+    const completedTaskCount = tasks.filter(t => t.completed).length;
+    const prevCompletedRef = useRef(completedTaskCount);
+
+    // Detect task completions for celebration reaction
+    useEffect(() => {
+        if (completedTaskCount > prevCompletedRef.current) {
+            setRecentCompletion(true);
+            const timer = setTimeout(() => setRecentCompletion(false), 5000);
+            prevCompletedRef.current = completedTaskCount;
+            return () => clearTimeout(timer);
+        }
+        prevCompletedRef.current = completedTaskCount;
+    }, [completedTaskCount]);
+
+    // Derive Hoot's current emotion from app state
+    const hootEmotion = useMemo((): { emoji: string; label: string } => {
+        // Priority order: focus → celebration → low HP → streak risk → default
+        if (isFocusTimerRunning) {
+            return { emoji: '🤫', label: 'Shh... focusing' };
+        }
+        if (recentCompletion) {
+            return { emoji: '🥳', label: 'Quest complete!' };
+        }
+        if (hp < 30) {
+            return { emoji: '😰', label: 'HP is low!' };
+        }
+        const today = new Date().toISOString().split('T')[0];
+        const hour = new Date().getHours();
+        const streaksAtRisk = habits.filter(h => h.streak >= 3 && !h.completedDates.includes(today));
+        if (streaksAtRisk.length > 0 && hour >= 18) {
+            return { emoji: '😟', label: 'Streaks at risk!' };
+        }
+        if (store.streak >= 7) {
+            return { emoji: '🔥', label: `${store.streak}-day streak!` };
+        }
+        return { emoji: '🦉', label: 'Hoot' };
+    }, [isFocusTimerRunning, recentCompletion, hp, habits, store.streak]);
 
     // Periodic subtle animation on the FAB
     useEffect(() => {
@@ -1004,19 +1044,31 @@ export default function HootFAB() {
                         onClick={() => setOpen(true)}
                         className={`fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${activeNudge ? 'ring-2 ring-[var(--color-purple)]' : 'shadow-[var(--color-purple)]/30'}`}
                         style={{
-                            background: 'linear-gradient(135deg, var(--color-purple), var(--color-blue))',
+                            background: recentCompletion
+                                ? 'linear-gradient(135deg, #4ade80, #22c55e)'
+                                : hp < 30
+                                    ? 'linear-gradient(135deg, #f87171, #ef4444)'
+                                    : 'linear-gradient(135deg, var(--color-purple), var(--color-blue))',
                         }}
-                        aria-label="Open Hoot AI Assistant"
+                        aria-label={`Open Hoot AI Assistant — ${hootEmotion.label}`}
+                        title={hootEmotion.label}
                     >
                         <motion.span
                             className="text-2xl"
-                            animate={isAnimating ? { rotate: [0, -15, 15, -10, 10, 0], scale: [1, 1.2, 1] } : {}}
-                            transition={{ duration: 0.6 }}
+                            key={hootEmotion.emoji}
+                            animate={
+                                recentCompletion
+                                    ? { rotate: [0, -10, 10, -10, 10, 0], scale: [1, 1.3, 1] }
+                                    : isAnimating
+                                        ? { rotate: [0, -15, 15, -10, 10, 0], scale: [1, 1.2, 1] }
+                                        : {}
+                            }
+                            transition={{ duration: recentCompletion ? 0.8 : 0.6 }}
                         >
-                            🦉
+                            {hootEmotion.emoji}
                         </motion.span>
 
-                        {messages.length === 0 && (
+                        {messages.length === 0 && !recentCompletion && (
                             <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[var(--color-green)] border-2 border-[var(--color-bg-primary)]" />
                         )}
                     </motion.button>

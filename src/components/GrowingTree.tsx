@@ -1,6 +1,6 @@
 'use client';
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 
 interface GrowingTreeProps {
@@ -56,21 +56,18 @@ const PARTICLES = Array.from({ length: 12 }, (_, i) => ({
   duration: 4 + (i % 3) * 2,
 }));
 
-export default function GrowingTree({ progress, running, color, mode }: GrowingTreeProps) {
+export default function GrowingTree({ progress, running, mode }: GrowingTreeProps) {
   const isBreak = mode !== 'focus';
 
   // Growth stages
   const stage = progress < 0.05 ? 'seed'
     : progress < 0.15 ? 'sprout'
-    : progress < 0.35 ? 'sapling'
-    : progress < 0.6 ? 'young'
-    : progress < 0.85 ? 'mature'
-    : 'full';
+    : 'tree'; // sapling and beyond share the tree trunk rendering
 
   // How much of the trunk to show (0-1)
-  const trunkHeight = Math.min(1, Math.max(0, (progress - 0.05) / 0.3));
+  const trunkGrowth = Math.min(1, Math.max(0, (progress - 0.05) / 0.3));
   // Trunk top y: starts at 130 (ground), grows up to 90
-  const trunkTopY = 130 - trunkHeight * 40;
+  const trunkTopY = 130 - trunkGrowth * 40;
 
   // How many leaves to show
   const leafCount = useMemo(() => {
@@ -107,114 +104,86 @@ export default function GrowingTree({ progress, running, color, mode }: GrowingT
         opacity={0.4}
       />
 
-      {/* Grass tufts — appear with sprout */}
-      <AnimatePresence>
-        {progress >= 0.1 && (
-          <motion.g
-            initial={{ opacity: 0, scaleY: 0 }}
-            animate={{ opacity: 1, scaleY: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ originX: '110px', originY: '135px' }}
-          >
-            {[-20, -12, -6, 4, 10, 18].map((dx, i) => (
-              <motion.line
-                key={`grass-${i}`}
-                x1={110 + dx} y1={133}
-                x2={110 + dx + (i % 2 === 0 ? 2 : -2)} y2={133 - 4 - (i % 3) * 2}
-                stroke={leafColor}
-                strokeWidth={1.5}
-                strokeLinecap="round"
-                initial={{ pathLength: 0, opacity: 0 }}
-                animate={{ pathLength: 1, opacity: 0.6 }}
-                transition={{ delay: i * 0.1, duration: 0.5 }}
-              />
-            ))}
-          </motion.g>
-        )}
-      </AnimatePresence>
+      {/* Grass tufts — fade in at 10% progress */}
+      {progress >= 0.1 && (
+        <g>
+          {[-20, -12, -6, 4, 10, 18].map((dx, i) => (
+            <motion.line
+              key={`grass-${i}`}
+              x1={110 + dx} y1={133}
+              x2={110 + dx + (i % 2 === 0 ? 2 : -2)} y2={133 - 4 - (i % 3) * 2}
+              stroke={leafColor}
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.6 }}
+              transition={{ delay: i * 0.1, duration: 0.5 }}
+            />
+          ))}
+        </g>
+      )}
 
-      {/* Seed — visible at start */}
-      <AnimatePresence>
-        {stage === 'seed' && (
-          <motion.g
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0 }}
-          >
-            <ellipse cx={110} cy={130} rx={5} ry={4} fill="#8B6914" />
-            <ellipse cx={110} cy={129} rx={3} ry={2} fill="#A07D1A" opacity={0.6} />
-          </motion.g>
-        )}
-      </AnimatePresence>
+      {/* Seed — visible at very start */}
+      {stage === 'seed' && (
+        <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+          <ellipse cx={110} cy={130} rx={5} ry={4} fill="#8B6914" />
+          <ellipse cx={110} cy={129} rx={3} ry={2} fill="#A07D1A" opacity={0.6} />
+        </motion.g>
+      )}
 
       {/* Sprout — small green shoot */}
-      <AnimatePresence>
-        {stage === 'sprout' && (
-          <motion.g
+      {stage === 'sprout' && (
+        <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+          <motion.line
+            x1={110} y1={130} x2={110} y2={118}
+            stroke={leafColor}
+            strokeWidth={2}
+            strokeLinecap="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.8 }}
+          />
+          {/* Left leaf bud */}
+          <motion.ellipse
+            cx={106} cy={118} rx={4} ry={6}
+            fill={leafColor}
+            transform="rotate(-20 106 118)"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <motion.line
-              x1={110} y1={130} x2={110} y2={118}
-              stroke={leafColor}
-              strokeWidth={2}
-              strokeLinecap="round"
-              initial={{ pathLength: 0 }}
-              animate={{ pathLength: 1 }}
-              transition={{ duration: 0.8 }}
-            />
-            <motion.ellipse
-              cx={108} cy={117} rx={4} ry={6}
-              fill={leafColor}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.4, type: 'spring' }}
-              style={{ transformOrigin: '108px 120px' }}
-              transform="rotate(-20 108 117)"
-            />
-            <motion.ellipse
-              cx={113} cy={117} rx={4} ry={6}
-              fill={leafColor}
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.6, type: 'spring' }}
-              style={{ transformOrigin: '113px 120px' }}
-              transform="rotate(20 113 117)"
-            />
-          </motion.g>
-        )}
-      </AnimatePresence>
+            transition={{ delay: 0.4, duration: 0.4 }}
+          />
+          {/* Right leaf bud */}
+          <motion.ellipse
+            cx={114} cy={118} rx={4} ry={6}
+            fill={leafColor}
+            transform="rotate(20 114 118)"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6, duration: 0.4 }}
+          />
+        </motion.g>
+      )}
 
       {/* Trunk — grows from sapling stage onward */}
       {progress >= 0.15 && (
-        <motion.g>
+        <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
           {/* Main trunk */}
           <motion.path
             d={`M107,130 Q106,${trunkTopY + 10} 108,${trunkTopY} L112,${trunkTopY} Q114,${trunkTopY + 10} 113,130 Z`}
             fill={trunkColor}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
           />
           {/* Trunk highlight */}
-          <motion.path
+          <path
             d={`M109,130 Q108,${trunkTopY + 10} 109.5,${trunkTopY + 2} L110.5,${trunkTopY + 2} Q112,${trunkTopY + 10} 111,130 Z`}
             fill={trunkColorDark}
             opacity={0.3}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.3 }}
           />
         </motion.g>
       )}
 
       {/* Branches */}
       {showBranches && (
-        <motion.g
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5 }}
-        >
+        <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
           {/* Left branch */}
           <motion.path
             d={`M108,${trunkTopY + 15} Q95,${trunkTopY + 5} 85,${trunkTopY + 2}`}
@@ -262,23 +231,23 @@ export default function GrowingTree({ progress, running, color, mode }: GrowingT
         </motion.g>
       )}
 
-      {/* Leaves — appear one by one */}
+      {/* Leaves — appear one by one via radius animation */}
       {LEAF_POSITIONS.slice(0, leafCount).map((leaf, i) => (
         <motion.circle
           key={`leaf-${i}`}
           cx={leaf.cx}
           cy={leaf.cy}
-          r={leaf.r}
           fill={i % 3 === 0 ? leafColorDark : leafColor}
-          initial={{ scale: 0, opacity: 0 }}
+          initial={{ r: 0, opacity: 0 }}
           animate={{
-            scale: running ? [1, 1.05, 1] : 1,
+            r: running ? [leaf.r, leaf.r * 1.06, leaf.r] : leaf.r,
             opacity: 0.85,
           }}
           transition={running ? {
-            scale: { repeat: Infinity, duration: 3 + (i % 2), ease: 'easeInOut' },
+            r: { repeat: Infinity, duration: 3 + (i % 2), ease: 'easeInOut' },
             opacity: { duration: 0.4 },
           } : {
+            r: { duration: 0.4 },
             opacity: { duration: 0.4 },
           }}
         />
@@ -286,42 +255,38 @@ export default function GrowingTree({ progress, running, color, mode }: GrowingT
 
       {/* Flowers / fruits — appear near completion */}
       {FLOWER_POSITIONS.slice(0, flowerCount).map((flower, i) => (
-        <motion.g key={`flower-${i}`}>
+        <g key={`flower-${i}`}>
           <motion.circle
             cx={flower.cx}
             cy={flower.cy}
-            r={flower.r}
             fill={flowerColor}
-            initial={{ scale: 0 }}
+            initial={{ r: 0 }}
             animate={{
-              scale: running ? [1, 1.2, 1] : 1,
+              r: running ? [flower.r, flower.r * 1.2, flower.r] : flower.r,
             }}
             transition={{
-              scale: { repeat: Infinity, duration: 2, delay: i * 0.3, ease: 'easeInOut' },
+              r: { repeat: Infinity, duration: 2, delay: i * 0.3, ease: 'easeInOut' },
             }}
           />
           <motion.circle
             cx={flower.cx}
             cy={flower.cy}
-            r={flower.r * 0.45}
             fill="white"
             opacity={0.7}
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ delay: 0.2 }}
+            initial={{ r: 0 }}
+            animate={{ r: flower.r * 0.45 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
           />
-        </motion.g>
+        </g>
       ))}
 
       {/* Floating particles when running */}
       {PARTICLES.slice(0, particleCount).map((p) => (
         <motion.circle
           key={`particle-${p.id}`}
-          cx={p.startX}
-          cy={p.startY}
           r={p.size}
           fill={p.id % 2 === 0 ? leafColor : flowerColor}
-          opacity={0}
+          initial={{ cx: p.startX, cy: p.startY, opacity: 0 }}
           animate={running ? {
             cx: [p.startX, p.endX, p.startX],
             cy: [p.startY, p.endY - 20, p.startY],
@@ -336,15 +301,14 @@ export default function GrowingTree({ progress, running, color, mode }: GrowingT
         />
       ))}
 
-      {/* Completion glow */}
+      {/* Completion glow — pulsing ring */}
       {progress >= 0.95 && (
         <motion.circle
           cx={110} cy={85}
-          r={50}
           fill="none"
           stroke={flowerColor}
           strokeWidth={1.5}
-          opacity={0}
+          initial={{ r: 45, opacity: 0 }}
           animate={{
             r: [45, 55, 45],
             opacity: [0, 0.25, 0],
