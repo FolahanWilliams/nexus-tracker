@@ -133,15 +133,16 @@ export default function SlightEdgeCalendarPage() {
   // Monthly completion rate for viewed month
   const monthCompletionStats = useMemo(() => {
     const daysInViewMonth = getDaysInMonth(viewYear, viewMonth);
-    const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
-    const totalDays = isCurrentMonth ? today.getDate() : daysInViewMonth;
+    const todayDate = parseDateStrLocal(todayStr);
+    const isCurrentMonth = viewYear === todayDate.getFullYear() && viewMonth === todayDate.getMonth();
+    const totalDays = isCurrentMonth ? todayDate.getDate() : daysInViewMonth;
     let completed = 0;
     for (let d = 1; d <= totalDays; d++) {
       const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       if (entryMap[dateStr]?.completed) completed++;
     }
     return { completed, totalDays };
-  }, [viewYear, viewMonth, entryMap, today]);
+  }, [viewYear, viewMonth, entryMap, todayStr]);
 
   // Calendar grid
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);

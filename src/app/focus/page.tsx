@@ -30,11 +30,24 @@ const GROWTH_MILESTONES = [
   { threshold: 0.95, message: 'Your tree is flourishing!' },
 ];
 
+/** Lazily-created shared AudioContext for alarm sounds */
+let alarmAudioCtx: AudioContext | null = null;
+function getAlarmAudioCtx(): AudioContext {
+  if (!alarmAudioCtx || alarmAudioCtx.state === 'closed') {
+    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    alarmAudioCtx = new AudioCtx();
+  }
+  // Resume if suspended (Chrome autoplay policy)
+  if (alarmAudioCtx.state === 'suspended') {
+    alarmAudioCtx.resume();
+  }
+  return alarmAudioCtx;
+}
+
 /** Play a proper alarm sound using Web Audio API */
 function playAlarmSound() {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const ctx = new AudioCtx();
+    const ctx = getAlarmAudioCtx();
 
     // Three ascending chime tones
     const notes = [523.25, 659.25, 783.99]; // C5, E5, G5

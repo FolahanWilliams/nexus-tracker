@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 
 interface GrowingTreeProps {
   /** 0 → 1 progress through the timer */
@@ -183,6 +183,9 @@ const FLOWER_SPOTS = [
 ];
 
 export default function GrowingTree({ progress, running, mode }: GrowingTreeProps) {
+  const uid = useId();
+  const skyId = `sky-${uid}`;
+  const glowId = `glow-${uid}`;
   const isBreak = mode !== 'focus';
 
   // Growth stages
@@ -221,17 +224,17 @@ export default function GrowingTree({ progress, running, mode }: GrowingTreeProp
     <svg width="100%" viewBox="0 0 270 200" className="max-w-xs mx-auto">
       {/* Sky gradient background */}
       <defs>
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={skyId} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={isBreak ? '#1e3a5f' : '#064e3b'} stopOpacity={0.15} />
           <stop offset="100%" stopColor="transparent" />
         </linearGradient>
-        <radialGradient id="glow" cx="135" cy="90" r="80" gradientUnits="userSpaceOnUse">
+        <radialGradient id={glowId} cx="135" cy="90" r="80" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor={isBreak ? '#3b82f6' : '#4ade80'} stopOpacity={progress > 0.9 ? 0.15 : 0} />
           <stop offset="100%" stopColor="transparent" />
         </radialGradient>
       </defs>
-      <rect x="0" y="0" width="270" height="200" fill="url(#sky)" rx="12" />
-      <rect x="0" y="0" width="270" height="200" fill="url(#glow)" rx="12" />
+      <rect x="0" y="0" width="270" height="200" fill={`url(#${skyId})`} rx="12" />
+      <rect x="0" y="0" width="270" height="200" fill={`url(#${glowId})`} rx="12" />
 
       {/* Ground */}
       <ellipse cx={135} cy={178} rx={120} ry={18} fill="#1c1917" opacity={0.3} />
