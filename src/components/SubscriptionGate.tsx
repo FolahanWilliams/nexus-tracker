@@ -22,7 +22,7 @@ export default function SubscriptionGate({ children }: { children: React.ReactNo
           .single();
 
         const sub = profile?.subscription_status;
-        if (sub === 'active' || sub === 'trialing') {
+        if (sub === 'active' || sub === 'trialing' || sub === 'access') {
           setStatus('active');
         } else {
           setStatus('inactive');
