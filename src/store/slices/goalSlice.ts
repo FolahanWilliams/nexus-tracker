@@ -159,20 +159,21 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
     },
 
     // ── Slight Edge Calendar ──
-    addOrUpdateCalendarEntry: (date, completed, summary, learned) => {
+    addOrUpdateCalendarEntry: (date, completed, summary, learned, productivityScore = 5) => {
         const safeSummary = summary.trim().slice(0, 1000);
         const safeLearned = learned.trim().slice(0, 1000);
+        const safeScore = Math.min(10, Math.max(1, Math.round(productivityScore)));
         const now = new Date().toISOString();
         set((state) => {
             const existing = state.dailyCalendarEntries.find(e => e.date === date);
             if (existing) {
                 return {
                     dailyCalendarEntries: state.dailyCalendarEntries.map(e =>
-                        e.date === date ? { ...e, completed, summary: safeSummary, learned: safeLearned, updatedAt: now } : e
+                        e.date === date ? { ...e, completed, summary: safeSummary, learned: safeLearned, productivityScore: safeScore, updatedAt: now } : e
                     ),
                 };
             }
-            const newEntry: DailyCalendarEntry = { date, completed, summary: safeSummary, learned: safeLearned, createdAt: now, updatedAt: now };
+            const newEntry: DailyCalendarEntry = { date, completed, summary: safeSummary, learned: safeLearned, productivityScore: safeScore, createdAt: now, updatedAt: now };
             if (completed) {
                 get().addXP(3);
                 get().logActivity('reflection', '📅', `Slight Edge day logged: ${date}`, '+3 XP');

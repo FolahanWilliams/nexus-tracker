@@ -237,6 +237,7 @@ export interface DailyCalendarEntry {
     completed: boolean; // Did they show up and do their goals?
     summary: string; // Short summary of what they did
     learned: string; // What they learned today
+    productivityScore: number; // 1-10 self-rated productivity score
     createdAt: string;
     updatedAt: string;
 }
@@ -409,7 +410,7 @@ export interface GoalSlice {
     addReflectionNote: (note: string, stars: number, xpBonus: number) => void;
     addFocusSession: (minutesCompleted: number) => void;
     setFocusTimerRunning: (running: boolean, taskId: string | null) => void;
-    addOrUpdateCalendarEntry: (date: string, completed: boolean, summary: string, learned: string) => void;
+    addOrUpdateCalendarEntry: (date: string, completed: boolean, summary: string, learned: string, productivityScore?: number) => void;
 }
 
 export interface VocabSlice {
