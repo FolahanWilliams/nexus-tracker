@@ -39,6 +39,10 @@ This Week: ${doneThisWeek} quests completed | ${activeTaskCount} active quests`)
     const pageCtx = buildPageContext(state, pathname, today);
     if (pageCtx) sections.push(pageCtx);
 
+    // ── Slight Edge Log ───────────────────────────────────────────
+    const slightEdge = buildSlightEdgeContext(state, today);
+    if (slightEdge) sections.push(slightEdge);
+
     // ── Cross-domain correlations ─────────────────────────────────
     const correlations = buildCorrelations(state, today);
     if (correlations) sections.push(correlations);
@@ -128,6 +132,14 @@ Total: ${state.vocabWords.length} | New: ${byStatus.new} | Learning: ${byStatus.
 Due for review: ${due} | Vocab streak: ${state.vocabStreak} days
 Level: ${state.vocabCurrentLevel}`;
         }
+        case '/goals/calendar': {
+            const calEntries = state.dailyCalendarEntries;
+            const recentCal = calEntries.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7);
+            const calCompleted = calEntries.filter(e => e.completed).length;
+            return `=== PAGE: SLIGHT EDGE LOG ===
+Entries: ${calEntries.length} total, ${calCompleted} completed
+Recent:\n${recentCal.map(e => `  ${e.date}: ${e.productivityScore || 5}/10 ${e.completed ? '✅' : '⬜'} "${e.summary || '—'}"`).join('\n') || '  No entries yet'}`;
+        }
         case '/focus':
             return `=== PAGE: FOCUS ===
 Sessions: ${state.focusSessionsTotal} | Minutes: ${state.focusMinutesTotal}
@@ -155,6 +167,72 @@ Gold: ${state.gold} | Affordable items: ${affordable.map(r => `${r.name} (${r.co
         default:
             return null;
     }
+}
+
+function buildSlightEdgeContext(state: GameState, today: string): string | null {
+    const entries = state.dailyCalendarEntries;
+    if (entries.length === 0) return null;
+
+    // Last 7 days of entries
+    const last7 = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(Date.now() - i * 86400000);
+        const dateStr = d.toISOString().split('T')[0];
+        const entry = entries.find(e => e.date === dateStr);
+        last7.push({ date: dateStr, entry });
+    }
+
+    const recentEntries = last7.filter(d => d.entry);
+    const completedRecent = recentEntries.filter(d => d.entry!.completed);
+    const avgProductivity = recentEntries.length > 0
+        ? recentEntries.reduce((sum, d) => sum + (d.entry!.productivityScore || 5), 0) / recentEntries.length
+        : 0;
+
+    // Streak calculation
+    const completedSet = new Set(entries.filter(e => e.completed).map(e => e.date));
+    let streak = 0;
+    const cursor = new Date(today);
+    while (completedSet.has(cursor.toISOString().split('T')[0])) {
+        streak++;
+        cursor.setDate(cursor.getDate() - 1);
+    }
+
+    // Productivity trend (compare last 3 days vs prior 4 days)
+    const recent3 = last7.slice(0, 3).filter(d => d.entry).map(d => d.entry!.productivityScore || 5);
+    const prior4 = last7.slice(3).filter(d => d.entry).map(d => d.entry!.productivityScore || 5);
+    let trend = 'stable';
+    if (recent3.length > 0 && prior4.length > 0) {
+        const recentAvg = recent3.reduce((a, b) => a + b, 0) / recent3.length;
+        const priorAvg = prior4.reduce((a, b) => a + b, 0) / prior4.length;
+        if (recentAvg > priorAvg + 1) trend = 'improving';
+        else if (recentAvg < priorAvg - 1) trend = 'declining';
+    }
+
+    // Today's entry
+    const todayEntry = entries.find(e => e.date === today);
+
+    const lines: string[] = [
+        `=== SLIGHT EDGE LOG ===`,
+        `Streak: ${streak} days | Logged: ${completedRecent.length}/7 last week`,
+        `Avg productivity (7d): ${avgProductivity.toFixed(1)}/10 | Trend: ${trend}`,
+    ];
+
+    if (todayEntry) {
+        lines.push(`Today (${todayEntry.productivityScore || 5}/10): ${todayEntry.summary || '(no summary)'}`);
+    } else {
+        lines.push(`Today: Not logged yet`);
+    }
+
+    // Recent entries detail (last 7)
+    const entryDetails = last7
+        .filter(d => d.entry)
+        .map(d => `  ${d.date}: ${d.entry!.productivityScore || 5}/10 ${d.entry!.completed ? '✅' : '⬜'} "${d.entry!.summary || '—'}"`)
+        .join('\n');
+    if (entryDetails) {
+        lines.push(`Recent entries:\n${entryDetails}`);
+    }
+
+    return lines.join('\n');
 }
 
 function buildCorrelations(state: GameState, today: string): string | null {
@@ -197,6 +275,17 @@ function buildCorrelations(state: GameState, today: string): string | null {
     const dueVocab = state.vocabWords.filter(w => w.nextReviewDate <= today).length;
     if (dueVocab >= 15) {
         insights.push(`${dueVocab} vocab words overdue for review — memory retention declining`);
+    }
+
+    // Slight Edge productivity trend
+    const recentCalEntries = state.dailyCalendarEntries
+        .filter(e => e.date >= new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0])
+        .sort((a, b) => b.date.localeCompare(a.date));
+    if (recentCalEntries.length >= 3) {
+        const scores = recentCalEntries.map(e => e.productivityScore || 5);
+        const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+        if (avgScore <= 3) insights.push(`Slight Edge productivity avg is low (${avgScore.toFixed(1)}/10) this week — consider lighter goals`);
+        else if (avgScore >= 8) insights.push(`Productivity is high (${avgScore.toFixed(1)}/10) this week — great momentum!`);
     }
 
     if (insights.length === 0) return null;

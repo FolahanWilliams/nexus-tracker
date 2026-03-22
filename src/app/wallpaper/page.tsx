@@ -1,7 +1,7 @@
 'use client';
 
 import { useGameStore, DailyCalendarEntry } from '@/store/useGameStore';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 // ─── Helpers ─────────────────────────────────────────────────────
@@ -33,14 +33,30 @@ function calcStreak(entries: DailyCalendarEntry[], todayStr: string): number {
   return streak;
 }
 
+function isLeapYear(year: number): boolean {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+
+/** Map productivity score (1-10) to an opacity-scaled color for dot intensity */
+function scoreToColor(accent: string, score: number): string {
+  // Score 1-3: dim, 4-6: medium, 7-8: bright, 9-10: full + glow
+  const opacity = 0.3 + (score / 10) * 0.7;
+  // Parse hex to rgb for opacity blending
+  const hex = accent.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return `rgba(${r},${g},${b},${opacity.toFixed(2)})`;
+}
+
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ];
 
-// ─── Component ───────────────────────────────────────────────────
+// ─── Inner component (uses useSearchParams) ─────────────────────
 
-export default function WallpaperPage() {
+function WallpaperContent() {
   const { dailyCalendarEntries } = useGameStore();
   const searchParams = useSearchParams();
   const [hydrated, setHydrated] = useState(false);
@@ -50,7 +66,6 @@ export default function WallpaperPage() {
     const unsub = useGameStore.persist.onFinishHydration(() => {
       setHydrated(true);
     });
-    // Already hydrated (e.g. navigated from within the app)
     if (useGameStore.persist.hasHydrated()) {
       setHydrated(true);
     }
@@ -60,8 +75,9 @@ export default function WallpaperPage() {
   // Parse query params
   const yearParam = searchParams.get('year');
   const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
-  const theme = searchParams.get('theme') ?? 'dark'; // 'dark' | 'light'
-  const accent = searchParams.get('accent') ?? '#4ade80'; // green default
+  const theme = searchParams.get('theme') ?? 'dark';
+  const accent = searchParams.get('accent') ?? '#4ade80';
+  const showScores = searchParams.get('scores') !== 'false'; // show productivity intensity by default
 
   const today = new Date();
   const todayStr = toLocalDateStr(today);
@@ -88,6 +104,14 @@ export default function WallpaperPage() {
   ).length;
   const streak = calcStreak(dailyCalendarEntries, todayStr);
 
+  // Average productivity this year
+  const yearEntries = dailyCalendarEntries.filter(
+    (e) => e.date.startsWith(String(year)) && e.completed
+  );
+  const avgProductivity = yearEntries.length > 0
+    ? yearEntries.reduce((sum, e) => sum + (e.productivityScore || 5), 0) / yearEntries.length
+    : 0;
+
   const dayOfYear = Math.floor(
     (today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / 86400000
   );
@@ -104,7 +128,6 @@ export default function WallpaperPage() {
   const textPrimary = isDark ? '#e5e5e5' : '#1a1a1a';
   const textSecondary = isDark ? '#737373' : '#737373';
   const dotDefault = isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)';
-  const dotCompleted = accent;
   const dotMissed = '#ef4444';
   const dotToday = '#f97316';
 
@@ -146,6 +169,13 @@ export default function WallpaperPage() {
                 <span style={{ color: '#f97316', fontWeight: 700 }}>{streak}🔥</span>
               </>
             )}
+            {avgProductivity > 0 && (
+              <>
+                {' · '}
+                <span style={{ color: accent, fontWeight: 600 }}>{avgProductivity.toFixed(1)}</span>
+                <span style={{ color: textSecondary }}>/10 avg</span>
+              </>
+            )}
           </p>
         )}
       </div>
@@ -175,7 +205,7 @@ export default function WallpaperPage() {
                 {MONTH_NAMES[monthIdx]}
               </p>
 
-              {/* Dot grid: 7 columns (Sun–Sat) */}
+              {/* Dot grid: 7 columns (Sun-Sat) */}
               <div
                 style={{
                   display: 'grid',
@@ -203,14 +233,17 @@ export default function WallpaperPage() {
                   } else if (isFuture) {
                     dotColor = dotDefault;
                   } else if (entry?.completed) {
-                    dotColor = dotCompleted;
+                    // Use productivity-scaled color intensity when scores enabled
+                    dotColor = showScores
+                      ? scoreToColor(accent, entry.productivityScore || 5)
+                      : accent;
                   } else if (entry && !entry.completed) {
                     dotColor = textSecondary;
                   } else if (!isBeforeTracking && !isFuture) {
-                    // Missed day (after tracking started, no entry)
                     dotColor = dotMissed;
                   }
-                  // else: untracked (before tracking started) — stays default dim
+
+                  const score = entry?.productivityScore || 0;
 
                   return (
                     <div
@@ -222,9 +255,11 @@ export default function WallpaperPage() {
                         backgroundColor: dotColor,
                         boxShadow: isToday
                           ? `0 0 6px ${dotToday}`
-                          : entry?.completed
-                            ? `0 0 3px ${accent}40`
-                            : 'none',
+                          : (entry?.completed && score >= 9)
+                            ? `0 0 4px ${accent}`
+                            : entry?.completed
+                              ? `0 0 2px ${accent}30`
+                              : 'none',
                         transition: 'background-color 0.2s',
                       }}
                     />
@@ -243,7 +278,7 @@ export default function WallpaperPage() {
         fontSize: 12,
         color: textSecondary,
       }}>
-        <span style={{ color: dotCompleted, fontWeight: 700 }}>{completedCount}</span> days showed up
+        <span style={{ color: accent, fontWeight: 700 }}>{completedCount}</span> days showed up
         {streak > 0 && (
           <>
             {' · '}
@@ -255,6 +290,12 @@ export default function WallpaperPage() {
   );
 }
 
-function isLeapYear(year: number): boolean {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+// ─── Page wrapper with Suspense ──────────────────────────────────
+
+export default function WallpaperPage() {
+  return (
+    <Suspense fallback={<div style={{ background: '#000', minHeight: '100vh' }} />}>
+      <WallpaperContent />
+    </Suspense>
+  );
 }

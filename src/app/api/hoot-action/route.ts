@@ -306,6 +306,31 @@ const hootFunctions = [
             required: ['topic'],
         },
     },
+    {
+        name: 'get_slight_edge_analytics',
+        description: 'Analyze the user\'s Slight Edge daily log data. Use when the user asks about their productivity trends, how today compares to the week, daily log patterns, consistency, or streak analysis. The player\'s Slight Edge data is already in the PLAYER STATE context — use it to provide insights, trend analysis, and actionable advice.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                period: { type: SchemaType.STRING, description: 'Analysis period: "week" (default 7 days), "month" (30 days), or "today" (compare today vs recent)' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'log_slight_edge_day',
+        description: 'Log a Slight Edge calendar entry for the user. Use when the user tells Hoot about their day, what they did, or asks to log their daily entry.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                summary: { type: SchemaType.STRING, description: 'What the user did today' },
+                learned: { type: SchemaType.STRING, description: 'What the user learned today (optional)' },
+                productivityScore: { type: SchemaType.NUMBER, description: 'Self-rated productivity score from 1-10' },
+                completed: { type: SchemaType.BOOLEAN, description: 'Whether they showed up and did their goals (default true)' },
+            },
+            required: ['summary', 'productivityScore'],
+        },
+    },
 ];
 
 // ── Page context descriptions ────────────────────────────────────────────
@@ -328,6 +353,8 @@ const PAGE_CONTEXT: Record<string, string> = {
     '/timeline': 'Timeline — upcoming events and deadlines',
     '/settings': 'Settings — app preferences and data management',
     '/wordforge': 'WordForge — AI-powered vocabulary builder with spaced repetition',
+    '/goals/calendar': 'Slight Edge Log — daily productivity tracking with 1-10 scores, streaks, and compound growth visualization',
+    '/wallpaper': 'Wallpaper — year-view dot calendar for iPhone wallpaper automation',
 };
 
 export async function POST(request: Request) {
@@ -378,6 +405,7 @@ YOUR CAPABILITIES:
 5. **Memory**: You can save important notes about the user for future reference using save_memory_note. Remember their preferences, learning style, and struggles.
 6. **Planning**: When the user has a multi-step plan active, guide them through each step and celebrate progress.
 7. **Cross-Domain**: Connect insights across quests, habits, vocab, goals, and boss battles. For example, if vocab mastery increases boss damage, mention this synergy.
+8. **Slight Edge Analytics**: You can analyze the user's daily productivity log (Slight Edge Log) which tracks a 1-10 productivity score, summaries, and what they learned each day. When the user asks about their productivity trends, how today compares, or wants to log their day, use the Slight Edge data from the PLAYER STATE context and the get_slight_edge_analytics or log_slight_edge_day actions.
 
 RULES:
 - Be encouraging, slightly sassy, and fun — you're an owl mascot!

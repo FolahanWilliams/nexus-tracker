@@ -23,6 +23,8 @@ export default function DailyIntention() {
     todayIntention,
     setDailyIntention,
     addReflectionNote,
+    addOrUpdateCalendarEntry,
+    dailyCalendarEntries,
     tasks,
   } = useGameStore();
   const { addToast } = useToastStore();
@@ -65,6 +67,15 @@ export default function DailyIntention() {
     const completedToday = tasks.filter(t => t.completed && t.completedAt?.startsWith(today2)).length;
     const xpBonus = stars * 10 + (completedToday * 5);
     addReflectionNote(reflectionNote, stars, xpBonus);
+
+    // Auto-create Slight Edge calendar entry if not already logged today
+    const alreadyLogged = dailyCalendarEntries.some(e => e.date === today2);
+    if (!alreadyLogged) {
+      // Map 1-5 stars to 1-10 productivity scale (star*2)
+      const productivityScore = Math.min(10, stars * 2);
+      addOrUpdateCalendarEntry(today2, true, reflectionNote || todayIntention || '', '', productivityScore);
+    }
+
     if (xpBonus > 0) triggerXPFloat(`+${xpBonus} XP`, '#4ade80');
     addToast(`Reflection complete! +${xpBonus} XP bonus. See you tomorrow! 🌙`, 'success');
     setShowEvening(false);

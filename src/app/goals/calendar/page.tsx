@@ -110,6 +110,7 @@ export default function SlightEdgeCalendarPage() {
   const [formCompleted, setFormCompleted] = useState(false);
   const [formSummary, setFormSummary] = useState('');
   const [formLearned, setFormLearned] = useState('');
+  const [formProductivity, setFormProductivity] = useState(5);
 
   // Quote of the day (deterministic by day-of-year)
   const quoteIndex = today.getDate() % SLIGHT_EDGE_QUOTES.length;
@@ -166,12 +167,13 @@ export default function SlightEdgeCalendarPage() {
     setFormCompleted(existing?.completed ?? false);
     setFormSummary(existing?.summary ?? '');
     setFormLearned(existing?.learned ?? '');
+    setFormProductivity(existing?.productivityScore ?? 5);
     setSelectedDate(dateStr);
   }
 
   function saveEntry() {
     if (!selectedDate) return;
-    addOrUpdateCalendarEntry(selectedDate, formCompleted, formSummary, formLearned);
+    addOrUpdateCalendarEntry(selectedDate, formCompleted, formSummary, formLearned, formProductivity);
     if (formCompleted) {
       addToast('Day logged! Keep showing up. 🌱', 'success');
     } else {
@@ -509,6 +511,34 @@ export default function SlightEdgeCalendarPage() {
                       🌱 Another +0.3% compounding. You&apos;re building your future self.
                     </motion.p>
                   )}
+                </div>
+
+                {/* Productivity Score */}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-muted)] mb-2">Productivity Score</p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={formProductivity}
+                      onChange={e => setFormProductivity(Number(e.target.value))}
+                      className="flex-1 accent-[var(--color-purple)] h-2"
+                    />
+                    <span className="text-2xl font-bold tabular-nums w-8 text-center" style={{
+                      color: formProductivity <= 3 ? 'var(--color-red, #ef4444)'
+                        : formProductivity <= 5 ? 'var(--color-orange)'
+                        : formProductivity <= 7 ? 'var(--color-yellow, #eab308)'
+                        : 'var(--color-green)',
+                    }}>
+                      {formProductivity}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-[var(--color-text-muted)] mt-1 px-0.5">
+                    <span>Low</span>
+                    <span>Average</span>
+                    <span>Peak</span>
+                  </div>
                 </div>
 
                 {/* Summary */}

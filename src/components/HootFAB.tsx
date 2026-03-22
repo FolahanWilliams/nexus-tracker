@@ -745,6 +745,30 @@ export default function HootFAB() {
                         results.push(`🧠 Coaching insight provided via Google Search grounding`);
                         break;
                     }
+                    case 'get_slight_edge_analytics': {
+                        // Analytics are derived from context already in the narrative.
+                        // Hoot uses the SLIGHT EDGE LOG section to answer.
+                        const entries = state.dailyCalendarEntries;
+                        const last7 = entries
+                            .filter(e => e.date >= new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0])
+                            .sort((a, b) => b.date.localeCompare(a.date));
+                        const scores = last7.map(e => e.productivityScore || 5);
+                        const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+                        const logged = last7.filter(e => e.completed).length;
+                        results.push(`📊 Slight Edge (7d): ${logged} days logged, avg productivity ${avg.toFixed(1)}/10. Entries: ${last7.map(e => `${e.date}=${e.productivityScore || 5}/10`).join(', ') || 'none'}`);
+                        break;
+                    }
+                    case 'log_slight_edge_day': {
+                        const today3 = new Date().toISOString().split('T')[0];
+                        const summary = (params.summary as string) || '';
+                        const learned = (params.learned as string) || '';
+                        const score = (params.productivityScore as number) || 5;
+                        const completed = params.completed !== false;
+                        state.addOrUpdateCalendarEntry(today3, completed, summary, learned, score);
+                        results.push(`✅ Slight Edge day logged: ${score}/10, "${summary}"`);
+                        addToast(`🦉 Day logged in Slight Edge!`, 'success');
+                        break;
+                    }
                     default:
                         results.push(`⚠️ Unknown action: ${action}`);
                 }
