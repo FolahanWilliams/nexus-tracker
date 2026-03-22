@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, Circle, TrendingUp,
-  BookOpen, Lightbulb, X, Save, CalendarDays, Flame,
+  BookOpen, Lightbulb, X, Save, CalendarDays, Flame, Trophy, Target,
 } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';
 
@@ -58,6 +58,30 @@ function calcStreak(entries: DailyCalendarEntry[], todayStr: string): number {
   return streak;
 }
 
+function calcBestStreak(entries: DailyCalendarEntry[]): number {
+  const completedDates = entries.filter(e => e.completed).map(e => e.date).sort();
+  if (completedDates.length === 0) return 0;
+  let best = 1;
+  let current = 1;
+  for (let i = 1; i < completedDates.length; i++) {
+    const prev = parseDateStrLocal(completedDates[i - 1]);
+    const curr = parseDateStrLocal(completedDates[i]);
+    const diffMs = curr.getTime() - prev.getTime();
+    if (diffMs === 86400000) { // exactly 1 day apart
+      current++;
+      if (current > best) best = current;
+    } else {
+      current = 1;
+    }
+  }
+  return best;
+}
+
+function getTrackingStartDate(entries: DailyCalendarEntry[]): string | null {
+  if (entries.length === 0) return null;
+  return entries.reduce((earliest, e) => e.date < earliest ? e.date : earliest, entries[0].date);
+}
+
 function calcCompoundGrowth(completedCount: number): number {
   // 1.003^n — represents 0.3% daily improvement
   return Math.pow(1.003, completedCount);
@@ -100,8 +124,24 @@ export default function SlightEdgeCalendarPage() {
 
   const completedCount = dailyCalendarEntries.filter(e => e.completed).length;
   const streak = calcStreak(dailyCalendarEntries, todayStr);
+  const bestStreak = calcBestStreak(dailyCalendarEntries);
+  const trackingStartDate = getTrackingStartDate(dailyCalendarEntries);
   const compoundMultiplier = calcCompoundGrowth(completedCount);
   const percentGrowth = ((compoundMultiplier - 1) * 100).toFixed(1);
+  const todayLogged = !!entryMap[todayStr];
+
+  // Monthly completion rate for viewed month
+  const monthCompletionStats = useMemo(() => {
+    const daysInViewMonth = getDaysInMonth(viewYear, viewMonth);
+    const isCurrentMonth = viewYear === today.getFullYear() && viewMonth === today.getMonth();
+    const totalDays = isCurrentMonth ? today.getDate() : daysInViewMonth;
+    let completed = 0;
+    for (let d = 1; d <= totalDays; d++) {
+      const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      if (entryMap[dateStr]?.completed) completed++;
+    }
+    return { completed, totalDays };
+  }, [viewYear, viewMonth, entryMap, today]);
 
   // Calendar grid
   const daysInMonth = getDaysInMonth(viewYear, viewMonth);
@@ -139,7 +179,7 @@ export default function SlightEdgeCalendarPage() {
     setSelectedDate(null);
   }
 
-  function getDayStatus(dateStr: string): 'completed' | 'missed' | 'logged' | 'future' | 'today' {
+  function getDayStatus(dateStr: string): 'completed' | 'missed' | 'logged' | 'future' | 'today' | 'untracked' {
     if (dateStr > todayStr) return 'future';
     if (dateStr === todayStr) {
       const e = entryMap[dateStr];
@@ -147,7 +187,11 @@ export default function SlightEdgeCalendarPage() {
       return e.completed ? 'completed' : 'logged';
     }
     const e = entryMap[dateStr];
-    if (!e) return 'missed';
+    if (!e) {
+      // Days before the user started tracking are neutral, not missed
+      if (!trackingStartDate || dateStr < trackingStartDate) return 'untracked';
+      return 'missed';
+    }
     return e.completed ? 'completed' : 'logged';
   }
 
@@ -157,6 +201,7 @@ export default function SlightEdgeCalendarPage() {
     logged:    'bg-[var(--color-blue)]/20 text-[var(--color-blue)] border-[var(--color-blue)]/40',
     future:    'bg-transparent text-[var(--color-text-muted)] border-[var(--color-border)]/30',
     today:     'bg-[var(--color-orange)]/20 text-[var(--color-orange)] border-[var(--color-orange)] ring-1 ring-[var(--color-orange)]/50',
+    untracked: 'bg-transparent text-[var(--color-text-muted)]/50 border-[var(--color-border)]/20',
   };
 
   return (
@@ -200,19 +245,56 @@ export default function SlightEdgeCalendarPage() {
           </div>
         </motion.div>
 
+        {/* Log Today CTA */}
+        {!todayLogged && (
+          <motion.button
+            onClick={() => openDay(todayStr)}
+            className="w-full rpg-card border-2 border-[var(--color-orange)]/50 bg-[var(--color-orange)]/10 hover:bg-[var(--color-orange)]/20 transition-colors cursor-pointer"
+            initial={{ y: 10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.08 }}
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">📝</span>
+                <div className="text-left">
+                  <p className="text-sm font-bold text-[var(--color-orange)]">Log Today</p>
+                  <p className="text-xs text-[var(--color-text-muted)]">You haven&apos;t logged today yet — tap to record your progress</p>
+                </div>
+              </div>
+              <ChevronRight size={20} className="text-[var(--color-orange)] flex-shrink-0" />
+            </div>
+          </motion.button>
+        )}
+
         {/* Stats row */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           <motion.div className="rpg-card text-center !p-3" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}>
             <p className="text-xl font-bold text-[var(--color-green)]">{completedCount}</p>
             <p className="text-xs text-[var(--color-text-muted)]">Days Showed Up</p>
           </motion.div>
           <motion.div className="rpg-card text-center !p-3" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15 }}>
-            <p className="text-xl font-bold text-[var(--color-orange)]">{streak}</p>
+            <div className="flex items-center justify-center gap-1">
+              <Flame size={14} className="text-[var(--color-orange)]" />
+              <p className="text-xl font-bold text-[var(--color-orange)]">{streak}</p>
+            </div>
             <p className="text-xs text-[var(--color-text-muted)]">Current Streak</p>
           </motion.div>
+          <motion.div className="rpg-card text-center !p-3" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.18 }}>
+            <div className="flex items-center justify-center gap-1">
+              <Trophy size={14} className="text-[var(--color-yellow,#eab308)]" />
+              <p className="text-xl font-bold text-[var(--color-yellow,#eab308)]">{bestStreak}</p>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)]">Best Streak</p>
+          </motion.div>
           <motion.div className="rpg-card text-center !p-3" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
-            <p className="text-xl font-bold text-[var(--color-purple)]">+{percentGrowth}%</p>
-            <p className="text-xs text-[var(--color-text-muted)]">Compound Growth</p>
+            <div className="flex items-center justify-center gap-1">
+              <Target size={14} className="text-[var(--color-purple)]" />
+              <p className="text-xl font-bold text-[var(--color-purple)]">{monthCompletionStats.completed}/{monthCompletionStats.totalDays}</p>
+            </div>
+            <p className="text-xs text-[var(--color-text-muted)]">This Month</p>
           </motion.div>
         </div>
 
@@ -279,17 +361,17 @@ export default function SlightEdgeCalendarPage() {
               if (!day) return <div key={`empty-${idx}`} />;
               const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
               const status = getDayStatus(dateStr);
-              const isFuture = status === 'future';
+              const isDisabled = status === 'future' || status === 'untracked';
               const entry = entryMap[dateStr];
 
               return (
                 <motion.button
                   key={dateStr}
-                  onClick={() => !isFuture && openDay(dateStr)}
-                  disabled={isFuture}
-                  whileHover={!isFuture ? { scale: 1.08 } : {}}
-                  whileTap={!isFuture ? { scale: 0.95 } : {}}
-                  className={`aspect-square flex flex-col items-center justify-center rounded-lg border text-xs font-semibold transition-all ${statusStyles[status]} ${isFuture ? 'cursor-default' : 'cursor-pointer'}`}
+                  onClick={() => !isDisabled && openDay(dateStr)}
+                  disabled={isDisabled}
+                  whileHover={!isDisabled ? { scale: 1.08 } : {}}
+                  whileTap={!isDisabled ? { scale: 0.95 } : {}}
+                  className={`aspect-square flex flex-col items-center justify-center rounded-lg border text-xs font-semibold transition-all ${statusStyles[status]} ${isDisabled ? 'cursor-default' : 'cursor-pointer'}`}
                   title={entry ? (entry.summary || (entry.completed ? 'Completed' : 'Logged')) : dateStr}
                 >
                   <span>{day}</span>
@@ -306,6 +388,7 @@ export default function SlightEdgeCalendarPage() {
               { color: 'bg-[var(--color-orange)]/20 border border-[var(--color-orange)]', label: 'Today' },
               { color: 'bg-[var(--color-blue)]/20 border border-[var(--color-blue)]/40', label: 'Logged (no ✓)' },
               { color: 'bg-red-900/30 border border-red-800/50', label: 'Missed' },
+              { color: 'bg-transparent border border-[var(--color-border)]/20', label: 'Not tracked' },
             ].map(item => (
               <div key={item.label} className="flex items-center gap-1.5">
                 <div className={`w-3 h-3 rounded ${item.color}`} />
