@@ -195,7 +195,7 @@ export default function SlightEdgeCalendarPage() {
             <span className="text-2xl mt-0.5">🌱</span>
             <div>
               <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-green)] mb-1">The Slight Edge</p>
-              <p className="text-sm text-[var(--color-text-secondary)] italic leading-relaxed">"{quote}"</p>
+              <p className="text-sm text-[var(--color-text-secondary)] italic leading-relaxed">&ldquo;{quote}&rdquo;</p>
             </div>
           </div>
         </motion.div>
@@ -422,7 +422,7 @@ export default function SlightEdgeCalendarPage() {
                       animate={{ opacity: 1, height: 'auto' }}
                       className="text-xs text-[var(--color-green)] mt-2 text-center font-medium"
                     >
-                      🌱 Another +0.3% compounding. You're building your future self.
+                      🌱 Another +0.3% compounding. You&apos;re building your future self.
                     </motion.p>
                   )}
                 </div>
@@ -460,7 +460,7 @@ export default function SlightEdgeCalendarPage() {
                 {/* Slight Edge reminder */}
                 <div className="p-3 rounded-xl bg-[var(--color-bg-dark)] border border-[var(--color-border)]">
                   <p className="text-xs text-[var(--color-text-muted)] italic leading-relaxed">
-                    💡 <strong className="text-[var(--color-text-secondary)]">Remember:</strong> The slight edge isn't about giant leaps. It's about small, consistent actions done repeatedly. Even a "bad" day where you reflect is better than silence.
+                    💡 <strong className="text-[var(--color-text-secondary)]">Remember:</strong> The slight edge isn&apos;t about giant leaps. It&apos;s about small, consistent actions done repeatedly. Even a &ldquo;bad&rdquo; day where you reflect is better than silence.
                   </p>
                 </div>
               </div>
