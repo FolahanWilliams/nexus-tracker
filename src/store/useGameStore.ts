@@ -48,6 +48,7 @@ export type {
     HootMemory,
     HootMemoryNote,
     HootConversationSummary,
+    DailyCalendarEntry,
 } from './types';
 
 // Re-export constants that were previously exported from this file

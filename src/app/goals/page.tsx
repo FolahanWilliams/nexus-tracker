@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, Plus, Trash2, CheckCircle, Circle, Flag,
-  ChevronDown, ChevronUp, Trophy
+  ChevronDown, ChevronUp, Trophy, CalendarDays
 } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
@@ -106,15 +106,24 @@ export default function GoalsPage() {
               Goals
             </h1>
           </div>
-          <motion.button
-            onClick={() => setShowAdd(v => !v)}
-            className="rpg-button !py-2 !px-4 !bg-[var(--color-orange)] !text-white text-sm flex items-center gap-1"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Plus size={16} />
-            New Goal
-          </motion.button>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/goals/calendar"
+              className="rpg-button !py-2 !px-3 !bg-[var(--color-green)]/20 !text-[var(--color-green)] border border-[var(--color-green)]/40 text-sm flex items-center gap-1 hover:!bg-[var(--color-green)]/30 transition-colors"
+            >
+              <CalendarDays size={16} />
+              <span className="hidden sm:inline">Daily Log</span>
+            </Link>
+            <motion.button
+              onClick={() => setShowAdd(v => !v)}
+              className="rpg-button !py-2 !px-4 !bg-[var(--color-orange)] !text-white text-sm flex items-center gap-1"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Plus size={16} />
+              New Goal
+            </motion.button>
+          </div>
         </div>
       </div>
 

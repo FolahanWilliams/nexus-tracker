@@ -23,6 +23,7 @@ import {
   LogOut,
   HelpCircle,
   Brain,
+  CalendarDays,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -44,6 +45,7 @@ const navGroups = [
       { href: '/habits', label: 'Habits', icon: Repeat2 },
       { href: '/focus', label: 'Focus Timer', icon: Timer },
       { href: '/goals', label: 'Goals', icon: Flag },
+      { href: '/goals/calendar', label: 'Slight Edge Log', icon: CalendarDays },
       { href: '/reflection', label: 'Check-In', icon: BookOpen },
       { href: '/wordforge', label: 'WordForge', icon: Library },
       { href: '/mindforge', label: 'MindForge', icon: Brain },

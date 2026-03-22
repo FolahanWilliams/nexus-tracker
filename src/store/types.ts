@@ -232,6 +232,15 @@ export interface GoalMilestone {
     completedAt?: string;
 }
 
+export interface DailyCalendarEntry {
+    date: string; // YYYY-MM-DD
+    completed: boolean; // Did they show up and do their goals?
+    summary: string; // Short summary of what they did
+    learned: string; // What they learned today
+    createdAt: string;
+    updatedAt: string;
+}
+
 export interface ActivityEntry {
     id: string;
     type: ActivityType;
@@ -385,6 +394,7 @@ export interface GoalSlice {
     focusMinutesTotal: number;
     isFocusTimerRunning: boolean;
     activeFocusTaskId: string | null;
+    dailyCalendarEntries: DailyCalendarEntry[];
 
     addGoal: (title: string, description: string, category: TaskCategory, timeframe: GoalTimeframe, targetDate: string, milestones: string[], xpReward: number) => void;
     completeGoalMilestone: (goalId: string, milestoneId: string) => void;
@@ -399,6 +409,7 @@ export interface GoalSlice {
     addReflectionNote: (note: string, stars: number, xpBonus: number) => void;
     addFocusSession: (minutesCompleted: number) => void;
     setFocusTimerRunning: (running: boolean, taskId: string | null) => void;
+    addOrUpdateCalendarEntry: (date: string, completed: boolean, summary: string, learned: string) => void;
 }
 
 export interface VocabSlice {

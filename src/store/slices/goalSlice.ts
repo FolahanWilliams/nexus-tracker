@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { GameState, GoalSlice, Goal, TimelineEvent } from '../types';
+import type { GameState, GoalSlice, Goal, TimelineEvent, DailyCalendarEntry } from '../types';
 import { validateGoalTitle, validateGoalDescription, validateTimelineEventName, validateTimelineSubject, ValidationError } from '@/lib/validation';
 import { logger } from '@/lib/logger';
 
@@ -16,6 +16,7 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
     focusMinutesTotal: 0,
     isFocusTimerRunning: false,
     activeFocusTaskId: null,
+    dailyCalendarEntries: [] as DailyCalendarEntry[],
 
     // ── Goal Actions ──
     addGoal: (title, description, category, timeframe, targetDate, milestones, xpReward) => {
@@ -155,5 +156,28 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
 
     setFocusTimerRunning: (running, taskId = null) => {
         set({ isFocusTimerRunning: running, activeFocusTaskId: taskId });
+    },
+
+    // ── Slight Edge Calendar ──
+    addOrUpdateCalendarEntry: (date, completed, summary, learned) => {
+        const safeSummary = summary.trim().slice(0, 1000);
+        const safeLearned = learned.trim().slice(0, 1000);
+        const now = new Date().toISOString();
+        set((state) => {
+            const existing = state.dailyCalendarEntries.find(e => e.date === date);
+            if (existing) {
+                return {
+                    dailyCalendarEntries: state.dailyCalendarEntries.map(e =>
+                        e.date === date ? { ...e, completed, summary: safeSummary, learned: safeLearned, updatedAt: now } : e
+                    ),
+                };
+            }
+            const newEntry: DailyCalendarEntry = { date, completed, summary: safeSummary, learned: safeLearned, createdAt: now, updatedAt: now };
+            if (completed) {
+                get().addXP(3);
+                get().logActivity('reflection', '📅', `Slight Edge day logged: ${date}`, '+3 XP');
+            }
+            return { dailyCalendarEntries: [...state.dailyCalendarEntries, newEntry] };
+        });
     },
 });
