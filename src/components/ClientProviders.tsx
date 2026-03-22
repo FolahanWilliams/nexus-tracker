@@ -17,7 +17,7 @@ import HootFAB from '@/components/HootFAB';
 import SubscriptionGate from '@/components/SubscriptionGate';
 import PageTransition from '@/components/PageTransition';
 
-const PUBLIC_ROUTES = ['/', '/pricing', '/login'];
+const PUBLIC_ROUTES = ['/', '/pricing', '/login', '/wallpaper'];
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
