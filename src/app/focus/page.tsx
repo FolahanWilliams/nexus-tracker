@@ -1,12 +1,13 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Play, Pause, RotateCcw, Coffee, Zap, Target, CheckCircle } from 'lucide-react';
+import { ChevronLeft, Play, Pause, RotateCcw, Coffee, Zap, Target, CheckCircle, TreePine } from 'lucide-react';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { useToastStore } from '@/components/ToastContainer';
+import GrowingTree from '@/components/GrowingTree';
 
 type TimerMode = 'focus' | 'short-break' | 'long-break';
 
@@ -19,6 +20,15 @@ const MODES: Record<TimerMode, { label: string; duration: number; color: string;
 const XP_PER_FOCUS_SESSION = 30;
 const GOLD_PER_FOCUS_SESSION = 10;
 const SESSIONS_BEFORE_LONG_BREAK = 4;
+
+const GROWTH_MILESTONES = [
+  { threshold: 0, message: 'Plant the seed of focus...' },
+  { threshold: 0.1, message: 'A sprout emerges!' },
+  { threshold: 0.25, message: 'Your focus is taking root.' },
+  { threshold: 0.5, message: 'Growing strong — keep it up!' },
+  { threshold: 0.75, message: 'Almost in full bloom!' },
+  { threshold: 0.95, message: 'Your tree is flourishing!' },
+];
 
 function pad(n: number) {
   return String(n).padStart(2, '0');
@@ -119,6 +129,14 @@ export default function FocusPage() {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progress);
 
+  const milestoneMessage = useMemo(() => {
+    let msg = GROWTH_MILESTONES[0].message;
+    for (const m of GROWTH_MILESTONES) {
+      if (progress >= m.threshold) msg = m.message;
+    }
+    return msg;
+  }, [progress]);
+
   const linkedTask = incompleteTasks.find(t => t.id === linkedTaskId);
 
   return (
@@ -155,23 +173,35 @@ export default function FocusPage() {
           ))}
         </div>
 
-        {/* Timer Circle */}
+        {/* Timer Circle + Growing Tree */}
         <div className="flex flex-col items-center">
           <div className="relative">
-            <svg width="220" height="220" className="-rotate-90">
+            {/* Tree visualization layer — sits behind the ring */}
+            <svg width="220" height="220" viewBox="0 0 220 220" className="absolute inset-0">
+              <GrowingTree
+                progress={progress}
+                running={running}
+                color={currentMode.color}
+                mode={mode}
+              />
+            </svg>
+
+            {/* Progress ring overlay */}
+            <svg width="220" height="220" className="-rotate-90 relative z-10">
               {/* Background ring */}
               <circle
                 cx="110" cy="110" r={radius}
                 fill="none"
                 stroke="var(--color-border)"
-                strokeWidth="8"
+                strokeWidth="6"
+                opacity={0.3}
               />
               {/* Progress ring */}
               <motion.circle
                 cx="110" cy="110" r={radius}
                 fill="none"
                 stroke={currentMode.color}
-                strokeWidth="8"
+                strokeWidth="6"
                 strokeLinecap="round"
                 strokeDasharray={circumference}
                 strokeDashoffset={strokeDashoffset}
@@ -179,29 +209,47 @@ export default function FocusPage() {
               />
             </svg>
 
-            {/* Time display */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {/* Time display — floats on top */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
               <motion.p
-                className="text-5xl font-bold font-mono tabular-nums"
+                className="text-5xl font-bold font-mono tabular-nums drop-shadow-[0_1px_4px_rgba(0,0,0,0.6)]"
                 key={`${minutes}:${seconds}`}
               >
                 {pad(minutes)}:{pad(seconds)}
               </motion.p>
-              <p className="text-sm text-[var(--color-text-muted)] mt-1" style={{ color: currentMode.color }}>
+              <p className="text-xs text-[var(--color-text-muted)] mt-1 drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]" style={{ color: currentMode.color }}>
                 {currentMode.label}
               </p>
             </div>
           </div>
 
+          {/* Growth milestone message */}
+          {mode === 'focus' && (
+            <motion.div
+              className="flex items-center gap-2 mt-3 px-3 py-1.5 rounded-full bg-[var(--color-bg-card)] border border-[var(--color-border)]"
+              key={milestoneMessage}
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+            >
+              <TreePine size={14} className="text-[var(--color-green)]" />
+              <p className="text-xs text-[var(--color-text-secondary)] font-medium">{milestoneMessage}</p>
+            </motion.div>
+          )}
+
           {/* Session dots */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-3">
             {Array.from({ length: SESSIONS_BEFORE_LONG_BREAK }).map((_, i) => (
-              <div
+              <motion.div
                 key={i}
                 className={`w-3 h-3 rounded-full transition-all ${i < (sessionsThisSession % SESSIONS_BEFORE_LONG_BREAK)
                   ? 'bg-[var(--color-purple)]'
                   : 'bg-[var(--color-border)]'
                   }`}
+                animate={i < (sessionsThisSession % SESSIONS_BEFORE_LONG_BREAK) ? {
+                  scale: [1, 1.2, 1],
+                } : {}}
+                transition={{ duration: 0.3 }}
               />
             ))}
           </div>
