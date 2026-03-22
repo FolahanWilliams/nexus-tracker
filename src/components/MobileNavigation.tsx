@@ -20,6 +20,7 @@ import {
   BookOpen,
   Library,
   HelpCircle,
+  CalendarDays,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -32,6 +33,7 @@ const mainNavItems = [
 
 const secondaryNavItems = [
   { href: '/goals', label: 'Goals', icon: Flag },
+  { href: '/goals/calendar', label: 'Edge Log', icon: CalendarDays },
   { href: '/wordforge', label: 'WordForge', icon: Library },
   { href: '/chains', label: 'Chains', icon: Map },
   { href: '/bosses', label: 'Boss', icon: Sword },

@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { Shield, Sparkles, Check, ChevronLeft, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Shield, Sparkles, Check, ChevronLeft, Loader2, KeyRound } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 
@@ -13,6 +13,11 @@ function PricingContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(false);
   const checkoutTriggered = useRef(false);
+  const [showCodeField, setShowCodeField] = useState(false);
+  const [accessCode, setAccessCode] = useState('');
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeError, setCodeError] = useState('');
+  const [codeSuccess, setCodeSuccess] = useState(false);
 
   const features = [
     'Unlimited Quests & Habits',
@@ -75,6 +80,31 @@ function PricingContent() {
       return;
     }
     triggerCheckout();
+  };
+
+  const handleRedeemCode = async () => {
+    if (!user) { signIn('/pricing'); return; }
+    if (!accessCode.trim()) return;
+    setCodeLoading(true);
+    setCodeError('');
+    try {
+      const res = await fetch('/api/redeem-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: accessCode.trim(), userId: user.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCodeSuccess(true);
+        setTimeout(() => router.replace('/'), 1500);
+      } else {
+        setCodeError(data.error || 'Invalid code. Please try again.');
+      }
+    } catch {
+      setCodeError('Something went wrong. Please try again.');
+    } finally {
+      setCodeLoading(false);
+    }
   };
 
   return (
@@ -155,6 +185,60 @@ function PricingContent() {
           </p>
         </div>
       </motion.div>
+
+      {/* Access code — subtle, not advertised */}
+      <div className="mt-8 text-center">
+        <button
+          onClick={() => { setShowCodeField(v => !v); setCodeError(''); setCodeSuccess(false); }}
+          className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors underline-offset-2 hover:underline flex items-center gap-1.5 mx-auto"
+        >
+          <KeyRound size={12} />
+          Have an access code?
+        </button>
+
+        <AnimatePresence>
+          {showCodeField && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden mt-3"
+            >
+              {codeSuccess ? (
+                <motion.p
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-sm font-bold text-[var(--color-green)]"
+                >
+                  ✓ Access granted! Taking you in...
+                </motion.p>
+              ) : (
+                <div className="flex gap-2 max-w-sm mx-auto">
+                  <input
+                    type="password"
+                    value={accessCode}
+                    onChange={e => { setAccessCode(e.target.value); setCodeError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleRedeemCode()}
+                    placeholder="Enter access code"
+                    className="flex-1 px-3 py-2 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border)] text-sm text-white placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-purple)]/60"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleRedeemCode}
+                    disabled={codeLoading || !accessCode.trim()}
+                    className="px-4 py-2 rounded-lg bg-[var(--color-purple)]/20 border border-[var(--color-purple)]/40 text-[var(--color-purple-light)] text-sm font-semibold hover:bg-[var(--color-purple)]/30 transition-colors disabled:opacity-50"
+                  >
+                    {codeLoading ? <Loader2 size={14} className="animate-spin" /> : 'Apply'}
+                  </button>
+                </div>
+              )}
+              {codeError && (
+                <p className="text-xs text-red-400 mt-2">{codeError}</p>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
