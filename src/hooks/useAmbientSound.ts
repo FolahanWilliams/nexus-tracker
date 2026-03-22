@@ -104,6 +104,21 @@ export const useAmbientSound = () => {
         }
     }, [settings.musicEnabled, settings.musicVolume, isMusicDucked]);
 
+    // Cleanup on unmount — stop all oscillators and close AudioContext
+    useEffect(() => {
+        return () => {
+            sourceNodesRef.current.forEach(osc => {
+                try { osc.stop(); } catch { /* already stopped */ }
+            });
+            sourceNodesRef.current = [];
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+                audioContextRef.current = null;
+            }
+            gainNodeRef.current = null;
+        };
+    }, []);
+
     return null;
 };
 
