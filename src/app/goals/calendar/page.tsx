@@ -41,10 +41,16 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay(); // 0 = Sunday
 }
 
+function parseDateStrLocal(dateStr: string): Date {
+  // Parse YYYY-MM-DD as local midnight — avoids UTC-offset shifting the date
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 function calcStreak(entries: DailyCalendarEntry[], todayStr: string): number {
   const completedSet = new Set(entries.filter(e => e.completed).map(e => e.date));
   let streak = 0;
-  const cursor = new Date(todayStr);
+  const cursor = parseDateStrLocal(todayStr);
   while (completedSet.has(toLocalDateStr(cursor))) {
     streak++;
     cursor.setDate(cursor.getDate() - 1);
@@ -466,7 +472,7 @@ export default function SlightEdgeCalendarPage() {
                 </button>
                 <motion.button
                   onClick={saveEntry}
-                  disabled={!formSummary.trim() && !formLearned.trim()}
+                  disabled={!formCompleted && !formSummary.trim() && !formLearned.trim()}
                   className="flex-1 rpg-button !bg-[var(--color-green)] !text-white text-sm py-2.5 flex items-center justify-center gap-2 disabled:opacity-40"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}

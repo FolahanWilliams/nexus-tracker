@@ -31,11 +31,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Grant access by setting subscription_status = 'access' in the profile.
-  // This value is explicitly allowed in SubscriptionGate alongside 'active' and 'trialing'.
+  // Must use the service role key to bypass RLS — same pattern as the Stripe webhook route.
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { auth: { persistSession: false } }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
   const { error } = await supabase
