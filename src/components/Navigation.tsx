@@ -24,6 +24,8 @@ import {
   HelpCircle,
   Brain,
   CalendarDays,
+  Network,
+  GitBranch,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -63,6 +65,13 @@ const navGroups = [
     items: [
       { href: '/character', label: 'Character & Skills', icon: User },
       { href: '/inventory', label: 'Items & Shop', icon: Sparkles },
+    ],
+  },
+  {
+    label: 'INSIGHTS',
+    items: [
+      { href: '/knowledge', label: 'Knowledge Graph', icon: Network },
+      { href: '/growth', label: 'Growth Web', icon: GitBranch },
     ],
   },
   {

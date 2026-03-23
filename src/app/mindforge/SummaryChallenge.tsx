@@ -9,6 +9,7 @@ import {
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+import { useConceptExtraction } from '@/hooks/useConceptExtraction';
 
 interface SummaryResult {
   score: number;
@@ -31,6 +32,7 @@ interface Passage {
 export default function SummaryChallenge({ vocabWords }: { vocabWords: string[] }) {
   const { addXP, logActivity } = useGameStore();
   const { addToast } = useToastStore();
+  const { feedMindForgeResult } = useConceptExtraction();
 
   const [phase, setPhase] = useState<'idle' | 'loading' | 'writing' | 'grading' | 'result'>('idle');
   const [passage, setPassage] = useState<Passage | null>(null);
@@ -82,6 +84,7 @@ export default function SummaryChallenge({ vocabWords }: { vocabWords: string[] 
         addXP(xp);
         triggerXPFloat(`+${xp} XP`, '#4ade80');
         logActivity('xp_earned', '📝', `Summary Challenge: ${data.result.score}/100`, passage.title);
+        feedMindForgeResult('summary', passage.title, data.result.score);
       } else {
         addToast('Could not evaluate summary.', 'error');
         setPhase('writing');

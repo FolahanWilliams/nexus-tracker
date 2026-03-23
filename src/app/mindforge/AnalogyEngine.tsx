@@ -6,6 +6,7 @@ import { RefreshCw, Lightbulb, ArrowRight, Sparkles, Star, Eye } from 'lucide-re
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+import { useConceptExtraction } from '@/hooks/useConceptExtraction';
 
 interface AnalogyResult {
   score: number;
@@ -27,6 +28,7 @@ interface AnalogyPrompt {
 export default function AnalogyEngine({ vocabWords }: { vocabWords: string[] }) {
   const { addXP, logActivity } = useGameStore();
   const { addToast } = useToastStore();
+  const { feedMindForgeResult } = useConceptExtraction();
 
   const [phase, setPhase] = useState<'idle' | 'loading' | 'writing' | 'grading' | 'result'>('idle');
   const [prompts, setPrompts] = useState<AnalogyPrompt[]>([]);
@@ -87,6 +89,10 @@ export default function AnalogyEngine({ vocabWords }: { vocabWords: string[] }) 
         addXP(xp);
         triggerXPFloat(`+${xp} XP`, '#4ade80');
         logActivity('xp_earned', '💡', `Analogy Engine: ${data.result.score}/100`, `${selectedPrompt.conceptA} ↔ ${selectedPrompt.conceptB}`);
+        feedMindForgeResult('analogy', `${selectedPrompt.conceptA} ↔ ${selectedPrompt.conceptB}`, data.result.score, {
+          conceptA: selectedPrompt.conceptA,
+          conceptB: selectedPrompt.conceptB,
+        });
       } else {
         addToast('Could not evaluate analogy.', 'error');
         setPhase('writing');

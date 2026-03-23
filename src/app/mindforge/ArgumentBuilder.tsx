@@ -9,6 +9,7 @@ import {
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+import { useConceptExtraction } from '@/hooks/useConceptExtraction';
 
 interface ArgumentResult {
   score: number;
@@ -30,6 +31,7 @@ interface Topic {
 export default function ArgumentBuilder({ vocabWords }: { vocabWords: string[] }) {
   const { addXP, logActivity, uiArgumentDraft, setUiArgumentDraft } = useGameStore();
   const { addToast } = useToastStore();
+  const { feedMindForgeResult } = useConceptExtraction();
 
   const [phase, setPhase] = useState<'idle' | 'loading' | 'building' | 'grading' | 'result'>(
     uiArgumentDraft?.claim ? 'building' : 'idle'
@@ -109,6 +111,7 @@ export default function ArgumentBuilder({ vocabWords }: { vocabWords: string[] }
         addXP(xp);
         triggerXPFloat(`+${xp} XP`, '#4ade80');
         logActivity('xp_earned', '⚔️', `Argument Builder: ${data.result.score}/100`, selectedTopic.slice(0, 50));
+        feedMindForgeResult('argument', selectedTopic, data.result.score);
       } else {
         addToast('Could not evaluate argument.', 'error');
         setPhase('building');

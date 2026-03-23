@@ -541,6 +541,76 @@ export interface UiSlice {
     setUiReviewQuizMode: (mode: string) => void;
 }
 
+// ─── Knowledge Graph ────────────────────────────────────────────
+
+export type KnowledgeNodeType = 'word' | 'concept' | 'skill';
+export type KnowledgeEdgeType = 'co_occurrence' | 'semantic' | 'vocab_concept' | 'prerequisite';
+export type KnowledgeNodeSource = 'wordforge' | 'slight_edge' | 'reflection' | 'mindforge' | 'quest';
+
+export interface KnowledgeNode {
+    id: string;
+    label: string;
+    nodeType: KnowledgeNodeType;
+    category: string;
+    source: KnowledgeNodeSource;
+    sourceId?: string;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    mentionCount: number;
+    masteryScore: number | null; // 0-1, null for non-word nodes
+    metadata?: Record<string, unknown>;
+}
+
+export interface KnowledgeEdge {
+    id: string;
+    sourceNodeId: string;
+    targetNodeId: string;
+    edgeType: KnowledgeEdgeType;
+    weight: number;
+}
+
+export interface DailyGrowthNode {
+    id: string;
+    logDate: string; // YYYY-MM-DD
+    productivityScore: number;
+    conceptsLearned: string[];
+    habitsCompleted: string[];
+    questsCompleted: number;
+    wordsReviewed: number;
+    focusMinutes: number;
+    energyRating: number;
+    logSummary: string;
+}
+
+export interface KnowledgeGraphFilters {
+    nodeTypes: KnowledgeNodeType[];
+    categories: string[];
+    dateRange: { start: string | null; end: string | null };
+    masteryRange: [number, number];
+    searchQuery: string;
+}
+
+export interface KnowledgeGraphSlice {
+    knowledgeNodes: KnowledgeNode[];
+    knowledgeEdges: KnowledgeEdge[];
+    dailyGrowthNodes: DailyGrowthNode[];
+    selectedKnowledgeNodeId: string | null;
+    knowledgeFilters: KnowledgeGraphFilters;
+    knowledgeViewMode: 'force' | 'timeline' | 'cluster';
+    knowledgeLoading: boolean;
+
+    setKnowledgeNodes: (nodes: KnowledgeNode[]) => void;
+    setKnowledgeEdges: (edges: KnowledgeEdge[]) => void;
+    setDailyGrowthNodes: (nodes: DailyGrowthNode[]) => void;
+    selectKnowledgeNode: (id: string | null) => void;
+    setKnowledgeFilter: <K extends keyof KnowledgeGraphFilters>(key: K, value: KnowledgeGraphFilters[K]) => void;
+    setKnowledgeViewMode: (mode: 'force' | 'timeline' | 'cluster') => void;
+    setKnowledgeLoading: (loading: boolean) => void;
+    addKnowledgeNodes: (nodes: KnowledgeNode[]) => void;
+    addKnowledgeEdges: (edges: KnowledgeEdge[]) => void;
+    upsertDailyGrowthNode: (node: DailyGrowthNode) => void;
+}
+
 // ─── Combined state ──────────────────────────────────────────────
 
-export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice;
+export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice & KnowledgeGraphSlice;

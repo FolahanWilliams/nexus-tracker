@@ -9,6 +9,7 @@ import {
   BookOpen, Lightbulb, X, Save, CalendarDays, Flame, Trophy, Target,
 } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';
+import { useConceptExtraction } from '@/hooks/useConceptExtraction';
 
 // ─── Slight Edge quotes ───────────────────────────────────────────
 const SLIGHT_EDGE_QUOTES = [
@@ -98,6 +99,7 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export default function SlightEdgeCalendarPage() {
   const { dailyCalendarEntries, addOrUpdateCalendarEntry, uiCalendarYear, uiCalendarMonth, setUiCalendarPosition } = useGameStore();
   const { addToast } = useToastStore();
+  const { extractAndStore } = useConceptExtraction();
 
   const today = new Date();
   const todayStr = toLocalDateStr(today);
@@ -183,6 +185,10 @@ export default function SlightEdgeCalendarPage() {
       addToast('Day logged! Keep showing up. 🌱', 'success');
     } else {
       addToast('Entry saved. Tomorrow is a new chance.', 'info');
+    }
+    // Extract concepts from "what I learned" into the knowledge graph
+    if (formLearned.trim()) {
+      extractAndStore(formLearned, 'slight_edge', selectedDate, selectedDate);
     }
     setSelectedDate(null);
   }
