@@ -29,7 +29,7 @@ export default function ReviewTab() {
   const [mode, setModeLocal] = useState<'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done'>(
     (uiReviewMode as 'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done') || 'idle'
   );
-  const setMode = (m: 'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done') => { setModeLocal(m); setUiReviewMode(m === 'idle' || m === 'done' ? null : m); };
+  const setMode = useCallback((m: 'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done') => { setModeLocal(m); setUiReviewMode(m === 'idle' || m === 'done' ? null : m); }, [setUiReviewMode]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -129,7 +129,7 @@ export default function ReviewTab() {
     setStudyMnemonicInput('');
     setStudyMnemonicSaved(false);
     setMode('study');
-  }, [dueWords, vocabWords, addToast]);
+  }, [dueWords, vocabWords, addToast, setMode]);
 
   const handleStudyConfidence = (wordId: string, confidence: number) => {
     setConfidenceRatings(prev => ({ ...prev, [wordId]: confidence }));
@@ -215,7 +215,7 @@ export default function ReviewTab() {
       addToast('Network error generating quiz.', 'error');
       setMode('idle');
     }
-  }, [dueWords, studyBatch, vocabWords, addToast, quizMode]);
+  }, [dueWords, studyBatch, vocabWords, addToast, quizMode, setMode]);
 
   const launchFreeRecall = useCallback(() => {
     // Use the already-shuffled study batch, or shuffle due words as fallback
@@ -234,7 +234,7 @@ export default function ReviewTab() {
     setShowAnswer(false);
     setShowHint(false);
     setAnswerStartTime(Date.now());
-  }, [dueWords, studyBatch]);
+  }, [dueWords, studyBatch, setMode]);
 
   const autoAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

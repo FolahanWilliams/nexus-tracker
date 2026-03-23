@@ -5,8 +5,6 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Play, Pause, RotateCcw, Coffee, Zap, Target, CheckCircle, TreePine } from 'lucide-react';
-import { triggerXPFloat } from '@/components/XPFloat';
-import { useToastStore } from '@/components/ToastContainer';
 import GrowingTree from '@/components/GrowingTree';
 
 type TimerMode = 'focus' | 'short-break' | 'long-break';
@@ -18,7 +16,6 @@ const MODES: Record<TimerMode, { label: string; duration: number; color: string;
 };
 
 const XP_PER_FOCUS_SESSION = 30;
-const GOLD_PER_FOCUS_SESSION = 10;
 const SESSIONS_BEFORE_LONG_BREAK = 4;
 
 const GROWTH_MILESTONES = [
@@ -29,79 +26,6 @@ const GROWTH_MILESTONES = [
   { threshold: 0.75, message: 'Almost in full bloom!' },
   { threshold: 0.95, message: 'Your tree is flourishing!' },
 ];
-
-/** Lazily-created shared AudioContext for alarm sounds */
-let alarmAudioCtx: AudioContext | null = null;
-function getAlarmAudioCtx(): AudioContext {
-  if (!alarmAudioCtx || alarmAudioCtx.state === 'closed') {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    alarmAudioCtx = new AudioCtx();
-  }
-  // Resume if suspended (Chrome autoplay policy)
-  if (alarmAudioCtx.state === 'suspended') {
-    alarmAudioCtx.resume();
-  }
-  return alarmAudioCtx;
-}
-
-/** Play a proper alarm sound using Web Audio API */
-function playAlarmSound() {
-  try {
-    const ctx = getAlarmAudioCtx();
-
-    // Three ascending chime tones
-    const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
-    notes.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.3);
-      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime + i * 0.3 + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.3 + 0.8);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(ctx.currentTime + i * 0.3);
-      osc.stop(ctx.currentTime + i * 0.3 + 0.8);
-    });
-
-    // Final sustained chord
-    setTimeout(() => {
-      const chord = [523.25, 659.25, 783.99];
-      chord.forEach((freq) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.5);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + 1.5);
-      });
-    }, 1000);
-  } catch {
-    // Audio not supported
-  }
-}
-
-/** Send a browser notification */
-function sendTimerNotification(title: string, body: string) {
-  if (typeof window === 'undefined') return;
-  if (!('Notification' in window)) return;
-  if (Notification.permission !== 'granted') return;
-
-  try {
-    new Notification(title, {
-      body,
-      icon: '/icons/icon-192x192.png',
-      tag: 'focus-timer',
-    });
-  } catch {
-    // Notifications not supported in this context
-  }
-}
 
 /** Request notification permission (call on user gesture) */
 function requestNotificationPermission() {
@@ -118,12 +42,11 @@ function pad(n: number) {
 
 export default function FocusPage() {
   const {
-    tasks, addXP, addGold, addFocusSession, focusSessionsTotal, focusMinutesTotal,
+    tasks, focusSessionsTotal, focusMinutesTotal,
     focusTimerEndTime, focusTimerPausedTimeLeft, focusTimerMode, focusTimerSessionCount,
-    startFocusTimer, pauseFocusTimer, stopFocusTimer, setFocusTimerMode, setFocusTimerSessionCount,
+    startFocusTimer, pauseFocusTimer, stopFocusTimer, setFocusTimerMode,
     activeFocusTaskId,
   } = useGameStore();
-  const { addToast } = useToastStore();
 
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(activeFocusTaskId);
   const [displayTimeLeft, setDisplayTimeLeft] = useState(() => {
@@ -137,18 +60,19 @@ export default function FocusPage() {
   const mode = focusTimerMode;
   const running = focusTimerEndTime != null;
   const sessionsThisSession = focusTimerSessionCount;
-  const timeLeft = displayTimeLeft;
+  const timeLeft = derivedTimeLeft;
 
   const incompleteTasks = tasks.filter(t => !t.completed);
+
+  // Derive display time when not running (avoids setState in effect)
+  const derivedTimeLeft = !focusTimerEndTime && focusTimerPausedTimeLeft != null
+    ? focusTimerPausedTimeLeft
+    : displayTimeLeft;
 
   // Sync display from store on every tick
   useEffect(() => {
     if (!focusTimerEndTime) {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-      // When paused or stopped, show the paused time or mode default
-      if (focusTimerPausedTimeLeft != null) {
-        setDisplayTimeLeft(focusTimerPausedTimeLeft);
-      }
       return;
     }
 
@@ -168,7 +92,7 @@ export default function FocusPage() {
     return () => {
       if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     };
-  }, [focusTimerEndTime, focusTimerPausedTimeLeft]);
+  }, [focusTimerEndTime]);
 
   const handleToggle = () => {
     requestNotificationPermission();

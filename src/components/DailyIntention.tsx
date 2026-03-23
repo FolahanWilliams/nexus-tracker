@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sun, Moon, BookOpen, Zap } from 'lucide-react';
+import { X, Sun, BookOpen, Zap } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 
