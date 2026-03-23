@@ -611,7 +611,7 @@ export default function HootFAB() {
                         const difficulty = (params.difficulty as string) || state.vocabCurrentLevel || 'intermediate';
                         const category = params.category as string;
                         try {
-                            const genRes = await fetch('/api/generate-words', {
+                            const genRes = await fetch('/api/vocab/generate-words', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({
