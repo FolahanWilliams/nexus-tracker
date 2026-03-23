@@ -100,6 +100,29 @@ A daily consistency tracker inspired by *The Slight Edge* philosophy — small d
 - **Task Linking** — Optionally tie focus sessions to specific quests for attribution
 - **Audio & Notification Feedback** — Chime alarm and browser notifications on timer completion, even when viewing a different page
 
+### Knowledge Network Graph (`/knowledge`)
+
+A force-directed graph that visualizes your entire learning journey as an interconnected network:
+
+- **Multi-Source Node Extraction** — Pulls from WordForge vocabulary, Slight Edge logs, reflections, MindForge training, and quest completions
+- **Three Node Types** — Words (circles, colored by mastery), Concepts (hexagons, colored by category), Skills (diamonds, colored by domain)
+- **Intelligent Edge Building** — Temporal co-occurrence, semantic similarity (via Gemini), vocabulary-concept links, and prerequisite chains
+- **Interactive Exploration** — Click nodes for detail panels, hover to highlight connections, search/filter by type, category, date range, and mastery level
+- **Focus Mode** — Hovering a node dims unconnected nodes, revealing the local neighborhood
+- **Fullscreen & Zoom** — WebGL-rendered canvas with pinch-to-zoom, drag, and fullscreen toggle
+- **AI Concept Extraction** — Gemini parses daily logs into discrete concepts, detects synonyms, and computes semantic similarity
+
+### Daily Growth Web (`/growth`)
+
+A temporal network where each logged day becomes a node, connected by shared learnings:
+
+- **Day Nodes** — Sized by productivity score (1–10), colored on a red-to-green gradient, with gold rings for streak days
+- **Smart Connections** — Days link when they share learned topics, continue the same habits, or build on shared skill categories
+- **Three View Modes** — Force-directed (organic web), Timeline (chronological), and Cluster (grouped by week/month)
+- **Day Detail Panel** — Click any day to see full log, concepts learned, habits completed, quests finished, and connected days
+- **Compound Growth Indicator** — Real-time display of the Slight Edge compound multiplier (1.003^n) overlaid on the graph
+- **Cross-Page Navigation** — Links between Knowledge Graph and Growth Web for seamless exploration
+
 ### Analytics & Achievements
 
 - **Real-Time Productivity Score** (0–100) — Composite of daily task completion (40 pts), habit rate (30 pts), and streak bonus (30 pts)
@@ -115,15 +138,16 @@ A daily consistency tracker inspired by *The Slight Edge* philosophy — small d
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19, Next.js 16 (App Router), TypeScript, Tailwind CSS 4, Framer Motion |
-| **State** | Zustand with 8 composable slices + IndexedDB persistence (including UI persistence layer) |
+| **State** | Zustand with 9 composable slices + IndexedDB persistence (including UI persistence & knowledge graph layers) |
 | **Database** | Supabase (PostgreSQL) with Row-Level Security, JSONB columns, triggers |
 | **AI/ML** | Google Gemini 3 Flash with function calling + Google Search grounding |
 | **Auth** | Supabase Auth (Google OAuth) with auto-profile creation triggers |
 | **Payments** | Stripe subscriptions with 3-day free trial, customer portal, webhooks |
 | **PWA** | next-pwa with service worker caching for offline-first mobile experience |
 | **Charts** | Recharts for analytics dashboards |
+| **Graphs** | react-force-graph-2d (WebGL/Canvas) for knowledge network and growth web visualizations |
 
-### 18 API Endpoints
+### 20 API Endpoints
 
 Serverless API routes powering AI features, payments, and game logic:
 
@@ -137,6 +161,8 @@ Serverless API routes powering AI features, payments, and game logic:
 - Hoot AI function calling and web search
 - Smart achievement detection
 - Strategic weekly plan generation
+- **Knowledge graph concept extraction and semantic similarity** (Gemini-powered)
+- **Growth web edge computation** (topic continuity, habit continuity, skill progression)
 - Stripe checkout, portal, and webhook handling
 
 ### Hybrid Persistence
@@ -165,6 +191,8 @@ Serverless API routes powering AI features, payments, and game logic:
 | `/inventory` | Equipment, consumables, crafting, loot management |
 | `/wordforge` | Spaced repetition vocabulary with AI-generated words and quizzes |
 | `/mindforge` | Cognitive training: argument, analogy, summary, speaking exercises |
+| `/knowledge` | Knowledge network graph — force-directed visualization of words, concepts, and skills |
+| `/growth` | Daily growth web — temporal network of logged days connected by shared learnings |
 | `/analytics` | Stats, achievements, timeline, heatmap |
 | `/settings` | Sound, theme, data export/import, account reset |
 | `/wallpaper` | Slight Edge year-view dot calendar (full year at a glance) |

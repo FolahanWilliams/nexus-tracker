@@ -21,6 +21,8 @@ import {
   Library,
   HelpCircle,
   CalendarDays,
+  Network,
+  GitBranch,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -39,6 +41,8 @@ const secondaryNavItems = [
   { href: '/bosses', label: 'Boss', icon: Sword },
   { href: '/character', label: 'Character', icon: User },
   { href: '/inventory', label: 'Items', icon: Sparkles },
+  { href: '/knowledge', label: 'Knowledge', icon: Network },
+  { href: '/growth', label: 'Growth', icon: GitBranch },
   { href: '/analytics', label: 'Progress', icon: BarChart3 },
   { href: '/tutorial', label: 'Guide', icon: HelpCircle },
   { href: '/settings', label: 'Settings', icon: Settings },

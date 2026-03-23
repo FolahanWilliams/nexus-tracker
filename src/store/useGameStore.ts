@@ -53,6 +53,13 @@ export type {
     HabitFormDraft,
     ArgumentDraft,
     WeeklyPlanCache,
+    KnowledgeNode,
+    KnowledgeEdge,
+    DailyGrowthNode,
+    KnowledgeGraphFilters,
+    KnowledgeNodeType,
+    KnowledgeEdgeType,
+    KnowledgeNodeSource,
 } from './types';
 
 // Re-export constants that were previously exported from this file
@@ -73,6 +80,7 @@ import { createGoalSlice } from './slices/goalSlice';
 import { createVocabSlice } from './slices/vocabSlice';
 import { createHootSlice } from './slices/hootSlice';
 import { createUiSlice } from './slices/uiSlice';
+import { createKnowledgeGraphSlice } from './slices/knowledgeGraphSlice';
 
 // ─── Compose store ───────────────────────────────────────────────
 
@@ -87,6 +95,7 @@ export const useGameStore = create<GameState>()(
             ...createVocabSlice(...a),
             ...createHootSlice(...a),
             ...createUiSlice(...a),
+            ...createKnowledgeGraphSlice(...a),
         }),
         {
             name: 'ai-productivity-storage',
