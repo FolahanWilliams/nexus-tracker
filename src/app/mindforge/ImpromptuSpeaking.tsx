@@ -9,6 +9,7 @@ import {
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+import { useConceptExtraction } from '@/hooks/useConceptExtraction';
 
 interface SpeakingPrompt {
   topic: string;
@@ -39,6 +40,7 @@ type Phase = 'idle' | 'loading' | 'prep' | 'recording' | 'transcribing' | 'analy
 export default function ImpromptuSpeaking({ vocabWords }: { vocabWords: string[] }) {
   const { addXP, logActivity } = useGameStore();
   const { addToast } = useToastStore();
+  const { feedMindForgeResult } = useConceptExtraction();
 
   const [phase, setPhase] = useState<Phase>('idle');
   const [prompts, setPrompts] = useState<SpeakingPrompt[]>([]);
@@ -114,6 +116,9 @@ export default function ImpromptuSpeaking({ vocabWords }: { vocabWords: string[]
         addXP(xp);
         triggerXPFloat(`+${xp} XP`, '#4ade80');
         logActivity('xp_earned', '🎤', `Impromptu Speaking: ${data.result.score}/100`, prompt.topic.slice(0, 50));
+        feedMindForgeResult('speaking', prompt.topic, data.result.score, {
+          vocabWordsUsed: data.result.vocabWordsUsed || [],
+        });
       } else {
         addToast('Could not analyze speech.', 'error');
         setPhase('idle');
@@ -122,7 +127,7 @@ export default function ImpromptuSpeaking({ vocabWords }: { vocabWords: string[]
       addToast('Analysis error.', 'error');
       setPhase('idle');
     }
-  }, [vocabWords, addXP, logActivity, addToast]);
+  }, [vocabWords, addXP, logActivity, addToast, feedMindForgeResult]);
 
   const transcribeAudio = useCallback(async (audioBlob: Blob) => {
     setPhase('transcribing');

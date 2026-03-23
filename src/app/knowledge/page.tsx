@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import KnowledgeNodeDetail from '@/components/KnowledgeNodeDetail';
+import { useGraphDimensions } from '@/hooks/useGraphDimensions';
 import dynamic from 'next/dynamic';
 
 // Dynamically import the graph to avoid SSR issues with canvas
@@ -27,12 +28,6 @@ const CATEGORY_COLORS: Record<string, string> = {
     social: '#f87171',
     career: '#34d399',
     other: '#94a3b8',
-};
-
-const NODE_TYPE_SHAPES: Record<string, string> = {
-    word: 'circle',
-    concept: 'hexagon',
-    skill: 'diamond',
 };
 
 function getCategoryColor(category: string): string {
@@ -72,6 +67,7 @@ export default function KnowledgePage() {
         knowledgeFilters, knowledgeLoading, selectKnowledgeNode,
         setKnowledgeFilter, setKnowledgeLoading, addKnowledgeNodes,
         addKnowledgeEdges, vocabWords, dailyCalendarEntries, tasks,
+        reflectionNotes, activityLog,
     } = useGameStore();
 
     const [searchQuery, setSearchQuery] = useState('');
@@ -80,6 +76,7 @@ export default function KnowledgePage() {
     const [hoveredNode, setHoveredNode] = useState<string | null>(null);
     const [initialized, setInitialized] = useState(false);
     const graphRef = useRef<{ d3ReheatSimulation: () => void } | null>(null);
+    const graphDimensions = useGraphDimensions(isFullscreen, 180);
 
     // Build knowledge nodes from existing data on first load
     useEffect(() => {
@@ -173,8 +170,6 @@ export default function KnowledgePage() {
             }
         });
 
-        nodes.push(...conceptMap.values());
-
         // 3. Quest completions → skill nodes
         const skillMap = new Map<string, KnowledgeNode>();
         tasks.filter((t) => t.completed).forEach((t) => {
@@ -197,9 +192,146 @@ export default function KnowledgePage() {
                 });
             }
         });
+
+        // 4. Reflection notes → concept nodes
+        reflectionNotes.forEach((r) => {
+            if (!r.note) return;
+            const keywords = r.note
+                .split(/[,;\.\n]/)
+                .map((s) => s.trim().toLowerCase())
+                .filter((s) => s.length > 2 && s.length < 50);
+            keywords.forEach((kw) => {
+                const normalized = kw.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                if (!normalized || normalized.length < 3) return;
+                const existing = conceptMap.get(normalized);
+                if (existing) {
+                    existing.mentionCount++;
+                    existing.lastSeenAt = r.date;
+                } else {
+                    conceptMap.set(normalized, {
+                        id: `concept-${normalized}`,
+                        label: normalized,
+                        nodeType: 'concept',
+                        category: 'personal-development',
+                        source: 'reflection',
+                        sourceId: r.date,
+                        firstSeenAt: r.date,
+                        lastSeenAt: r.date,
+                        mentionCount: 1,
+                        masteryScore: null,
+                    });
+                }
+            });
+        });
+
+        // 5. MindForge activity → concept/skill nodes from activity log
+        activityLog.forEach((a) => {
+            if (a.type !== 'xp_earned') return;
+            let exerciseType = '';
+            let topic = '';
+            if (a.text.includes('Argument Builder')) {
+                exerciseType = 'argument';
+                topic = a.detail || '';
+            } else if (a.text.includes('Analogy Engine')) {
+                exerciseType = 'analogy';
+                topic = a.detail || '';
+            } else if (a.text.includes('Summary Challenge')) {
+                exerciseType = 'summary';
+                topic = a.detail || '';
+            } else if (a.text.includes('Impromptu Speaking')) {
+                exerciseType = 'speaking';
+                topic = a.detail || '';
+            }
+            if (!exerciseType || !topic) return;
+
+            // Create skill node for exercise type
+            const skillLabel = `${exerciseType}-skill`;
+            if (!skillMap.has(skillLabel)) {
+                skillMap.set(skillLabel, {
+                    id: `skill-${skillLabel}`,
+                    label: skillLabel,
+                    nodeType: 'skill',
+                    category: 'personal-development',
+                    source: 'mindforge',
+                    firstSeenAt: a.timestamp,
+                    lastSeenAt: a.timestamp,
+                    mentionCount: 1,
+                    masteryScore: null,
+                });
+            } else {
+                skillMap.get(skillLabel)!.mentionCount++;
+                skillMap.get(skillLabel)!.lastSeenAt = a.timestamp;
+            }
+
+            // Create concept node for the topic
+            const topicLabel = topic.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-↔]/g, '').slice(0, 50);
+            if (topicLabel.length >= 3) {
+                const existing = conceptMap.get(topicLabel);
+                if (existing) {
+                    existing.mentionCount++;
+                    existing.lastSeenAt = a.timestamp;
+                } else {
+                    conceptMap.set(topicLabel, {
+                        id: `concept-${topicLabel}`,
+                        label: topicLabel,
+                        nodeType: 'concept',
+                        category: exerciseType === 'analogy' ? 'creative' : 'personal-development',
+                        source: 'mindforge',
+                        sourceId: `${exerciseType}-${a.id}`,
+                        firstSeenAt: a.timestamp,
+                        lastSeenAt: a.timestamp,
+                        mentionCount: 1,
+                        masteryScore: null,
+                    });
+                }
+
+                // Edge: topic → exercise skill
+                edges.push({
+                    id: `edge-concept-${topicLabel}-skill-${skillLabel}`,
+                    sourceNodeId: `concept-${topicLabel}`,
+                    targetNodeId: `skill-${skillLabel}`,
+                    edgeType: 'co_occurrence',
+                    weight: 0.6,
+                });
+
+                // For analogy: parse conceptA ↔ conceptB and link them
+                if (exerciseType === 'analogy' && topic.includes('↔')) {
+                    const [aRaw, bRaw] = topic.split('↔').map((s) => s.trim());
+                    const aLabel = aRaw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                    const bLabel = bRaw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+                    if (aLabel.length >= 3 && bLabel.length >= 3 && aLabel !== bLabel) {
+                        [aLabel, bLabel].forEach((lbl) => {
+                            if (!conceptMap.has(lbl)) {
+                                conceptMap.set(lbl, {
+                                    id: `concept-${lbl}`,
+                                    label: lbl,
+                                    nodeType: 'concept',
+                                    category: 'creative',
+                                    source: 'mindforge',
+                                    firstSeenAt: a.timestamp,
+                                    lastSeenAt: a.timestamp,
+                                    mentionCount: 1,
+                                    masteryScore: null,
+                                });
+                            }
+                        });
+                        edges.push({
+                            id: `edge-analogy-${aLabel}-${bLabel}`,
+                            sourceNodeId: `concept-${aLabel}`,
+                            targetNodeId: `concept-${bLabel}`,
+                            edgeType: 'semantic',
+                            weight: 0.8,
+                        });
+                    }
+                }
+            }
+        });
+
+        // Re-add updated concept/skill maps
+        nodes.push(...conceptMap.values());
         nodes.push(...skillMap.values());
 
-        // 4. Create word-concept links if a word appears in any concept label
+        // 6. Create word-concept links if a word appears in any concept label
         vocabWords.forEach((w) => {
             const wordLabel = w.word.toLowerCase();
             conceptMap.forEach((concept) => {
@@ -220,7 +352,7 @@ export default function KnowledgePage() {
             addKnowledgeEdges(edges);
         }
         setKnowledgeLoading(false);
-    }, [vocabWords, dailyCalendarEntries, tasks, addKnowledgeNodes, addKnowledgeEdges, setKnowledgeLoading]);
+    }, [vocabWords, dailyCalendarEntries, tasks, reflectionNotes, activityLog, addKnowledgeNodes, addKnowledgeEdges, setKnowledgeLoading]);
 
     // Filter nodes
     const filteredNodes = useMemo(() => {
@@ -317,8 +449,8 @@ export default function KnowledgePage() {
         ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(255,255,255,0.2)';
         ctx.lineWidth = isSelected ? 2 : 0.5;
 
-        if (nodeType === 'hexagon') {
-            // Hexagon
+        if (nodeType === 'concept') {
+            // Hexagon for concepts
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const angle = (Math.PI / 3) * i - Math.PI / 6;
@@ -330,7 +462,7 @@ export default function KnowledgePage() {
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
-        } else if (nodeType === 'diamond') {
+        } else if (nodeType === 'skill') {
             // Diamond
             ctx.beginPath();
             ctx.moveTo(x, y - size);
@@ -606,8 +738,8 @@ export default function KnowledgePage() {
                         enableNodeDrag={true}
                         enableZoomInteraction={true}
                         enablePanInteraction={true}
-                        width={typeof window !== 'undefined' ? window.innerWidth - (isFullscreen ? 0 : 256) : 800}
-                        height={typeof window !== 'undefined' ? (isFullscreen ? window.innerHeight : window.innerHeight - 180) : 600}
+                        width={graphDimensions.width}
+                        height={graphDimensions.height}
                     />
                 )}
 

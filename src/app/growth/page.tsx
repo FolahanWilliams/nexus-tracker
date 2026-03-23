@@ -1,7 +1,7 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import type { DailyGrowthNode, DailyCalendarEntry } from '@/store/useGameStore';
+import type { DailyGrowthNode } from '@/store/useGameStore';
 import Link from 'next/link';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
@@ -10,6 +10,7 @@ import {
     TrendingUp, Flame, Zap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useGraphDimensions } from '@/hooks/useGraphDimensions';
 import dynamic from 'next/dynamic';
 
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
@@ -58,9 +59,9 @@ interface DayGraphLink {
 
 export default function GrowthPage() {
     const {
-        dailyCalendarEntries, habits, tasks, focusSessionsTotal,
-        vocabWords, dailyGrowthNodes, upsertDailyGrowthNode,
-        setKnowledgeLoading, knowledgeLoading,
+        dailyCalendarEntries, habits, tasks,
+        vocabWords, upsertDailyGrowthNode,
+        setKnowledgeLoading, knowledgeLoading, activityLog,
     } = useGameStore();
 
     const [viewMode, setViewMode] = useState<'force' | 'timeline' | 'cluster'>('force');
@@ -70,12 +71,14 @@ export default function GrowthPage() {
     const [initialized, setInitialized] = useState(false);
     const [computedEdges, setComputedEdges] = useState<DayGraphLink[]>([]);
     const graphRef = useRef<{ d3ReheatSimulation: () => void } | null>(null);
+    const graphDimensions = useGraphDimensions(isFullscreen, 140);
 
     // Build daily growth nodes from existing data
     useEffect(() => {
         if (initialized) return;
         setInitialized(true);
         buildDailyNodes();
+        computeEdges();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
@@ -93,6 +96,18 @@ export default function GrowthPage() {
                 (t) => t.completed && t.completedAt?.startsWith(entry.date)
             ).length;
 
+            // Count words reviewed on this date
+            const dayWords = vocabWords.filter(
+                (w) => w.lastReviewed?.startsWith(entry.date)
+            ).length;
+
+            // Estimate focus minutes from activity log
+            const dayFocus = activityLog.filter(
+                (a) => a.type === 'xp_earned' &&
+                    a.text.includes('Focus') &&
+                    a.timestamp.startsWith(entry.date)
+            ).length * 25; // Each focus session ~25 min
+
             // Extract concepts from learned text
             const concepts = entry.learned
                 ? entry.learned
@@ -108,19 +123,17 @@ export default function GrowthPage() {
                 conceptsLearned: concepts,
                 habitsCompleted: dayHabits,
                 questsCompleted: dayQuests,
-                wordsReviewed: 0,
-                focusMinutes: 0,
-                energyRating: 5,
+                wordsReviewed: dayWords,
+                focusMinutes: dayFocus,
+                energyRating: entry.productivityScore || 5,
                 logSummary: entry.summary || '',
             };
 
             upsertDailyGrowthNode(growthNode);
         });
 
-        // Compute edges
-        computeEdges();
         setKnowledgeLoading(false);
-    }, [dailyCalendarEntries, habits, tasks, upsertDailyGrowthNode, setKnowledgeLoading]);
+    }, [dailyCalendarEntries, habits, tasks, vocabWords, activityLog, upsertDailyGrowthNode, setKnowledgeLoading]);
 
     const computeEdges = useCallback(() => {
         const nodes = dailyCalendarEntries.map((entry) => {
@@ -128,6 +141,9 @@ export default function GrowthPage() {
                 ? entry.learned.split(/[,;\.\n]/).map((s) => s.trim().toLowerCase()).filter((s) => s.length > 2)
                 : [];
             const dayHabits = habits.filter((h) => h.completedDates.includes(entry.date)).map((h) => h.name);
+            const dayWordIds = vocabWords
+                .filter((w) => w.lastReviewed?.startsWith(entry.date))
+                .map((w) => w.id);
 
             return {
                 id: `day-${entry.date}`,
@@ -135,6 +151,7 @@ export default function GrowthPage() {
                 conceptsLearned: concepts,
                 habitsCompleted: dayHabits,
                 questsCompleted: tasks.filter((t) => t.completed && t.completedAt?.startsWith(entry.date)).length,
+                wordsReviewedIds: dayWordIds,
             };
         });
 
@@ -173,11 +190,22 @@ export default function GrowthPage() {
                         });
                     }
                 }
+
+                // Vocabulary reinforcement: days where same words were reviewed
+                const sharedWords = a.wordsReviewedIds.filter((w) => b.wordsReviewedIds.includes(w));
+                if (sharedWords.length > 0) {
+                    edges.push({
+                        source: a.id,
+                        target: b.id,
+                        type: 'vocab',
+                        weight: Math.min(sharedWords.length / 5, 0.6),
+                    });
+                }
             }
         }
 
         setComputedEdges(edges);
-    }, [dailyCalendarEntries, habits, tasks]);
+    }, [dailyCalendarEntries, habits, tasks, vocabWords]);
 
     // Build graph data
     const graphData = useMemo(() => {
@@ -202,6 +230,10 @@ export default function GrowthPage() {
                 : [];
             const dayHabits = habits.filter((h) => h.completedDates.includes(entry.date)).map((h) => h.name);
             const dayQuests = tasks.filter((t) => t.completed && t.completedAt?.startsWith(entry.date)).length;
+            const dayWords = vocabWords.filter((w) => w.lastReviewed?.startsWith(entry.date)).length;
+            const dayFocus = activityLog.filter(
+                (a) => a.type === 'xp_earned' && a.text.includes('Focus') && a.timestamp.startsWith(entry.date)
+            ).length * 25;
 
             return {
                 id: `day-${entry.date}`,
@@ -213,15 +245,15 @@ export default function GrowthPage() {
                 conceptsLearned: concepts,
                 habitsCompleted: dayHabits,
                 questsCompleted: dayQuests,
-                wordsReviewed: 0,
-                focusMinutes: 0,
+                wordsReviewed: dayWords,
+                focusMinutes: dayFocus,
                 logSummary: entry.summary || '',
                 isStreak: streakSet.has(entry.date),
             };
         });
 
         return { nodes: graphNodes, links: computedEdges };
-    }, [dailyCalendarEntries, habits, tasks, computedEdges]);
+    }, [dailyCalendarEntries, habits, tasks, vocabWords, activityLog, computedEdges]);
 
     const selectedDayData = useMemo(() => {
         if (!selectedDay) return null;
@@ -241,7 +273,6 @@ export default function GrowthPage() {
         // Current streak
         const sortedDates = dailyCalendarEntries.map((e) => e.date).sort().reverse();
         let streak = 0;
-        const today = new Date().toISOString().split('T')[0];
         for (let i = 0; i < sortedDates.length; i++) {
             const expected = new Date();
             expected.setDate(expected.getDate() - i);
@@ -339,6 +370,7 @@ export default function GrowthPage() {
             topic: '#60a5fa',
             habit: '#4ade80',
             skill: '#a78bfa',
+            vocab: '#fbbf24',
         };
 
         ctx.save();
@@ -453,7 +485,7 @@ export default function GrowthPage() {
                         {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
                     </button>
                     <button
-                        onClick={() => { setInitialized(false); buildDailyNodes(); }}
+                        onClick={() => { setInitialized(false); buildDailyNodes(); computeEdges(); }}
                         className="p-1.5 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)]"
                         title="Refresh"
                     >
@@ -506,8 +538,8 @@ export default function GrowthPage() {
                         enableNodeDrag={true}
                         enableZoomInteraction={true}
                         enablePanInteraction={true}
-                        width={typeof window !== 'undefined' ? window.innerWidth - (isFullscreen ? 0 : 256) : 800}
-                        height={typeof window !== 'undefined' ? (isFullscreen ? window.innerHeight : window.innerHeight - 140) : 600}
+                        width={graphDimensions.width}
+                        height={graphDimensions.height}
                     />
                 )}
 

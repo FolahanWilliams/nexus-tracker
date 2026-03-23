@@ -15,6 +15,7 @@ import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { shuffleArray, QuizQuestion, QuizType, SentenceGradeResult } from './shared';
 import { VOCAB_REVIEW_XP } from '@/lib/constants';
+import { useConceptExtraction } from '@/hooks/useConceptExtraction';
 
 export default function ReviewTab() {
   const {
@@ -23,6 +24,7 @@ export default function ReviewTab() {
     uiReviewMode, setUiReviewMode, uiReviewQuizMode, setUiReviewQuizMode,
   } = useGameStore();
   const { addToast } = useToastStore();
+  const { syncVocabMastery } = useConceptExtraction();
 
   const [mode, setModeLocal] = useState<'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done'>(
     (uiReviewMode as 'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done') || 'idle'
@@ -384,6 +386,7 @@ export default function ReviewTab() {
     const acc = total > 0 ? Math.round((correctCount / total) * 100) : 0;
     addToast(`Endless session complete! ${correctCount}/${total} correct (${acc}%)`, 'success');
     logActivity('xp_earned', '🧠', `Vocab endless review: ${correctCount}/${total} correct (${acc}%)`, `${endlessBatchCount + 1} batches`);
+    syncVocabMastery();
   };
 
   // Select the next batch of words for endless mode
@@ -556,6 +559,7 @@ export default function ReviewTab() {
       const acc = questions.length > 0 ? Math.round((correctCount / questions.length) * 100) : 0;
       addToast(`Review complete! ${correctCount}/${questions.length} correct`, 'success');
       logActivity('xp_earned', '🧠', `Vocab review: ${correctCount}/${questions.length} correct (${acc}%)`, `WordForge review session`);
+      syncVocabMastery();
     }
   };
 

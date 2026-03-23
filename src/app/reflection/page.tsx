@@ -3,6 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+import { useConceptExtraction } from '@/hooks/useConceptExtraction';
 import Link from 'next/link';
 import { useState } from 'react';
 import { ChevronLeft, Sun, Moon, Star, Zap, Library } from 'lucide-react';
@@ -24,6 +25,7 @@ export default function ReflectionPage() {
     vocabWords, vocabStreak,
   } = useGameStore();
   const { addToast } = useToastStore();
+  const { extractAndStore } = useConceptExtraction();
 
   const today = new Date().toISOString().split('T')[0];
   const intentionSetToday = lastIntentionDate === today;
@@ -47,6 +49,10 @@ export default function ReflectionPage() {
     addReflectionNote(reflectionNote, stars, xpBonus);
     if (xpBonus > 0) triggerXPFloat(`+${xpBonus} XP`, '#4ade80');
     addToast(`Reflection complete! +${xpBonus} XP bonus. 🌙`, 'success');
+    // Extract concepts from reflection into knowledge graph
+    if (reflectionNote.trim()) {
+      extractAndStore(reflectionNote, 'reflection', today, today);
+    }
   };
 
   return (
