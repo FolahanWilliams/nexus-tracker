@@ -3,10 +3,13 @@
 import { useGameStore } from '@/store/useGameStore';
 import type { KnowledgeNode, KnowledgeEdge } from '@/store/useGameStore';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { useKnowledgeGraphSync } from '@/hooks/useKnowledgeGraphSync';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     ChevronLeft, Search, Filter, BookOpen, Brain, TrendingUp,
     Maximize2, Minimize2, Network, Loader2, RefreshCw,
+    Play, Pause, SkipBack, Clock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import KnowledgeNodeDetail from '@/components/KnowledgeNodeDetail';
@@ -70,6 +73,12 @@ export default function KnowledgePage() {
         reflectionNotes, activityLog,
     } = useGameStore();
 
+    // Sync knowledge graph to/from Supabase
+    useKnowledgeGraphSync();
+
+    const searchParams = useSearchParams();
+    const traceConceptParam = searchParams.get('trace');
+
     const [searchQuery, setSearchQuery] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -77,6 +86,23 @@ export default function KnowledgePage() {
     const [initialized, setInitialized] = useState(false);
     const graphRef = useRef<{ d3ReheatSimulation: () => void } | null>(null);
     const graphDimensions = useGraphDimensions(isFullscreen, 180);
+
+    // ── Time Slider state ──
+    const [timeSliderEnabled, setTimeSliderEnabled] = useState(false);
+    const [timeSliderValue, setTimeSliderValue] = useState(100); // percentage 0-100
+    const [timeSliderPlaying, setTimeSliderPlaying] = useState(false);
+    const timeSliderIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    // ── Particle flow state ──
+    const [particleFlowNodeId, setParticleFlowNodeId] = useState<string | null>(null);
+    const particlesRef = useRef<{ x: number; y: number; progress: number; edgeIdx: number }[]>([]);
+    const animFrameRef = useRef<number | null>(null);
+
+    // ── Trace concept from URL (growth path trace) ──
+    const [tracedConcept, setTracedConcept] = useState<string | null>(traceConceptParam);
+    useEffect(() => {
+        setTracedConcept(traceConceptParam);
+    }, [traceConceptParam]);
 
     // Build knowledge nodes from existing data on first load
     useEffect(() => {
@@ -354,7 +380,91 @@ export default function KnowledgePage() {
         setKnowledgeLoading(false);
     }, [vocabWords, dailyCalendarEntries, tasks, reflectionNotes, activityLog, addKnowledgeNodes, addKnowledgeEdges, setKnowledgeLoading]);
 
-    // Filter nodes
+    // ── Time slider: compute date range from all nodes ──
+    const dateRange = useMemo(() => {
+        const dates = knowledgeNodes
+            .map((n) => n.firstSeenAt)
+            .filter(Boolean)
+            .sort();
+        if (dates.length === 0) return { min: '', max: '' };
+        return { min: dates[0], max: dates[dates.length - 1] };
+    }, [knowledgeNodes]);
+
+    const timeSliderDate = useMemo(() => {
+        if (!dateRange.min || !dateRange.max) return null;
+        const minT = new Date(dateRange.min).getTime();
+        const maxT = new Date(dateRange.max).getTime();
+        const t = minT + (maxT - minT) * (timeSliderValue / 100);
+        return new Date(t).toISOString();
+    }, [dateRange, timeSliderValue]);
+
+    // Time slider auto-play
+    useEffect(() => {
+        if (timeSliderPlaying) {
+            timeSliderIntervalRef.current = setInterval(() => {
+                setTimeSliderValue((prev) => {
+                    if (prev >= 100) {
+                        setTimeSliderPlaying(false);
+                        return 100;
+                    }
+                    return Math.min(prev + 1, 100);
+                });
+            }, 120);
+        }
+        return () => {
+            if (timeSliderIntervalRef.current) clearInterval(timeSliderIntervalRef.current);
+        };
+    }, [timeSliderPlaying]);
+
+    // ── Cluster label computation ──
+    const clusterLabels = useMemo(() => {
+        if (!graphData) return [];
+        const categoryGroups = new Map<string, { xs: number[]; ys: number[] }>();
+        for (const node of (graphData?.nodes || []) as GraphNode[]) {
+            if (!node.x || !node.y) continue;
+            const cat = node.category;
+            if (!categoryGroups.has(cat)) categoryGroups.set(cat, { xs: [], ys: [] });
+            const g = categoryGroups.get(cat)!;
+            g.xs.push(node.x);
+            g.ys.push(node.y);
+        }
+        const labels: { category: string; x: number; y: number; count: number }[] = [];
+        categoryGroups.forEach((g, cat) => {
+            if (g.xs.length < 3) return; // Only label clusters with 3+ nodes
+            const cx = g.xs.reduce((a, b) => a + b, 0) / g.xs.length;
+            const cy = g.ys.reduce((a, b) => a + b, 0) / g.ys.length;
+            labels.push({ category: cat, x: cx, y: cy, count: g.xs.length });
+        });
+        return labels;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [graphData?.nodes, hoveredNode, selectedKnowledgeNodeId]);
+
+    // ── Particle flow: spawn particles when a node is clicked ──
+    const startParticleFlow = useCallback((nodeId: string) => {
+        setParticleFlowNodeId(nodeId);
+        // Spawn particles on each connected edge
+        const connectedEdges = knowledgeEdges
+            .map((e, idx) => ({ ...e, idx }))
+            .filter((e) => e.sourceNodeId === nodeId || e.targetNodeId === nodeId);
+        const particles: typeof particlesRef.current = [];
+        connectedEdges.forEach((e) => {
+            for (let i = 0; i < 3; i++) {
+                particles.push({
+                    x: 0, y: 0,
+                    progress: i * 0.33,
+                    edgeIdx: e.idx,
+                });
+            }
+        });
+        particlesRef.current = particles;
+        // Auto-stop after 3 seconds
+        setTimeout(() => {
+            setParticleFlowNodeId(null);
+            particlesRef.current = [];
+        }, 3000);
+    }, [knowledgeEdges]);
+
+    // Filter nodes (with time slider + trace concept support)
     const filteredNodes = useMemo(() => {
         return knowledgeNodes.filter((n) => {
             if (!knowledgeFilters.nodeTypes.includes(n.nodeType as 'word' | 'concept' | 'skill')) return false;
@@ -365,9 +475,11 @@ export default function KnowledgePage() {
             }
             if (knowledgeFilters.dateRange.start && n.firstSeenAt < knowledgeFilters.dateRange.start) return false;
             if (knowledgeFilters.dateRange.end && n.firstSeenAt > knowledgeFilters.dateRange.end) return false;
+            // Time slider filter
+            if (timeSliderEnabled && timeSliderDate && n.firstSeenAt > timeSliderDate) return false;
             return true;
         });
-    }, [knowledgeNodes, knowledgeFilters, searchQuery]);
+    }, [knowledgeNodes, knowledgeFilters, searchQuery, timeSliderEnabled, timeSliderDate]);
 
     // Build graph data
     const graphData = useMemo(() => {
@@ -425,7 +537,7 @@ export default function KnowledgePage() {
         })(),
     }), [filteredNodes, graphData.links]);
 
-    // Custom node rendering
+    // Custom node rendering (with trace highlight support)
     const paintNode = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D) => {
         const { x = 0, y = 0, size = 6, label, nodeType, color } = node;
         const isHovered = hoveredNode === node.id;
@@ -435,9 +547,27 @@ export default function KnowledgePage() {
                 (e.targetNodeId === hoveredNode && e.sourceNodeId === node.id)
         );
         const dimmed = hoveredNode && !isHovered && !isConnected;
+        const isTraced = tracedConcept && node.id === `concept-${tracedConcept}`;
+        const isParticleTarget = particleFlowNodeId === node.id;
 
         ctx.save();
         ctx.globalAlpha = dimmed ? 0.15 : 1;
+
+        // Traced concept: pulsing ring
+        if (isTraced) {
+            const pulseSize = size + 4 + Math.sin(Date.now() / 300) * 2;
+            ctx.beginPath();
+            ctx.arc(x, y, pulseSize, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        // Particle target: outer glow
+        if (isParticleTarget) {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 25;
+        }
 
         // Glow effect for selected/hovered
         if (isSelected || isHovered) {
@@ -446,11 +576,10 @@ export default function KnowledgePage() {
         }
 
         ctx.fillStyle = color;
-        ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(255,255,255,0.2)';
-        ctx.lineWidth = isSelected ? 2 : 0.5;
+        ctx.strokeStyle = isSelected ? '#ffffff' : isTraced ? '#fbbf24' : 'rgba(255,255,255,0.2)';
+        ctx.lineWidth = isSelected ? 2 : isTraced ? 1.5 : 0.5;
 
         if (nodeType === 'concept') {
-            // Hexagon for concepts
             ctx.beginPath();
             for (let i = 0; i < 6; i++) {
                 const angle = (Math.PI / 3) * i - Math.PI / 6;
@@ -463,7 +592,6 @@ export default function KnowledgePage() {
             ctx.fill();
             ctx.stroke();
         } else if (nodeType === 'skill') {
-            // Diamond
             ctx.beginPath();
             ctx.moveTo(x, y - size);
             ctx.lineTo(x + size, y);
@@ -473,17 +601,15 @@ export default function KnowledgePage() {
             ctx.fill();
             ctx.stroke();
         } else {
-            // Circle
             ctx.beginPath();
             ctx.arc(x, y, size, 0, 2 * Math.PI);
             ctx.fill();
             ctx.stroke();
         }
 
-        // Label (only show when zoomed in enough or when hovered)
-        if (isHovered || isSelected || size > 6) {
+        if (isHovered || isSelected || isTraced || size > 6) {
             ctx.shadowBlur = 0;
-            ctx.font = `${isHovered || isSelected ? 'bold ' : ''}${Math.max(3, size * 0.8)}px sans-serif`;
+            ctx.font = `${isHovered || isSelected || isTraced ? 'bold ' : ''}${Math.max(3, size * 0.8)}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = dimmed ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)';
@@ -491,7 +617,7 @@ export default function KnowledgePage() {
         }
 
         ctx.restore();
-    }, [hoveredNode, selectedKnowledgeNodeId, knowledgeEdges]);
+    }, [hoveredNode, selectedKnowledgeNodeId, knowledgeEdges, tracedConcept, particleFlowNodeId]);
 
     const paintLink = useCallback((link: GraphLink, ctx: CanvasRenderingContext2D) => {
         const source = link.source as unknown as GraphNode;
@@ -507,19 +633,61 @@ export default function KnowledgePage() {
         ctx.strokeStyle = isHighlighted ? '#60a5fa' : '#475569';
         ctx.lineWidth = 0.5 + link.weight * 1.5;
 
-        // Curved line
         const midX = (source.x + target.x) / 2;
         const midY = ((source.y ?? 0) + (target.y ?? 0)) / 2;
-        const offset = Math.sqrt(
+        const curveOffset = Math.sqrt(
             (target.x - source.x) ** 2 + ((target.y ?? 0) - (source.y ?? 0)) ** 2
         ) * 0.1;
 
         ctx.beginPath();
         ctx.moveTo(source.x, source.y ?? 0);
-        ctx.quadraticCurveTo(midX + offset, midY - offset, target.x, target.y ?? 0);
+        ctx.quadraticCurveTo(midX + curveOffset, midY - curveOffset, target.x, target.y ?? 0);
         ctx.stroke();
+
+        // ── Particle flow on connected edges ──
+        if (particleFlowNodeId && (source.id === particleFlowNodeId || target.id === particleFlowNodeId)) {
+            const flowTowards = source.id === particleFlowNodeId;
+            const sx = flowTowards ? target.x : source.x;
+            const sy = flowTowards ? (target.y ?? 0) : (source.y ?? 0);
+            const ex = flowTowards ? source.x : target.x;
+            const ey = flowTowards ? (source.y ?? 0) : (target.y ?? 0);
+            const cpx = midX + curveOffset;
+            const cpy = midY - curveOffset;
+
+            for (let i = 0; i < 3; i++) {
+                const t = ((Date.now() / 1800 + i * 0.33) % 1);
+                const px = (1 - t) * (1 - t) * sx + 2 * (1 - t) * t * cpx + t * t * ex;
+                const py = (1 - t) * (1 - t) * sy + 2 * (1 - t) * t * cpy + t * t * ey;
+                const alpha = 0.8 * (1 - Math.abs(t - 0.5) * 2);
+
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = source.color || '#60a5fa';
+                ctx.beginPath();
+                ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+        }
+
         ctx.restore();
-    }, [hoveredNode]);
+    }, [hoveredNode, particleFlowNodeId]);
+
+    // ── Cluster labels post-paint callback ──
+    const onRenderFramePost = useCallback((ctx: CanvasRenderingContext2D, globalScale: number) => {
+        if (globalScale > 1.8) return;
+        for (const cl of clusterLabels) {
+            ctx.save();
+            ctx.globalAlpha = Math.max(0.12, 0.35 - globalScale * 0.12);
+            ctx.font = `bold ${Math.max(12, 20 / globalScale)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = getCategoryColor(cl.category);
+            ctx.fillText(cl.category, cl.x, cl.y - 12 / globalScale);
+            ctx.font = `${Math.max(8, 11 / globalScale)}px sans-serif`;
+            ctx.globalAlpha *= 0.5;
+            ctx.fillText(`${cl.count} nodes`, cl.x, cl.y + 8 / globalScale);
+            ctx.restore();
+        }
+    }, [clusterLabels]);
 
     return (
         <div className={`min-h-screen bg-[var(--color-bg-dark)] ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
@@ -566,6 +734,17 @@ export default function KnowledgePage() {
                     <StatPill label="Top Cluster" value={stats.topCategory} />
                     <div className="flex-1" />
                     <button
+                        onClick={() => { setTimeSliderEnabled(!timeSliderEnabled); setTimeSliderValue(100); setTimeSliderPlaying(false); }}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${timeSliderEnabled
+                            ? 'border-[var(--color-blue)] text-[var(--color-blue)] bg-[var(--color-blue)]/10'
+                            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-white'
+                        }`}
+                        title="Toggle time slider"
+                    >
+                        <Clock size={10} />
+                        Time Travel
+                    </button>
+                    <button
                         onClick={() => setIsFullscreen(!isFullscreen)}
                         className="p-1.5 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)]"
                         title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
@@ -581,6 +760,68 @@ export default function KnowledgePage() {
                     </button>
                 </div>
             </div>
+
+            {/* Time Slider */}
+            <AnimatePresence>
+                {timeSliderEnabled && dateRange.min && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden border-b border-[var(--color-border)] bg-[var(--color-bg-card)]/30"
+                    >
+                        <div className="max-w-[1800px] mx-auto px-4 py-2 flex items-center gap-3">
+                            <button
+                                onClick={() => { setTimeSliderValue(0); setTimeSliderPlaying(false); }}
+                                className="p-1 rounded hover:bg-[var(--color-bg-hover)] text-[var(--color-text-secondary)]"
+                                title="Reset to start"
+                            >
+                                <SkipBack size={14} />
+                            </button>
+                            <button
+                                onClick={() => setTimeSliderPlaying(!timeSliderPlaying)}
+                                className={`p-1.5 rounded-lg border transition-colors ${timeSliderPlaying
+                                    ? 'border-[var(--color-blue)] bg-[var(--color-blue)]/10 text-[var(--color-blue)]'
+                                    : 'border-[var(--color-border)] text-[var(--color-text-secondary)] hover:text-white'
+                                }`}
+                                title={timeSliderPlaying ? 'Pause' : 'Play growth animation'}
+                            >
+                                {timeSliderPlaying ? <Pause size={14} /> : <Play size={14} />}
+                            </button>
+                            <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                value={timeSliderValue}
+                                onChange={(e) => { setTimeSliderValue(Number(e.target.value)); setTimeSliderPlaying(false); }}
+                                className="flex-1 h-1.5 appearance-none bg-[var(--color-bg-dark)] rounded-full cursor-pointer accent-[var(--color-blue)]"
+                            />
+                            <span className="text-[10px] text-[var(--color-text-secondary)] font-mono min-w-[80px] text-right">
+                                {timeSliderDate ? new Date(timeSliderDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' }) : '—'}
+                            </span>
+                            <span className="text-[10px] text-[var(--color-text-muted)]">
+                                {stats.totalNodes} nodes
+                            </span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Traced Concept Banner */}
+            {tracedConcept && (
+                <div className="border-b border-[var(--color-yellow)]/30 bg-[var(--color-yellow)]/5">
+                    <div className="max-w-[1800px] mx-auto px-4 py-1.5 flex items-center gap-2 text-xs">
+                        <span className="text-[var(--color-yellow)]">Tracing:</span>
+                        <span className="text-white font-semibold">{tracedConcept}</span>
+                        <button
+                            onClick={() => setTracedConcept(null)}
+                            className="ml-auto text-[var(--color-text-muted)] hover:text-white"
+                        >
+                            ✕ Clear
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* Search & Filters */}
             <div className="border-b border-[var(--color-border)] bg-[var(--color-bg-card)]/30">
@@ -727,9 +968,14 @@ export default function KnowledgePage() {
                             ctx.fill();
                         }}
                         linkCanvasObject={(link, ctx) => paintLink(link as unknown as GraphLink, ctx)}
-                        onNodeClick={(node) => selectKnowledgeNode((node as GraphNode).id)}
+                        onNodeClick={(node) => {
+                            const gn = node as GraphNode;
+                            selectKnowledgeNode(gn.id);
+                            startParticleFlow(gn.id);
+                        }}
                         onNodeHover={(node) => setHoveredNode(node ? (node as GraphNode).id : null)}
-                        onBackgroundClick={() => selectKnowledgeNode(null)}
+                        onBackgroundClick={() => { selectKnowledgeNode(null); setParticleFlowNodeId(null); }}
+                        onRenderFramePost={(ctx, globalScale) => onRenderFramePost(ctx, globalScale)}
                         backgroundColor="rgba(0,0,0,0)"
                         d3AlphaDecay={0.02}
                         d3VelocityDecay={0.3}

@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { useGameStore } from '@/store/useGameStore';
 import {
   LayoutDashboard,
@@ -116,13 +117,22 @@ export default function Navigation() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-all ${isActive
-                      ? 'bg-[var(--color-bg-hover)] text-white border-l-2 border-[var(--color-green)]'
+                    className={`relative flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-colors ${isActive
+                      ? 'text-white'
                       : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-[var(--color-bg-hover)]'
                       }`}
                   >
-                    <Icon size={16} />
-                    <span className="font-medium">{item.label}</span>
+                    {isActive && (
+                      <motion.div
+                        layoutId="nav-active-indicator"
+                        className="absolute inset-0 bg-[var(--color-bg-hover)] rounded-sm border-l-2 border-[var(--color-green)]"
+                        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                      />
+                    )}
+                    <span className="relative z-10 flex items-center gap-3">
+                      <Icon size={16} />
+                      <span className="font-medium">{item.label}</span>
+                    </span>
                   </Link>
                 );
               })}
