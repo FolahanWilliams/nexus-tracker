@@ -116,7 +116,6 @@ export default function KnowledgePage() {
     // ── Particle flow state ──
     const [particleFlowNodeId, setParticleFlowNodeId] = useState<string | null>(null);
     const particlesRef = useRef<{ x: number; y: number; progress: number; edgeIdx: number }[]>([]);
-    const animFrameRef = useRef<number | null>(null);
 
     // ── Trace concept from URL (growth path trace) ──
     const [tracedConcept, setTracedConcept] = useState<string | null>(traceConceptParam);

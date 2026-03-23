@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
-import type { KnowledgeNode, KnowledgeEdge, KnowledgeNodeSource, DailyGrowthNode } from '@/store/useGameStore';
+import type { KnowledgeNode, KnowledgeEdge, KnowledgeNodeSource } from '@/store/useGameStore';
 
 const EXTRACT_DEBOUNCE_MS = 2000;
 
@@ -16,6 +16,42 @@ export function useConceptExtraction() {
     const addKnowledgeEdges = useGameStore((s) => s.addKnowledgeEdges);
     const upsertDailyGrowthNode = useGameStore((s) => s.upsertDailyGrowthNode);
     const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    /**
+     * Simple local keyword extraction (no AI needed).
+     * Used as fallback and for quick inline extraction.
+     */
+    const localExtract = useCallback((
+        text: string,
+        source: KnowledgeNodeSource,
+        sourceId: string,
+    ) => {
+        const now = new Date().toISOString();
+        const currentNodes = useGameStore.getState().knowledgeNodes;
+        const keywords = text
+            .split(/[,;\.\n]/)
+            .map((s) => s.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))
+            .filter((s) => s.length >= 3 && s.length < 40);
+
+        if (keywords.length > 0) {
+            const nodes: KnowledgeNode[] = keywords.map((kw) => {
+                const existing = currentNodes.find((n) => n.label === kw);
+                return {
+                    id: existing?.id || `concept-${kw}`,
+                    label: kw,
+                    nodeType: 'concept' as const,
+                    category: 'other',
+                    source,
+                    sourceId,
+                    firstSeenAt: existing?.firstSeenAt || now,
+                    lastSeenAt: now,
+                    mentionCount: (existing?.mentionCount || 0) + 1,
+                    masteryScore: null,
+                };
+            });
+            addKnowledgeNodes(nodes);
+        }
+    }, [addKnowledgeNodes]);
 
     /**
      * Internal extraction logic (not debounced).
@@ -143,7 +179,7 @@ export function useConceptExtraction() {
             // Fallback: simple local keyword extraction without AI
             localExtract(text, source, sourceId);
         }
-    }, [addKnowledgeNodes, addKnowledgeEdges, upsertDailyGrowthNode]);
+    }, [addKnowledgeNodes, addKnowledgeEdges, upsertDailyGrowthNode, localExtract]);
 
     /**
      * Debounced extract: cancels previous calls if triggered within 2s.
@@ -161,42 +197,6 @@ export function useConceptExtraction() {
             _doExtract(text, source, sourceId, date);
         }, EXTRACT_DEBOUNCE_MS);
     }, [_doExtract]);
-
-    /**
-     * Simple local keyword extraction (no AI needed).
-     * Used as fallback and for quick inline extraction.
-     */
-    const localExtract = useCallback((
-        text: string,
-        source: KnowledgeNodeSource,
-        sourceId: string,
-    ) => {
-        const now = new Date().toISOString();
-        const currentNodes = useGameStore.getState().knowledgeNodes;
-        const keywords = text
-            .split(/[,;\.\n]/)
-            .map((s) => s.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))
-            .filter((s) => s.length >= 3 && s.length < 40);
-
-        if (keywords.length > 0) {
-            const nodes: KnowledgeNode[] = keywords.map((kw) => {
-                const existing = currentNodes.find((n) => n.label === kw);
-                return {
-                    id: existing?.id || `concept-${kw}`,
-                    label: kw,
-                    nodeType: 'concept' as const,
-                    category: 'other',
-                    source,
-                    sourceId,
-                    firstSeenAt: existing?.firstSeenAt || now,
-                    lastSeenAt: now,
-                    mentionCount: (existing?.mentionCount || 0) + 1,
-                    masteryScore: null,
-                };
-            });
-            addKnowledgeNodes(nodes);
-        }
-    }, [addKnowledgeNodes]);
 
     /**
      * Sync all WordForge mastery scores to word-type knowledge nodes.
