@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/with-auth';
+import { logger } from '@/lib/logger';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -9,13 +11,9 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (_request, user) => {
   try {
-    const { userId } = await req.json();
-
-    if (!userId) {
-      return NextResponse.json({ error: 'Missing userId' }, { status: 400 });
-    }
+    const userId = user.id;
 
     // Get the user's stripe customer id
     const { data: profile } = await getSupabaseAdmin()
@@ -36,11 +34,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ url: session.url });
   } catch (error: unknown) {
-    console.error('Portal session error:', error);
+    logger.error('Portal session error', 'stripe', error);
     const message = error instanceof Error ? error.message : 'Failed to create portal session';
     return NextResponse.json(
       { error: message },
       { status: 500 }
     );
   }
-}
+});

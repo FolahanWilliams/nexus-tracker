@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
 interface ArgumentRequest {
     type: 'argument';
@@ -41,7 +42,7 @@ interface SpeakingRequest {
 
 type MindForgeRequest = ArgumentRequest | AnalogyRequest | SummaryRequest | SpeakingRequest;
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const body = await request.json() as MindForgeRequest;
 
@@ -325,4 +326,4 @@ Output ONLY valid JSON: { "score": 0-100, "vocabDiversity": 1-5, "structure": 1-
         logger.error('MindForge API error', 'mindforge', error);
         return NextResponse.json({ error: 'AI unavailable', isMock: true }, { status: 500 });
     }
-}
+}, { rateLimitMax: 20 });

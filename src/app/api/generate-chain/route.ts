@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { prompt } = await request.json();
 
@@ -100,4 +101,4 @@ Generate a quest chain for the following user goal:`;
             error: 'AI unavailable'
         }, { status: 500 });
     }
-}
+}, { rateLimitMax: 20 });

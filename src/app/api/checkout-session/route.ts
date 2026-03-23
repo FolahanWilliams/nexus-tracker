@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/with-auth';
+import { logger } from '@/lib/logger';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -9,13 +11,10 @@ function getSupabaseAdmin() {
   );
 }
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (_request, user) => {
   try {
-    const { userId, email } = await req.json();
-
-    if (!userId || !email) {
-      return NextResponse.json({ error: 'Missing userId or email' }, { status: 400 });
-    }
+    const userId = user.id;
+    const email = user.email!;
 
     // Check if user already has a stripe customer ID
     const { data: profile } = await getSupabaseAdmin()
@@ -61,11 +60,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error: unknown) {
-    console.error('Checkout session error:', error);
+    logger.error('Checkout session error', 'stripe', error);
     const message = error instanceof Error ? error.message : 'Failed to create checkout session';
     return NextResponse.json(
       { error: message },
       { status: 500 }
     );
   }
-}
+});

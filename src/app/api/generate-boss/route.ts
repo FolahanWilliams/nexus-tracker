@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { uncompletedTasks, failedHabits, playerContext, pulseData } = await request.json();
 
@@ -93,4 +94,4 @@ Output ONLY a valid JSON object with:
             error: 'AI unavailable'
         });
     }
-}
+}, { rateLimitMax: 20 });

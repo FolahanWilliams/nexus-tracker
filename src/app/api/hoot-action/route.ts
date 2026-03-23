@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
 // ── Hoot's available actions (Gemini Function Declarations) ──────────────
 const hootFunctions = [
@@ -371,7 +372,7 @@ const PAGE_CONTEXT: Record<string, string> = {
     '/growth': 'Growth Web — daily growth visualization showing compound learning progress and concept connections',
 };
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { message, currentPage, context, grounding, planningContext, conversationHistory } = await request.json();
 
@@ -495,4 +496,4 @@ RULES:
             error: 'AI unavailable',
         });
     }
-}
+}, { rateLimitMax: 30 });

@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { command, tasks } = await request.json();
 
@@ -71,4 +72,4 @@ Interpret this command:`;
             error: 'AI unavailable'
         }, { status: 500 });
     }
-}
+}, { rateLimitMax: 20 });

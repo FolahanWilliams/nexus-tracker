@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
 interface QuizWord {
     word: string;
@@ -70,7 +71,7 @@ function selectAdaptiveType(w: QuizWord): string {
     return defaults[Math.floor(Math.random() * defaults.length)];
 }
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { words, allWords, forcedType } = await request.json() as {
             words: QuizWord[];
@@ -210,4 +211,4 @@ Output ONLY valid JSON: { "questions": [{ "word": "...", "type": "...", "questio
             error: 'AI unavailable — could not generate quiz',
         });
     }
-}
+}, { rateLimitMax: 20 });

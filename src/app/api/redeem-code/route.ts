@@ -1,26 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { withAuth } from '@/lib/with-auth';
 
 // Server-side only — the ACCESS_CODE env var is never sent to the browser.
 // Set it in .env.local: ACCESS_CODE=your-secret-passphrase
 const ACCESS_CODE = process.env.ACCESS_CODE;
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (request, user) => {
   if (!ACCESS_CODE) {
     return NextResponse.json({ error: 'Access codes are not configured on this server.' }, { status: 503 });
   }
 
-  let body: { code?: string; userId?: string };
+  let body: { code?: string };
   try {
-    body = await req.json();
+    body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Invalid request body.' }, { status: 400 });
   }
 
-  const { code, userId } = body;
+  const { code } = body;
 
-  if (!code || !userId) {
-    return NextResponse.json({ error: 'Missing code or userId.' }, { status: 400 });
+  if (!code) {
+    return NextResponse.json({ error: 'Missing code.' }, { status: 400 });
   }
 
   // Constant-time comparison to prevent timing attacks
@@ -30,8 +31,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid access code.' }, { status: 403 });
   }
 
+  // Derive userId from the authenticated session — never trust client input.
+  const userId = user.id;
+
   // Grant access by setting subscription_status = 'access' in the profile.
-  // Must use the service role key to bypass RLS — same pattern as the Stripe webhook route.
+  // Must use the service role key to bypass RLS.
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -47,4 +51,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ success: true });
-}
+}, { rateLimitMax: 5, rateLimitWindowMs: 300_000 });

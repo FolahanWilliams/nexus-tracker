@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { genAI } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(req: NextRequest) {
+export const POST = withAuth(async (req) => {
     try {
         const body = await req.json();
         const { query } = body;
@@ -39,4 +40,4 @@ Do not hallucinate; only use information found in the search results.`;
             { status: 500 }
         );
     }
-}
+}, { rateLimitMax: 20 });

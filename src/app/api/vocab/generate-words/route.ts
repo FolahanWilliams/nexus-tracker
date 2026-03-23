@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
 const MOCK_WORDS = [
     {
@@ -54,7 +55,7 @@ const MOCK_WORDS = [
     },
 ];
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { currentLevel, existingWords, count } = await request.json();
         const wordCount = Math.min(Math.max(count || 4, 1), 4);
@@ -130,4 +131,4 @@ Output ONLY a valid JSON object: { "words": [...] }`;
             error: 'AI unavailable — using fallback words',
         });
     }
-}
+}, { rateLimitMax: 20 });

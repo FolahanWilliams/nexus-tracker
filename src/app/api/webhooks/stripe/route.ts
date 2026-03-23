@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
 import { createClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.error('Webhook signature verification failed:', message);
+    logger.error(`Webhook signature verification failed: ${message}`, 'stripe');
     return NextResponse.json({ error: `Webhook Error: ${message}` }, { status: 400 });
   }
 
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
           })
           .eq('stripe_customer_id', customerId);
 
-        console.log(`[Stripe] Checkout completed for customer ${customerId}, status: ${subscription.status}`);
+        logger.info(`Checkout completed for customer ${customerId}, status: ${subscription.status}`, 'stripe');
         break;
       }
 
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
           })
           .eq('stripe_customer_id', customerId);
 
-        console.log(`[Stripe] Subscription updated for customer ${customerId}, status: ${subscription.status}`);
+        logger.info(`Subscription updated for customer ${customerId}, status: ${subscription.status}`, 'stripe');
         break;
       }
 
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
           })
           .eq('stripe_customer_id', customerId);
 
-        console.log(`[Stripe] Subscription canceled for customer ${customerId}`);
+        logger.info(`Subscription canceled for customer ${customerId}`, 'stripe');
         break;
       }
 
@@ -92,15 +93,15 @@ export async function POST(req: NextRequest) {
           })
           .eq('stripe_customer_id', customerId);
 
-        console.log(`[Stripe] Payment failed for customer ${customerId}`);
+        logger.info(`Payment failed for customer ${customerId}`, 'stripe');
         break;
       }
 
       default:
-        console.log(`[Stripe] Unhandled event type: ${event.type}`);
+        logger.info(`Unhandled event type: ${event.type}`, 'stripe');
     }
   } catch (error: unknown) {
-    console.error('[Stripe] Webhook handler error:', error);
+    logger.error('Webhook handler error', 'stripe', error);
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
   }
 

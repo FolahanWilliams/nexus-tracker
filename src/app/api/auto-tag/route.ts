@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { title } = await request.json();
 
@@ -81,4 +82,4 @@ Analyze the following task:`;
             error: 'AI unavailable'
         }, { status: 500 });
     }
-}
+}, { rateLimitMax: 30 });

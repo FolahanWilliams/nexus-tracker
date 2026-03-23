@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { logger } from '@/lib/logger';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { prompt, context } = await request.json();
 
@@ -80,4 +81,4 @@ Output ONLY a valid JSON object with a "quests" array. No other text.`;
             error: 'AI unavailable — using fallback quests'
         });
     }
-}
+}, { rateLimitMax: 20 });

@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { snapshot, history, pulseContext: clientPulse } = await request.json();
         // history: optional array of past PulseHistoryEntry for trend analysis
@@ -87,4 +88,4 @@ Output ONLY valid JSON with these exact fields:
             isMock: true,
         }, { status: 500 });
     }
-}
+}, { rateLimitMax: 20 });
