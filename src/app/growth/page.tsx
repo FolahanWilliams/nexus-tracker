@@ -635,18 +635,20 @@ export default function GrowthPage() {
                                 </div>
                             )}
 
-                            {/* Concepts */}
+                            {/* Concepts — click to trace in Knowledge Graph */}
                             {selectedDayData.node.conceptsLearned.length > 0 && (
                                 <div className="mb-4">
                                     <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2">Concepts</p>
                                     <div className="flex flex-wrap gap-1.5">
                                         {selectedDayData.node.conceptsLearned.map((c, i) => (
-                                            <span
+                                            <Link
                                                 key={i}
-                                                className="px-2 py-0.5 text-xs rounded-full bg-[var(--color-blue)]/10 text-[var(--color-blue)] border border-[var(--color-blue)]/20"
+                                                href={`/knowledge?trace=${encodeURIComponent(c.replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''))}`}
+                                                className="px-2 py-0.5 text-xs rounded-full bg-[var(--color-blue)]/10 text-[var(--color-blue)] border border-[var(--color-blue)]/20 hover:bg-[var(--color-blue)]/20 transition-colors cursor-pointer"
+                                                title={`Trace "${c}" in Knowledge Graph`}
                                             >
                                                 {c}
-                                            </span>
+                                            </Link>
                                         ))}
                                     </div>
                                 </div>

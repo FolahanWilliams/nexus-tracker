@@ -106,7 +106,7 @@ const hootFunctions = [
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /goals, /focus, /reflection, /bosses, /chains, /analytics, /character, /inventory, /shop, /skills, /crafting, /achievements, /timeline, /settings, /wordforge' },
+                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /goals, /focus, /reflection, /bosses, /chains, /analytics, /character, /inventory, /shop, /skills, /crafting, /achievements, /timeline, /settings, /wordforge, /knowledge, /growth' },
                 reason: { type: SchemaType.STRING, description: 'Brief reason for suggesting this page' },
             },
             required: ['page'],
@@ -331,6 +331,18 @@ const hootFunctions = [
             required: ['summary', 'productivityScore'],
         },
     },
+    // ── Knowledge Graph Exploration ──────────────────────────────────────
+    {
+        name: 'explore_knowledge_graph',
+        description: 'Analyze and summarize the user\'s knowledge graph. Use when the user asks about their knowledge, what they\'ve learned, their strongest topics, knowledge clusters, or wants insights about connections between concepts. The knowledge graph data is in the PLAYER STATE context — summarize cluster strengths, growth trends, and suggest new cross-domain connections.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                focus: { type: SchemaType.STRING, description: 'Optional focus area: "clusters" (category breakdown), "growth" (recent additions), "connections" (cross-domain links), "gaps" (underexplored areas), or "all" for a full summary' },
+            },
+            required: [],
+        },
+    },
 ];
 
 // ── Page context descriptions ────────────────────────────────────────────
@@ -355,6 +367,8 @@ const PAGE_CONTEXT: Record<string, string> = {
     '/wordforge': 'WordForge — AI-powered vocabulary builder with spaced repetition',
     '/goals/calendar': 'Slight Edge Log — daily productivity tracking with 1-10 scores, streaks, and compound growth visualization',
     '/wallpaper': 'Wallpaper — year-view dot calendar for iPhone wallpaper automation',
+    '/knowledge': 'Knowledge Graph — visual network of concepts, words, and skills with time slider, cluster labels, and particle flow',
+    '/growth': 'Growth Web — daily growth visualization showing compound learning progress and concept connections',
 };
 
 export async function POST(request: Request) {
@@ -406,6 +420,7 @@ YOUR CAPABILITIES:
 6. **Planning**: When the user has a multi-step plan active, guide them through each step and celebrate progress.
 7. **Cross-Domain**: Connect insights across quests, habits, vocab, goals, and boss battles. For example, if vocab mastery increases boss damage, mention this synergy.
 8. **Slight Edge Analytics**: You can analyze the user's daily productivity log (Slight Edge Log) which tracks a 1-10 productivity score, summaries, and what they learned each day. When the user asks about their productivity trends, how today compares, or wants to log their day, use the Slight Edge data from the PLAYER STATE context and the get_slight_edge_analytics or log_slight_edge_day actions.
+9. **Knowledge Graph**: You can explore the user's knowledge graph using explore_knowledge_graph. Summarize their strongest clusters, growth trends, cross-domain connections, and suggest new areas to explore. When the user asks "what have I learned?", "what are my strongest topics?", or "how is my knowledge growing?", use this action.
 
 RULES:
 - Be encouraging, slightly sassy, and fun — you're an owl mascot!

@@ -1,23 +1,26 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { useGameStore } from '@/store/useGameStore';
 import type { KnowledgeNode, KnowledgeEdge, KnowledgeNodeSource, DailyGrowthNode } from '@/store/useGameStore';
+
+const EXTRACT_DEBOUNCE_MS = 2000;
 
 /**
  * Hook that extracts concepts from text (via API or local fallback)
  * and upserts them into the knowledge graph store.
  *
  * Uses getState() to avoid stale closures over knowledgeNodes.
+ * Debounces API calls to prevent Gemini spam on rapid edits.
  */
 export function useConceptExtraction() {
     const addKnowledgeNodes = useGameStore((s) => s.addKnowledgeNodes);
     const addKnowledgeEdges = useGameStore((s) => s.addKnowledgeEdges);
     const upsertDailyGrowthNode = useGameStore((s) => s.upsertDailyGrowthNode);
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     /**
-     * Extract concepts from free-text and store as knowledge nodes.
-     * Called after Slight Edge logs, reflections, etc.
+     * Internal extraction logic (not debounced).
      */
-    const extractAndStore = useCallback(async (
+    const _doExtract = useCallback(async (
         text: string,
         source: KnowledgeNodeSource,
         sourceId: string,
@@ -78,6 +81,40 @@ export function useConceptExtraction() {
                     addKnowledgeEdges(edges);
                 }
 
+                // ── Semantic similarity: compute hidden connections via GET endpoint ──
+                const newLabels = nodes.map((n) => n.label);
+                if (newLabels.length > 0 && existingLabels.length > 0) {
+                    try {
+                        const simRes = await fetch(
+                            `/api/knowledge-graph?concepts=${encodeURIComponent(newLabels.join(','))}&existing=${encodeURIComponent(existingLabels.join(','))}`
+                        );
+                        const simData = await simRes.json();
+                        if (simData.similarities?.length > 0) {
+                            const latestNodes = useGameStore.getState().knowledgeNodes;
+                            const semanticEdges: KnowledgeEdge[] = simData.similarities
+                                .filter((s: { from: string; to: string; score: number }) => s.score >= 0.6)
+                                .map((s: { from: string; to: string; score: number }) => {
+                                    const fromN = latestNodes.find((n) => n.label === s.from);
+                                    const toN = latestNodes.find((n) => n.label === s.to);
+                                    if (!fromN || !toN || fromN.id === toN.id) return null;
+                                    return {
+                                        id: `edge-${fromN.id}-${toN.id}-semantic`,
+                                        sourceNodeId: fromN.id,
+                                        targetNodeId: toN.id,
+                                        edgeType: 'semantic' as const,
+                                        weight: s.score,
+                                    };
+                                })
+                                .filter(Boolean) as KnowledgeEdge[];
+                            if (semanticEdges.length > 0) {
+                                addKnowledgeEdges(semanticEdges);
+                            }
+                        }
+                    } catch {
+                        // Semantic similarity is optional — don't block on failure
+                    }
+                }
+
                 // Also upsert daily growth node if date provided
                 if (date) {
                     const s = useGameStore.getState();
@@ -107,6 +144,23 @@ export function useConceptExtraction() {
             localExtract(text, source, sourceId);
         }
     }, [addKnowledgeNodes, addKnowledgeEdges, upsertDailyGrowthNode]);
+
+    /**
+     * Debounced extract: cancels previous calls if triggered within 2s.
+     * Prevents Gemini API spam when user rapidly edits and saves.
+     */
+    const extractAndStore = useCallback((
+        text: string,
+        source: KnowledgeNodeSource,
+        sourceId: string,
+        date?: string,
+    ) => {
+        if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = setTimeout(() => {
+            debounceTimerRef.current = null;
+            _doExtract(text, source, sourceId, date);
+        }, EXTRACT_DEBOUNCE_MS);
+    }, [_doExtract]);
 
     /**
      * Simple local keyword extraction (no AI needed).
