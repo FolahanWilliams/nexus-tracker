@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { word, definition, partOfSpeech, sentence, challengeType } = await request.json() as {
             word: string;
@@ -94,4 +95,4 @@ Output ONLY valid JSON: { "correct": bool, "score": 0-100, "correctUsage": bool,
             isMock: true,
         });
     }
-}
+}, { rateLimitMax: 20 });

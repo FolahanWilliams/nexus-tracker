@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { recentActivity } = await request.json();
 
@@ -48,4 +49,4 @@ Output ONLY valid JSON:
         logger.error('Smart Achievement Error', 'smart-achievements', error);
         return NextResponse.json({ earned: false, error: 'AI unavailable' });
     }
-}
+}, { rateLimitMax: 20 });

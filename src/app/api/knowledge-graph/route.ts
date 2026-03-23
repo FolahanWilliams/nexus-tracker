@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
 /**
  * POST: Extract concepts from text (daily logs, reflections, etc.) using Gemini.
  * Returns new/updated nodes and edges.
  */
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { text, source, sourceId, existingLabels } = await request.json();
@@ -69,13 +70,13 @@ Output JSON:
             error: 'AI unavailable',
         }, { status: 500 });
     }
-}
+}, { rateLimitMax: 20 });
 
 /**
  * GET: Compute semantic similarity between concepts using Gemini.
  * Query params: ?concepts=a,b,c,d&existing=e,f,g
  */
-export async function GET(request: Request) {
+export const GET = withAuth(async (request) => {
     try {
         const { searchParams } = new URL(request.url);
         const concepts = searchParams.get('concepts')?.split(',').filter(Boolean) || [];
@@ -117,4 +118,4 @@ Output JSON:
         logger.error('Similarity computation failed', 'knowledge-graph', error);
         return NextResponse.json({ similarities: [], isMock: true }, { status: 500 });
     }
-}
+}, { rateLimitMax: 20 });

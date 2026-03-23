@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
+import { withAuth } from '@/lib/with-auth';
 
 /**
  * POST: Compute connections between daily growth nodes based on shared topics,
  * habits, skills, and vocabulary reinforcement.
  */
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { dailyNodes } = await request.json() as {
             dailyNodes: {
@@ -81,4 +82,4 @@ export async function POST(request: Request) {
         logger.error('Growth web computation failed', 'growth-web', error);
         return NextResponse.json({ edges: [], error: 'Computation failed' }, { status: 500 });
     }
-}
+});

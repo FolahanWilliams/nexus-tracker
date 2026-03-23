@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const { tasks, chains, reflections, habits, playerContext, pulseData } = await request.json();
 
@@ -89,4 +90,4 @@ Prioritize Epic/Hard quests on high-energy days and Easy quests on recovery days
             error: 'AI unavailable'
         }, { status: 500 });
     }
-}
+}, { rateLimitMax: 20 });

@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { logger } from '@/lib/logger';
+import { withAuth } from '@/lib/with-auth';
 
-export async function POST(request: Request) {
+export const POST = withAuth(async (request) => {
     try {
         const apiKey = process.env.OPENAI_API_KEY;
         if (!apiKey) {
@@ -33,4 +34,4 @@ export async function POST(request: Request) {
         logger.error('Transcription error', 'transcribe', error);
         return NextResponse.json({ error: 'Transcription failed' }, { status: 500 });
     }
-}
+}, { rateLimitMax: 10 });
