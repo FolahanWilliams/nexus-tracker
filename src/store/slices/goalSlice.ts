@@ -16,6 +16,10 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
     focusMinutesTotal: 0,
     isFocusTimerRunning: false,
     activeFocusTaskId: null,
+    focusTimerEndTime: null,
+    focusTimerPausedTimeLeft: null,
+    focusTimerMode: 'focus' as const,
+    focusTimerSessionCount: 0,
     dailyCalendarEntries: [] as DailyCalendarEntry[],
 
     // ── Goal Actions ──
@@ -156,6 +160,48 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
 
     setFocusTimerRunning: (running, taskId = null) => {
         set({ isFocusTimerRunning: running, activeFocusTaskId: taskId });
+    },
+
+    startFocusTimer: (mode, durationSeconds, taskId) => {
+        set({
+            focusTimerEndTime: Date.now() + durationSeconds * 1000,
+            focusTimerPausedTimeLeft: null,
+            focusTimerMode: mode,
+            isFocusTimerRunning: true,
+            activeFocusTaskId: taskId,
+        });
+    },
+
+    pauseFocusTimer: (remainingSeconds) => {
+        set({
+            focusTimerEndTime: null,
+            focusTimerPausedTimeLeft: remainingSeconds,
+            isFocusTimerRunning: false,
+            activeFocusTaskId: null,
+        });
+    },
+
+    stopFocusTimer: () => {
+        set({
+            focusTimerEndTime: null,
+            focusTimerPausedTimeLeft: null,
+            isFocusTimerRunning: false,
+            activeFocusTaskId: null,
+        });
+    },
+
+    setFocusTimerMode: (mode, durationSeconds) => {
+        set({
+            focusTimerMode: mode,
+            focusTimerEndTime: null,
+            focusTimerPausedTimeLeft: durationSeconds,
+            isFocusTimerRunning: false,
+            activeFocusTaskId: null,
+        });
+    },
+
+    setFocusTimerSessionCount: (count) => {
+        set({ focusTimerSessionCount: count });
     },
 
     // ── Slight Edge Calendar ──

@@ -395,6 +395,11 @@ export interface GoalSlice {
     focusMinutesTotal: number;
     isFocusTimerRunning: boolean;
     activeFocusTaskId: string | null;
+    // Persistent focus timer state (survives page navigation)
+    focusTimerEndTime: number | null; // Unix ms timestamp when running timer ends
+    focusTimerPausedTimeLeft: number | null; // seconds remaining when paused
+    focusTimerMode: 'focus' | 'short-break' | 'long-break';
+    focusTimerSessionCount: number; // sessions completed in current pomodoro cycle
     dailyCalendarEntries: DailyCalendarEntry[];
 
     addGoal: (title: string, description: string, category: TaskCategory, timeframe: GoalTimeframe, targetDate: string, milestones: string[], xpReward: number) => void;
@@ -410,6 +415,11 @@ export interface GoalSlice {
     addReflectionNote: (note: string, stars: number, xpBonus: number) => void;
     addFocusSession: (minutesCompleted: number) => void;
     setFocusTimerRunning: (running: boolean, taskId: string | null) => void;
+    startFocusTimer: (mode: 'focus' | 'short-break' | 'long-break', durationSeconds: number, taskId: string | null) => void;
+    pauseFocusTimer: (remainingSeconds: number) => void;
+    stopFocusTimer: () => void;
+    setFocusTimerMode: (mode: 'focus' | 'short-break' | 'long-break', durationSeconds: number) => void;
+    setFocusTimerSessionCount: (count: number) => void;
     addOrUpdateCalendarEntry: (date: string, completed: boolean, summary: string, learned: string, productivityScore?: number) => void;
 }
 

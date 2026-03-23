@@ -3,7 +3,7 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sun, Moon, Star, Zap } from 'lucide-react';
+import { X, Sun, Moon, BookOpen, Zap } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 
@@ -16,16 +16,15 @@ const ENERGY_COLORS = [
   'var(--color-purple)',
 ];
 
+const PRODUCTIVITY_LABELS = ['', 'Barely', 'Very Low', 'Low', 'Below Avg', 'Average', 'Above Avg', 'Good', 'Great', 'Excellent', 'Peak'];
+
 export default function DailyIntention() {
   const {
     lastIntentionDate,
-    lastReflectionDate,
     todayIntention,
     setDailyIntention,
-    addReflectionNote,
     addOrUpdateCalendarEntry,
     dailyCalendarEntries,
-    tasks,
   } = useGameStore();
   const { addToast } = useToastStore();
 
@@ -35,8 +34,9 @@ export default function DailyIntention() {
   // Form state
   const [intention, setIntention] = useState('');
   const [energyRating, setEnergyRating] = useState(3);
-  const [reflectionNote, setReflectionNote] = useState('');
-  const [stars, setStars] = useState(3);
+  const [slightEdgeSummary, setSlightEdgeSummary] = useState('');
+  const [slightEdgeLearned, setSlightEdgeLearned] = useState('');
+  const [productivityScore, setProductivityScore] = useState(5);
 
   const today = new Date().toISOString().split('T')[0];
   const hour = new Date().getHours();
@@ -47,12 +47,13 @@ export default function DailyIntention() {
       const timer = setTimeout(() => setShowMorning(true), 2000);
       return () => clearTimeout(timer);
     }
-    // Show evening modal if: it's after 7pm, reflection not done today
-    if (hour >= 19 && lastReflectionDate !== today) {
+    // Show evening modal if: it's after 7pm, Slight Edge log not done today
+    const alreadyLogged = dailyCalendarEntries.some(e => e.date === today);
+    if (hour >= 19 && !alreadyLogged) {
       const timer = setTimeout(() => setShowEvening(true), 2000);
       return () => clearTimeout(timer);
     }
-  }, [hour, lastIntentionDate, lastReflectionDate, today]);
+  }, [hour, lastIntentionDate, dailyCalendarEntries, today]);
 
   const handleMorningSubmit = () => {
     if (!intention.trim()) return;
@@ -64,20 +65,14 @@ export default function DailyIntention() {
 
   const handleEveningSubmit = () => {
     const today2 = new Date().toISOString().split('T')[0];
-    const completedToday = tasks.filter(t => t.completed && t.completedAt?.startsWith(today2)).length;
-    const xpBonus = stars * 10 + (completedToday * 5);
-    addReflectionNote(reflectionNote, stars, xpBonus);
+    const summary = slightEdgeSummary.trim() || todayIntention || '';
+    const learned = slightEdgeLearned.trim();
 
-    // Auto-create Slight Edge calendar entry if not already logged today
-    const alreadyLogged = dailyCalendarEntries.some(e => e.date === today2);
-    if (!alreadyLogged) {
-      // Map 1-5 stars to 1-10 productivity scale (star*2)
-      const productivityScore = Math.min(10, stars * 2);
-      addOrUpdateCalendarEntry(today2, true, reflectionNote || todayIntention || '', '', productivityScore);
-    }
+    addOrUpdateCalendarEntry(today2, true, summary, learned, productivityScore);
 
-    if (xpBonus > 0) triggerXPFloat(`+${xpBonus} XP`, '#4ade80');
-    addToast(`Reflection complete! +${xpBonus} XP bonus. See you tomorrow! 🌙`, 'success');
+    const xpEarned = 3;
+    triggerXPFloat(`+${xpEarned} XP`, '#4ade80');
+    addToast(`Slight Edge day logged! +${xpEarned} XP. See you tomorrow!`, 'success');
     setShowEvening(false);
   };
 
@@ -168,7 +163,7 @@ export default function DailyIntention() {
         )}
       </AnimatePresence>
 
-      {/* Evening Reflection Modal */}
+      {/* Evening Slight Edge Log Modal */}
       <AnimatePresence>
         {showEvening && (
           <motion.div
@@ -194,8 +189,11 @@ export default function DailyIntention() {
               </button>
 
               <div className="text-center mb-6">
-                <Moon className="inline text-[var(--color-blue)] mb-2" size={36} />
-                <h2 className="text-xl font-bold">Evening Reflection</h2>
+                <BookOpen className="inline text-[var(--color-green)] mb-2" size={36} />
+                <h2 className="text-xl font-bold">Daily Slight Edge Log</h2>
+                <p className="text-sm text-[var(--color-text-muted)] mt-1">
+                  Log your day — small consistent actions compound over time.
+                </p>
                 {todayIntention && (
                   <p className="text-sm text-[var(--color-text-muted)] mt-1">
                     Today&apos;s intention: <span className="text-[var(--color-purple)] italic">&quot;{todayIntention}&quot;</span>
@@ -204,55 +202,62 @@ export default function DailyIntention() {
               </div>
 
               <div className="space-y-5">
-                {/* Star rating */}
+                {/* Productivity score 1-10 */}
                 <div>
-                  <label className="text-sm font-semibold block mb-3">How did today go?</label>
-                  <div className="flex justify-center gap-2">
-                    {[1, 2, 3, 4, 5].map(s => (
-                      <motion.button
-                        key={s}
-                        onClick={() => setStars(s)}
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                        aria-label={`${s} stars`}
-                      >
-                        <Star
-                          size={32}
-                          className={s <= stars ? 'text-[var(--color-yellow)]' : 'text-[var(--color-border)]'}
-                          fill={s <= stars ? 'var(--color-yellow)' : 'none'}
-                        />
-                      </motion.button>
-                    ))}
+                  <label className="text-sm font-semibold block mb-2">Productivity Score</label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={productivityScore}
+                      onChange={e => setProductivityScore(Number(e.target.value))}
+                      className="flex-1 accent-[var(--color-green)]"
+                    />
+                    <span className="text-lg font-bold min-w-[2ch] text-center" style={{ color: `hsl(${(productivityScore - 1) * 12}, 80%, 50%)` }}>
+                      {productivityScore}
+                    </span>
                   </div>
-                  <p className="text-center text-sm text-[var(--color-text-muted)] mt-1">
-                    {['', 'Rough day', 'Could be better', 'Decent day', 'Great day!', 'LEGENDARY DAY!'][stars]}
+                  <p className="text-center text-xs text-[var(--color-text-muted)] mt-1">
+                    {PRODUCTIVITY_LABELS[productivityScore]}
                   </p>
                 </div>
 
                 <div>
-                  <label className="text-sm font-semibold block mb-2">Quick reflection (optional)</label>
+                  <label className="text-sm font-semibold block mb-2">What did you do today?</label>
                   <textarea
-                    value={reflectionNote}
-                    onChange={e => setReflectionNote(e.target.value)}
-                    placeholder="What did you accomplish? What will you do better tomorrow?"
-                    className="input-field min-h-[80px] resize-none text-sm"
+                    value={slightEdgeSummary}
+                    onChange={e => setSlightEdgeSummary(e.target.value)}
+                    placeholder="e.g., Studied 2 chapters, went to the gym, worked on project..."
+                    className="input-field min-h-[70px] resize-none text-sm"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold block mb-2">What did you learn? (optional)</label>
+                  <textarea
+                    value={slightEdgeLearned}
+                    onChange={e => setSlightEdgeLearned(e.target.value)}
+                    placeholder="Key takeaway or insight from today..."
+                    className="input-field min-h-[60px] resize-none text-sm"
                   />
                 </div>
 
                 <motion.button
                   onClick={handleEveningSubmit}
-                  className="w-full rpg-button !bg-[var(--color-blue)] !text-white font-bold"
+                  className="w-full rpg-button !bg-[var(--color-green)] !text-white font-bold"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <Moon size={16} /> Submit Reflection & Earn +{stars * 10}+ XP
+                  <BookOpen size={16} /> Log Today&apos;s Slight Edge
                 </motion.button>
 
                 <button
                   onClick={() => setShowEvening(false)}
                   className="w-full text-center text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors py-2"
                 >
-                  Not now — I&apos;ll reflect later
+                  Not now — I&apos;ll log later
                 </button>
               </div>
             </motion.div>
