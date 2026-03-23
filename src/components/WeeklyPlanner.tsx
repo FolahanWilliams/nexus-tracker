@@ -21,15 +21,16 @@ interface WeeklyPlan {
 }
 
 export default function WeeklyPlanner() {
-    const { tasks, questChains, reflectionNotes, habits, streak, characterName, characterClass, level } = useGameStore();
+    const { tasks, questChains, reflectionNotes, habits, streak, characterName, characterClass, level, uiWeeklyPlan, setUiWeeklyPlan } = useGameStore();
     const { addToast } = useToastStore();
     const [isOpen, setIsOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
-    const [plan, setPlan] = useState<WeeklyPlan | null>(null);
+    const [plan, setPlan] = useState<WeeklyPlan | null>(uiWeeklyPlan.plan);
 
     const handleGenerate = async () => {
         setIsLoading(true);
         setPlan(null);
+        setUiWeeklyPlan(null);
         try {
             const response = await fetch('/api/weekly-plan', {
                 method: 'POST',
@@ -49,6 +50,7 @@ export default function WeeklyPlanner() {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
             setPlan(data);
+            setUiWeeklyPlan(data);
             addToast('Weekly strategy generated! 📋', 'success');
         } catch (error) {
             logger.error('Weekly plan error', 'WeeklyPlanner', error);

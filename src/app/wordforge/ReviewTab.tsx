@@ -20,10 +20,14 @@ export default function ReviewTab() {
   const {
     vocabWords, reviewVocabWord, checkVocabStreak,
     updateVocabLevel, vocabStreak, logActivity, setWordConfidence, setUserMnemonic,
+    uiReviewMode, setUiReviewMode, uiReviewQuizMode, setUiReviewQuizMode,
   } = useGameStore();
   const { addToast } = useToastStore();
 
-  const [mode, setMode] = useState<'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done'>('idle');
+  const [mode, setModeLocal] = useState<'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done'>(
+    (uiReviewMode as 'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done') || 'idle'
+  );
+  const setMode = (m: 'idle' | 'loading' | 'study' | 'quiz' | 'recall' | 'done') => { setModeLocal(m); setUiReviewMode(m === 'idle' || m === 'done' ? null : m); };
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
@@ -40,7 +44,8 @@ export default function ReviewTab() {
   const [pendingQuizType, setPendingQuizType] = useState<'quiz' | 'recall'>('quiz');
 
   // Selected quiz mode — 'adaptive' lets AI pick, or user picks a specific type
-  const [quizMode, setQuizMode] = useState<QuizType | 'adaptive'>('adaptive');
+  const [quizMode, setQuizModeLocal] = useState<QuizType | 'adaptive'>((uiReviewQuizMode as QuizType | 'adaptive') || 'adaptive');
+  const setQuizMode = (m: QuizType | 'adaptive') => { setQuizModeLocal(m); setUiReviewQuizMode(m); };
 
   // Interactive study card state (Item 6)
   const [studyRecallInput, setStudyRecallInput] = useState('');

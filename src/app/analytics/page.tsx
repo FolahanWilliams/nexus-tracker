@@ -679,7 +679,9 @@ function TimelineTab() {
 
 // ─────────────────────────────────────────────
 export default function AnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('stats');
+  const { uiTabs, setUiTab } = useGameStore();
+  const activeTab = (uiTabs['analytics'] as Tab) || 'stats';
+  const setActiveTab = (t: Tab) => setUiTab('analytics', t);
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'stats', label: 'Stats', icon: '📊' },

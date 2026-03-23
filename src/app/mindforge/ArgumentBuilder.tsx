@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   RefreshCw, ChevronRight, Swords, CheckCircle,
@@ -28,17 +28,29 @@ interface Topic {
 }
 
 export default function ArgumentBuilder({ vocabWords }: { vocabWords: string[] }) {
-  const { addXP, logActivity } = useGameStore();
+  const { addXP, logActivity, uiArgumentDraft, setUiArgumentDraft } = useGameStore();
   const { addToast } = useToastStore();
 
-  const [phase, setPhase] = useState<'idle' | 'loading' | 'building' | 'grading' | 'result'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'loading' | 'building' | 'grading' | 'result'>(
+    uiArgumentDraft?.claim ? 'building' : 'idle'
+  );
   const [topics, setTopics] = useState<Topic[]>([]);
-  const [selectedTopic, setSelectedTopic] = useState('');
-  const [claim, setClaim] = useState('');
-  const [evidence, setEvidence] = useState('');
-  const [counterargument, setCounterargument] = useState('');
-  const [rebuttal, setRebuttal] = useState('');
+  const [selectedTopic, setSelectedTopic] = useState(uiArgumentDraft?.selectedTopic ?? '');
+  const [claim, setClaim] = useState(uiArgumentDraft?.claim ?? '');
+  const [evidence, setEvidence] = useState(uiArgumentDraft?.evidence ?? '');
+  const [counterargument, setCounterargument] = useState(uiArgumentDraft?.counterargument ?? '');
+  const [rebuttal, setRebuttal] = useState(uiArgumentDraft?.rebuttal ?? '');
   const [result, setResult] = useState<ArgumentResult | null>(null);
+
+  // Persist argument draft on changes
+  useEffect(() => {
+    const hasContent = selectedTopic || claim.trim() || evidence.trim() || counterargument.trim() || rebuttal.trim();
+    if (hasContent) {
+      setUiArgumentDraft({ selectedTopic, claim, evidence, counterargument, rebuttal });
+    } else {
+      setUiArgumentDraft(null);
+    }
+  }, [selectedTopic, claim, evidence, counterargument, rebuttal, setUiArgumentDraft]);
 
   const generateTopics = async () => {
     setPhase('loading');
@@ -92,6 +104,7 @@ export default function ArgumentBuilder({ vocabWords }: { vocabWords: string[] }
       if (data.result) {
         setResult(data.result);
         setPhase('result');
+        setUiArgumentDraft(null);
         const xp = Math.round(data.result.score / 5) + 5;
         addXP(xp);
         triggerXPFloat(`+${xp} XP`, '#4ade80');

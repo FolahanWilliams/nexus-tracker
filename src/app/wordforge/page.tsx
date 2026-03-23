@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ChevronLeft, BookOpen, Brain, TrendingUp, Library } from 'lucide-react';
@@ -18,8 +17,9 @@ const TABS: { id: Tab; label: string; icon: typeof BookOpen }[] = [
 ];
 
 export default function WordForgePage() {
-  const [tab, setTab] = useState<Tab>('daily');
-  const { vocabWords, vocabStreak } = useGameStore();
+  const { vocabWords, vocabStreak, uiTabs, setUiTab } = useGameStore();
+  const tab = (uiTabs['wordforge'] as Tab) || 'daily';
+  const setTab = (t: Tab) => setUiTab('wordforge', t);
 
   const today = new Date().toISOString().split('T')[0];
   const dueCount = vocabWords.filter(w => w.nextReviewDate <= today).length;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useGameStore, DailyCalendarEntry } from '@/store/useGameStore';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -96,14 +96,19 @@ const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // ─── Component ───────────────────────────────────────────────────
 
 export default function SlightEdgeCalendarPage() {
-  const { dailyCalendarEntries, addOrUpdateCalendarEntry } = useGameStore();
+  const { dailyCalendarEntries, addOrUpdateCalendarEntry, uiCalendarYear, uiCalendarMonth, setUiCalendarPosition } = useGameStore();
   const { addToast } = useToastStore();
 
   const today = new Date();
   const todayStr = toLocalDateStr(today);
 
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
+  const [viewYear, setViewYear] = useState(uiCalendarYear);
+  const [viewMonth, setViewMonth] = useState(uiCalendarMonth);
+
+  // Persist calendar position changes
+  useEffect(() => {
+    setUiCalendarPosition(viewYear, viewMonth);
+  }, [viewYear, viewMonth, setUiCalendarPosition]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   // Modal form state
