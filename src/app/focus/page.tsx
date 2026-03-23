@@ -60,14 +60,13 @@ export default function FocusPage() {
   const mode = focusTimerMode;
   const running = focusTimerEndTime != null;
   const sessionsThisSession = focusTimerSessionCount;
-  const timeLeft = derivedTimeLeft;
-
-  const incompleteTasks = tasks.filter(t => !t.completed);
 
   // Derive display time when not running (avoids setState in effect)
-  const derivedTimeLeft = !focusTimerEndTime && focusTimerPausedTimeLeft != null
+  const timeLeft = !focusTimerEndTime && focusTimerPausedTimeLeft != null
     ? focusTimerPausedTimeLeft
     : displayTimeLeft;
+
+  const incompleteTasks = tasks.filter(t => !t.completed);
 
   // Sync display from store on every tick
   useEffect(() => {
