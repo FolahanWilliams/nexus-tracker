@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 /**
- * Next.js middleware — runs on every matched request.
+ * Next.js proxy (formerly middleware) — runs on every matched request.
  *
  * Responsibilities:
  *   1. Inject security headers (CSP, HSTS, X-Frame-Options, etc.)
@@ -13,7 +13,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  */
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function middleware(_request: NextRequest) {
+export function proxy(_request: NextRequest) {
     const response = NextResponse.next();
 
     // ── Security headers ────────────────────────────────────────────────

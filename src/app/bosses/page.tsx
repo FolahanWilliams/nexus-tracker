@@ -135,6 +135,11 @@ export default function BossBattlesPage() {
       });
       const data = await response.json();
 
+      if (!response.ok) {
+        addToast('Failed to summon boss. Please try again.', 'error');
+        return;
+      }
+
       if (data.name) {
         startBossBattle({
           name: data.name,
