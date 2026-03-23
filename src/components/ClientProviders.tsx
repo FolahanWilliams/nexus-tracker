@@ -14,6 +14,7 @@ import StreakCelebration from '@/components/StreakCelebration';
 import DailyIntention from '@/components/DailyIntention';
 import QuickAdd from '@/components/QuickAdd';
 import HootFAB from '@/components/HootFAB';
+import BackgroundTimerManager from '@/components/BackgroundTimerManager';
 import SubscriptionGate from '@/components/SubscriptionGate';
 import PageTransition from '@/components/PageTransition';
 
@@ -53,6 +54,7 @@ export default function ClientProviders({ children }: { children: React.ReactNod
                 <DailyIntention />
                 <QuickAdd />
                 <HootFAB />
+                <BackgroundTimerManager />
             </SubscriptionGate>
         </AuthProvider>
     );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Play, Pause, RotateCcw, Coffee, Zap, Target, CheckCircle, TreePine } from 'lucide-react';
@@ -117,98 +117,81 @@ function pad(n: number) {
 }
 
 export default function FocusPage() {
-  const { tasks, addXP, addGold, addFocusSession, focusSessionsTotal, focusMinutesTotal, setFocusTimerRunning } = useGameStore();
+  const {
+    tasks, addXP, addGold, addFocusSession, focusSessionsTotal, focusMinutesTotal,
+    focusTimerEndTime, focusTimerPausedTimeLeft, focusTimerMode, focusTimerSessionCount,
+    startFocusTimer, pauseFocusTimer, stopFocusTimer, setFocusTimerMode, setFocusTimerSessionCount,
+    activeFocusTaskId,
+  } = useGameStore();
   const { addToast } = useToastStore();
 
-  const [mode, setMode] = useState<TimerMode>('focus');
-  const [timeLeft, setTimeLeft] = useState(MODES['focus'].duration);
-  const [running, setRunning] = useState(false);
-  const [sessionsThisSession, setSessionsThisSession] = useState(0);
-  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
+  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(activeFocusTaskId);
+  const [displayTimeLeft, setDisplayTimeLeft] = useState(() => {
+    if (focusTimerEndTime) return Math.max(0, Math.ceil((focusTimerEndTime - Date.now()) / 1000));
+    if (focusTimerPausedTimeLeft != null) return focusTimerPausedTimeLeft;
+    return MODES[focusTimerMode].duration;
+  });
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const mode = focusTimerMode;
+  const running = focusTimerEndTime != null;
+  const sessionsThisSession = focusTimerSessionCount;
+  const timeLeft = displayTimeLeft;
+
   const incompleteTasks = tasks.filter(t => !t.completed);
 
-  const stopTimer = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = null;
-    setRunning(false);
-  }, []);
-
-  const handleSessionComplete = useCallback(() => {
-    stopTimer();
-    setFocusTimerRunning(false, null);
-
-    // Play alarm sound for all session completions
-    playAlarmSound();
-
-    if (mode === 'focus') {
-      const newSessions = sessionsThisSession + 1;
-      setSessionsThisSession(newSessions);
-      addFocusSession(25);
-
-      addXP(XP_PER_FOCUS_SESSION);
-      addGold(GOLD_PER_FOCUS_SESSION);
-      triggerXPFloat(`+${XP_PER_FOCUS_SESSION} XP`, '#4ade80');
-      setTimeout(() => triggerXPFloat(`+${GOLD_PER_FOCUS_SESSION} 🪙`, '#fbbf24'), 200);
-
-      const isLongBreak = newSessions % SESSIONS_BEFORE_LONG_BREAK === 0;
-      const nextMode: TimerMode = isLongBreak ? 'long-break' : 'short-break';
-      const toastMsg = isLongBreak
-        ? `🎉 Session ${newSessions} done! Long break time — you earned it!`
-        : `✅ Focus session done! +${XP_PER_FOCUS_SESSION} XP. Take a short break.`;
-
-      addToast(toastMsg, 'success');
-      sendTimerNotification(
-        'Focus Session Complete!',
-        isLongBreak
-          ? `Session ${newSessions} done! Time for a long break.`
-          : `+${XP_PER_FOCUS_SESSION} XP earned. Take a short break.`
-      );
-
-      setMode(nextMode);
-      setTimeLeft(MODES[nextMode].duration);
-    } else {
-      addToast('Break over — back to work! 💪', 'info');
-      sendTimerNotification('Break Over!', 'Time to get back to work. Start your next focus session.');
-      setMode('focus');
-      setTimeLeft(MODES['focus'].duration);
-    }
-  }, [mode, sessionsThisSession, stopTimer, addXP, addGold, addFocusSession, addToast, setFocusTimerRunning]);
-
+  // Sync display from store on every tick
   useEffect(() => {
-    if (!running) {
-      setFocusTimerRunning(false, null);
+    if (!focusTimerEndTime) {
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      // When paused or stopped, show the paused time or mode default
+      if (focusTimerPausedTimeLeft != null) {
+        setDisplayTimeLeft(focusTimerPausedTimeLeft);
+      }
       return;
     }
 
-    setFocusTimerRunning(true, linkedTaskId);
+    // Timer is running — tick display every second
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((focusTimerEndTime - Date.now()) / 1000));
+      setDisplayTimeLeft(remaining);
 
-    intervalRef.current = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          handleSessionComplete();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      if (remaining <= 0) {
+        // Timer completed — handled by BackgroundTimerManager
+        if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+      }
+    };
+    tick(); // immediate
+    intervalRef.current = setInterval(tick, 1000);
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
     };
-  }, [running, handleSessionComplete, setFocusTimerRunning, linkedTaskId]);
+  }, [focusTimerEndTime, focusTimerPausedTimeLeft]);
+
+  const handleToggle = () => {
+    requestNotificationPermission();
+    if (running) {
+      // Pause
+      const remaining = Math.max(0, Math.ceil((focusTimerEndTime! - Date.now()) / 1000));
+      pauseFocusTimer(remaining);
+    } else {
+      // Start/resume
+      const duration = focusTimerPausedTimeLeft ?? MODES[mode].duration;
+      startFocusTimer(mode, duration, linkedTaskId);
+    }
+  };
 
   const handleModeChange = (newMode: TimerMode) => {
-    stopTimer();
-    setMode(newMode);
-    setTimeLeft(MODES[newMode].duration);
+    setFocusTimerMode(newMode, MODES[newMode].duration);
+    setDisplayTimeLeft(MODES[newMode].duration);
   };
 
   const handleReset = () => {
-    stopTimer();
-    setTimeLeft(MODES[mode].duration);
+    stopFocusTimer();
+    setFocusTimerMode(mode, MODES[mode].duration);
+    setDisplayTimeLeft(MODES[mode].duration);
   };
 
   const currentMode = MODES[mode];
@@ -338,10 +321,7 @@ export default function FocusPage() {
           </motion.button>
 
           <motion.button
-            onClick={() => {
-              requestNotificationPermission();
-              setRunning(v => !v);
-            }}
+            onClick={handleToggle}
             className="w-20 h-20 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg"
             style={{ backgroundColor: currentMode.color }}
             whileHover={{ scale: 1.05 }}
