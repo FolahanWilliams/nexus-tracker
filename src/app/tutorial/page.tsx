@@ -152,7 +152,7 @@ const SECTIONS: TutorialSection[] = [
     title: 'Goals',
     icon: Flag,
     color: 'var(--color-yellow)',
-    quickNav: '/goals',
+    quickNav: '/progress',
     content: [
       {
         heading: 'Setting Goals',
@@ -174,7 +174,7 @@ const SECTIONS: TutorialSection[] = [
     title: 'Daily Check-In',
     icon: BookOpen,
     color: 'var(--color-blue)',
-    quickNav: '/reflection',
+    quickNav: '/journal',
     content: [
       {
         heading: 'Morning Intention',
@@ -199,7 +199,7 @@ const SECTIONS: TutorialSection[] = [
     title: 'WordForge (Vocabulary)',
     icon: Library,
     color: 'var(--color-purple)',
-    quickNav: '/wordforge',
+    quickNav: '/forge',
     content: [
       {
         heading: 'Daily Words',
@@ -249,7 +249,7 @@ const SECTIONS: TutorialSection[] = [
     title: 'Quest Chains',
     icon: Map,
     color: 'var(--color-green)',
-    quickNav: '/chains',
+    quickNav: '/quests?tab=chains',
     content: [
       {
         heading: 'Multi-Step Quests',
@@ -267,7 +267,7 @@ const SECTIONS: TutorialSection[] = [
     title: 'Boss Battles',
     icon: Sword,
     color: 'var(--color-red)',
-    quickNav: '/bosses',
+    quickNav: '/quests?tab=bosses',
     content: [
       {
         heading: 'Fighting Bosses',
@@ -326,7 +326,7 @@ const SECTIONS: TutorialSection[] = [
     title: 'Items, Crafting & Shop',
     icon: Sparkles,
     color: 'var(--color-yellow)',
-    quickNav: '/inventory',
+    quickNav: '/character?tab=inventory',
     content: [
       {
         heading: 'Inventory',
@@ -361,7 +361,7 @@ const SECTIONS: TutorialSection[] = [
     title: 'Progress & Records',
     icon: BarChart3,
     color: 'var(--color-blue)',
-    quickNav: '/analytics',
+    quickNav: '/progress?tab=analytics',
     content: [
       {
         heading: 'Stats Dashboard',

@@ -3,21 +3,21 @@
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { User, Sparkles, ChevronLeft } from 'lucide-react';
+import { BookOpen, CalendarDays, ChevronLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import TabShell from '@/components/TabShell';
-import ProfileTab from './ProfileTab';
-import InventoryTab from './InventoryTab';
+import CheckInTab from './CheckInTab';
+import SlightEdgeTab from './SlightEdgeTab';
 
 const TABS = [
-  { id: 'profile', label: 'Profile & Skills', icon: <User size={16} /> },
-  { id: 'inventory', label: 'Items & Shop', icon: <Sparkles size={16} /> },
+  { id: 'checkin', label: 'Daily Check-In', icon: <BookOpen size={16} /> },
+  { id: 'edge', label: 'Slight Edge Log', icon: <CalendarDays size={16} /> },
 ];
 
-export default function CharacterPage() {
+export default function JournalPage() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'profile';
-  const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'profile');
+  const initialTab = searchParams.get('tab') || 'checkin';
+  const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'checkin');
 
   return (
     <motion.div className="min-h-screen pb-20" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -26,15 +26,15 @@ export default function CharacterPage() {
           <Link href="/" className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
             <ChevronLeft size={24} />
           </Link>
-          <h1 className="text-xl font-bold">Character</h1>
+          <h1 className="text-xl font-bold">Daily Journal</h1>
         </div>
         <div className="max-w-5xl mx-auto px-4">
           <TabShell tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
       </div>
       <div className="max-w-5xl mx-auto px-4 py-6">
-        {activeTab === 'profile' && <ProfileTab />}
-        {activeTab === 'inventory' && <InventoryTab />}
+        {activeTab === 'checkin' && <CheckInTab />}
+        {activeTab === 'edge' && <SlightEdgeTab />}
       </div>
     </motion.div>
   );

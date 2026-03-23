@@ -9,12 +9,8 @@ import { useGameStore } from '@/store/useGameStore';
 import {
   LayoutDashboard,
   Target,
-  BarChart3,
   User,
   Activity,
-  Sparkles,
-  Map,
-  Sword,
   Settings,
   Repeat2,
   Timer,
@@ -23,10 +19,7 @@ import {
   Library,
   LogOut,
   HelpCircle,
-  Brain,
-  CalendarDays,
   Network,
-  GitBranch,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -47,38 +40,21 @@ const navGroups = [
       { href: '/quests', label: 'Quests', icon: Target },
       { href: '/habits', label: 'Habits', icon: Repeat2 },
       { href: '/focus', label: 'Focus Timer', icon: Timer },
-      { href: '/goals', label: 'Goals', icon: Flag },
-      { href: '/goals/calendar', label: 'Slight Edge Log', icon: CalendarDays },
-      { href: '/reflection', label: 'Check-In', icon: BookOpen },
-      { href: '/wordforge', label: 'WordForge', icon: Library },
-      { href: '/mindforge', label: 'MindForge', icon: Brain },
-    ],
-  },
-  {
-    label: 'ADVENTURE',
-    items: [
-      { href: '/chains', label: 'Quest Chains', icon: Map },
-      { href: '/bosses', label: 'Boss Battles', icon: Sword },
+      { href: '/journal', label: 'Daily Journal', icon: BookOpen },
     ],
   },
   {
     label: 'CHARACTER',
     items: [
-      { href: '/character', label: 'Character & Skills', icon: User },
-      { href: '/inventory', label: 'Items & Shop', icon: Sparkles },
+      { href: '/character', label: 'Character', icon: User },
+      { href: '/forge', label: 'Forge', icon: Library },
+      { href: '/progress', label: 'Progress', icon: Flag },
     ],
   },
   {
-    label: 'INSIGHTS',
+    label: 'MORE',
     items: [
-      { href: '/knowledge', label: 'Knowledge Graph', icon: Network },
-      { href: '/growth', label: 'Growth Web', icon: GitBranch },
-    ],
-  },
-  {
-    label: 'RECORDS',
-    items: [
-      { href: '/analytics', label: 'Progress & Records', icon: BarChart3 },
+      { href: '/insights', label: 'Insights', icon: Network },
       { href: '/tutorial', label: 'Guide & Tutorial', icon: HelpCircle },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
