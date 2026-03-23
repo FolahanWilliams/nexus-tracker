@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     ChevronLeft, Search, Filter, BookOpen, Brain, TrendingUp,
     Maximize2, Minimize2, Network, Loader2, RefreshCw,
-    Play, Pause, SkipBack, Clock, Crosshair, Box, Palette, Map,
+    Play, Pause, SkipBack, Clock, Crosshair, Box, Palette, Map as MapIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import KnowledgeNodeDetail from '@/components/KnowledgeNodeDetail';
@@ -435,75 +435,6 @@ export default function KnowledgePage() {
         };
     }, [timeSliderPlaying]);
 
-    // ── Search-to-zoom: auto-center on matched node ──
-    useEffect(() => {
-        if (!searchQuery || !graphRef.current) return;
-        const q = searchQuery.toLowerCase();
-        const match = (graphData.nodes as GraphNode[]).find(
-            (n) => n.label.toLowerCase() === q
-        );
-        if (match && match.x != null && match.y != null) {
-            if (is3D) {
-                graphRef.current.cameraPosition?.(
-                    { x: match.x, y: match.y, z: 200 },
-                    { x: match.x, y: match.y, z: 0 },
-                    1200
-                );
-            } else {
-                graphRef.current.centerAt?.(match.x, match.y, 800);
-                graphRef.current.zoom?.(4, 800);
-            }
-        }
-    }, [searchQuery, graphData.nodes, is3D]);
-
-    // ── Cluster label computation ──
-    const clusterLabels = useMemo(() => {
-        if (!graphData) return [];
-        const categoryGroups = new Map<string, { xs: number[]; ys: number[] }>();
-        for (const node of (graphData?.nodes || []) as GraphNode[]) {
-            if (!node.x || !node.y) continue;
-            const cat = node.category;
-            if (!categoryGroups.has(cat)) categoryGroups.set(cat, { xs: [], ys: [] });
-            const g = categoryGroups.get(cat)!;
-            g.xs.push(node.x);
-            g.ys.push(node.y);
-        }
-        const labels: { category: string; x: number; y: number; count: number }[] = [];
-        categoryGroups.forEach((g, cat) => {
-            if (g.xs.length < 3) return; // Only label clusters with 3+ nodes
-            const cx = g.xs.reduce((a, b) => a + b, 0) / g.xs.length;
-            const cy = g.ys.reduce((a, b) => a + b, 0) / g.ys.length;
-            labels.push({ category: cat, x: cx, y: cy, count: g.xs.length });
-        });
-        return labels;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [graphData?.nodes, hoveredNode, selectedKnowledgeNodeId]);
-
-    // ── Particle flow: spawn particles when a node is clicked ──
-    const startParticleFlow = useCallback((nodeId: string) => {
-        setParticleFlowNodeId(nodeId);
-        // Spawn particles on each connected edge
-        const connectedEdges = knowledgeEdges
-            .map((e, idx) => ({ ...e, idx }))
-            .filter((e) => e.sourceNodeId === nodeId || e.targetNodeId === nodeId);
-        const particles: typeof particlesRef.current = [];
-        connectedEdges.forEach((e) => {
-            for (let i = 0; i < 3; i++) {
-                particles.push({
-                    x: 0, y: 0,
-                    progress: i * 0.33,
-                    edgeIdx: e.idx,
-                });
-            }
-        });
-        particlesRef.current = particles;
-        // Auto-stop after 3 seconds
-        setTimeout(() => {
-            setParticleFlowNodeId(null);
-            particlesRef.current = [];
-        }, 3000);
-    }, [knowledgeEdges]);
-
     // Filter nodes (with time slider + trace concept support)
     const filteredNodes = useMemo(() => {
         return knowledgeNodes.filter((n) => {
@@ -550,6 +481,75 @@ export default function KnowledgePage() {
 
         return { nodes: graphNodes, links: graphLinks };
     }, [filteredNodes, knowledgeEdges]);
+
+    // ── Search-to-zoom: auto-center on matched node ──
+    useEffect(() => {
+        if (!searchQuery || !graphRef.current) return;
+        const q = searchQuery.toLowerCase();
+        const match = (graphData.nodes as GraphNode[]).find(
+            (n: GraphNode) => n.label.toLowerCase() === q
+        );
+        if (match && match.x != null && match.y != null) {
+            if (is3D) {
+                graphRef.current.cameraPosition?.(
+                    { x: match.x, y: match.y, z: 200 },
+                    { x: match.x, y: match.y, z: 0 },
+                    1200
+                );
+            } else {
+                graphRef.current.centerAt?.(match.x, match.y, 800);
+                graphRef.current.zoom?.(4, 800);
+            }
+        }
+    }, [searchQuery, graphData.nodes, is3D]);
+
+    // ── Cluster label computation ──
+    const clusterLabels = useMemo(() => {
+        if (!graphData) return [];
+        const categoryGroups = new Map<string, { xs: number[]; ys: number[] }>();
+        for (const node of (graphData?.nodes || []) as GraphNode[]) {
+            if (!node.x || !node.y) continue;
+            const cat = node.category;
+            if (!categoryGroups.has(cat)) categoryGroups.set(cat, { xs: [], ys: [] });
+            const g = categoryGroups.get(cat)!;
+            g.xs.push(node.x);
+            g.ys.push(node.y);
+        }
+        const labels: { category: string; x: number; y: number; count: number }[] = [];
+        categoryGroups.forEach((g: { xs: number[]; ys: number[] }, cat: string) => {
+            if (g.xs.length < 3) return; // Only label clusters with 3+ nodes
+            const cx = g.xs.reduce((a: number, b: number) => a + b, 0) / g.xs.length;
+            const cy = g.ys.reduce((a: number, b: number) => a + b, 0) / g.ys.length;
+            labels.push({ category: cat, x: cx, y: cy, count: g.xs.length });
+        });
+        return labels;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [graphData?.nodes, hoveredNode, selectedKnowledgeNodeId]);
+
+    // ── Particle flow: spawn particles when a node is clicked ──
+    const startParticleFlow = useCallback((nodeId: string) => {
+        setParticleFlowNodeId(nodeId);
+        // Spawn particles on each connected edge
+        const connectedEdges = knowledgeEdges
+            .map((e, idx) => ({ ...e, idx }))
+            .filter((e) => e.sourceNodeId === nodeId || e.targetNodeId === nodeId);
+        const particles: typeof particlesRef.current = [];
+        connectedEdges.forEach((e) => {
+            for (let i = 0; i < 3; i++) {
+                particles.push({
+                    x: 0, y: 0,
+                    progress: i * 0.33,
+                    edgeIdx: e.idx,
+                });
+            }
+        });
+        particlesRef.current = particles;
+        // Auto-stop after 3 seconds
+        setTimeout(() => {
+            setParticleFlowNodeId(null);
+            particlesRef.current = [];
+        }, 3000);
+    }, [knowledgeEdges]);
 
     const selectedNode = useMemo(
         () => knowledgeNodes.find((n) => n.id === selectedKnowledgeNodeId) || null,
@@ -865,7 +865,7 @@ export default function KnowledgePage() {
                         }`}
                         title="Toggle minimap"
                     >
-                        <Map size={10} />
+                        <MapIcon size={10} />
                         Minimap
                     </button>
                     <button

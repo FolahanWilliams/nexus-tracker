@@ -6,7 +6,7 @@
 import { PersistStorage, StorageValue } from 'zustand/middleware';
 import { hybridStorage } from './indexedDB';
 import { saveToSupabase, loadFromSupabase } from './supabaseSync';
-import { pruneStorageState } from './storagePruning';
+import { pruneStorageState, type PrunableState } from './storagePruning';
 import { logger } from './logger';
 
 // ── Debounce ─────────────────────────────────────────────────────────────
@@ -60,7 +60,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
         if (cloudData) {
           // Cache cloud data locally for offline / fast next load
           // Prune before returning to keep IndexedDB lean
-          const prunedState = pruneStorageState(cloudData.state as Record<string, unknown>);
+          const prunedState = pruneStorageState(cloudData.state as unknown as PrunableState);
           const value = { state: prunedState } as StorageValue<T>;
           await hybridStorage.save(JSON.stringify(value));
           return value;
@@ -74,7 +74,7 @@ export const createIndexedDBStorage = <T>(): PersistStorage<T> => ({
         // Prune on load to enforce retention limits
         if (parsed.state && typeof parsed.state === 'object') {
           (parsed as { state: unknown }).state = pruneStorageState(
-            parsed.state as Record<string, unknown>
+            parsed.state as unknown as PrunableState
           );
         }
         return parsed;

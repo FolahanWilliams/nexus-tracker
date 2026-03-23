@@ -12,7 +12,7 @@
  */
 import { logger } from './logger';
 
-interface PrunableState {
+export interface PrunableState {
     activityLog: { timestamp: string }[];
     knowledgeNodes: { lastSeenAt: string }[];
     knowledgeEdges: { id: string }[];
