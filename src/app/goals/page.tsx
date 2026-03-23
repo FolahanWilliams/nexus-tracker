@@ -1,7 +1,7 @@
 'use client';
 
 import { useGameStore, Goal, GoalTimeframe, TaskCategory } from '@/store/useGameStore';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -40,20 +40,35 @@ function getDaysLeft(targetDate: string): number {
 }
 
 export default function GoalsPage() {
-  const { goals, addGoal, completeGoalMilestone, completeGoal, deleteGoal, restoreGoal, updateGoalProgress } = useGameStore();
+  const { goals, addGoal, completeGoalMilestone, completeGoal, deleteGoal, restoreGoal, updateGoalProgress, uiGoalDraft, setUiGoalDraft } = useGameStore();
   const { addToast } = useToastStore();
 
   const [showAdd, setShowAdd] = useState(false);
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
 
-  // Form state
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<TaskCategory>('Personal');
-  const [timeframe, setTimeframe] = useState<GoalTimeframe>('month');
-  const [targetDate, setTargetDate] = useState('');
-  const [milestones, setMilestones] = useState(['', '', '']);
-  const [xpReward, setXpReward] = useState(200);
+  // Form state — restore from persisted draft
+  const [title, setTitle] = useState(uiGoalDraft?.title ?? '');
+  const [description, setDescription] = useState(uiGoalDraft?.description ?? '');
+  const [category, setCategory] = useState<TaskCategory>(uiGoalDraft?.category ?? 'Personal');
+  const [timeframe, setTimeframe] = useState<GoalTimeframe>(uiGoalDraft?.timeframe ?? 'month');
+  const [targetDate, setTargetDate] = useState(uiGoalDraft?.targetDate ?? '');
+  const [milestones, setMilestones] = useState(uiGoalDraft?.milestones ?? ['', '', '']);
+  const [xpReward, setXpReward] = useState(uiGoalDraft?.xpReward ?? 200);
+
+  // Auto-open the form if there's a draft
+  useEffect(() => {
+    if (uiGoalDraft && uiGoalDraft.title) setShowAdd(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist draft on changes
+  useEffect(() => {
+    const hasContent = title.trim() || description.trim() || targetDate || milestones.some(m => m.trim());
+    if (hasContent) {
+      setUiGoalDraft({ title, description, category, timeframe, targetDate, milestones, xpReward });
+    } else {
+      setUiGoalDraft(null);
+    }
+  }, [title, description, category, timeframe, targetDate, milestones, xpReward, setUiGoalDraft]);
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +82,7 @@ export default function GoalsPage() {
     setTargetDate('');
     setMilestones(['', '', '']);
     setXpReward(200);
+    setUiGoalDraft(null);
     setShowAdd(false);
   };
 

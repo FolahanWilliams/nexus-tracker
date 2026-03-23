@@ -72,20 +72,33 @@ Two integrated learning systems that cross-pollinate with the RPG layer:
 - **Summary Challenge** — Passage compression exercises graded on accuracy and conciseness
 - **Impromptu Speaking** — Speech practice with AI transcript analysis for coherence, pacing, and vocabulary usage
 
+### Slight Edge Calendar
+
+A daily consistency tracker inspired by *The Slight Edge* philosophy — small daily actions compound into extraordinary results:
+
+- **Year-View Dot Calendar** — A full-year overview where each day is a dot colored by productivity score, making streaks and gaps instantly visible (`/wallpaper`)
+- **Monthly Calendar View** — Navigate month-by-month with day-level detail, click any day to log or edit entries (`/goals/calendar`)
+- **Daily Slight Edge Log** — Log what you did, what you learned, and rate productivity (1–10) each evening
+- **Evening Auto-Prompt** — After 7pm, an automatic modal prompts you to fill out today's Slight Edge log if not yet completed
+- **Streak & Compound Growth** — Tracks current streak, best streak, and a compound growth multiplier (1.003^n) visualizing how small daily gains accumulate
+- **Motivational Quotes** — Daily rotating quotes from *The Slight Edge* philosophy
+- **Persistent View Position** — Calendar remembers which month you were viewing across navigation
+
 ### Habit Tracking & Reflection
 
 - **Daily Habit System** — Streaks with milestone rewards at 3, 7, 14, 30, and 100 days
 - **Contribution Heatmap** — 30-day visual completion calendar per habit
 - **Morning Intentions** — Set daily focus with energy rating (1–5)
-- **Evening Reflections** — Submit reflections with star ratings; XP scales with rating and tasks completed
+- **Evening Slight Edge Log** — Nightly prompt to log daily summary, learnings, and productivity score (1–10) directly into the Slight Edge calendar
 - **Energy Monitoring** — Daily energy ratings feed into Nexus Pulse burnout detection
 
 ### Focus Timer
 
 - **Pomodoro System** — 25-min focus / 5-min break cycles with automatic long breaks after 4 sessions
+- **Background Persistence** — Timer state lives in the global store and a background manager keeps it ticking, so navigating to other pages never resets the countdown
 - **Session Rewards** — +30 XP and +10 Gold per completed focus session
 - **Task Linking** — Optionally tie focus sessions to specific quests for attribution
-- **Audio Feedback** — Sound effects on timer completion
+- **Audio & Notification Feedback** — Chime alarm and browser notifications on timer completion, even when viewing a different page
 
 ### Analytics & Achievements
 
@@ -102,7 +115,7 @@ Two integrated learning systems that cross-pollinate with the RPG layer:
 | Layer | Technology |
 |-------|-----------|
 | **Frontend** | React 19, Next.js 16 (App Router), TypeScript, Tailwind CSS 4, Framer Motion |
-| **State** | Zustand with 7 composable slices + IndexedDB persistence |
+| **State** | Zustand with 8 composable slices + IndexedDB persistence (including UI persistence layer) |
 | **Database** | Supabase (PostgreSQL) with Row-Level Security, JSONB columns, triggers |
 | **AI/ML** | Google Gemini 3 Flash with function calling + Google Search grounding |
 | **Auth** | Supabase Auth (Google OAuth) with auto-profile creation triggers |
@@ -131,6 +144,7 @@ Serverless API routes powering AI features, payments, and game logic:
 - **Offline** — IndexedDB stores full game state locally for instant load and offline use
 - **Cloud** — Supabase syncs all data with RLS policies isolating each user
 - **Automatic Sync** — State changes propagate to Supabase in real time when online
+- **UI State Persistence** — Tab selections, form drafts (goals, habits, arguments), calendar view position, weekly plan cache, and review session mode all survive page navigation via a dedicated UI persistence slice
 
 ---
 
@@ -142,8 +156,9 @@ Serverless API routes powering AI features, payments, and game logic:
 | `/quests` | Task management with AI generation, NLP commands, auto-tagging |
 | `/habits` | Habit tracking with streaks, milestones, and contribution heatmaps |
 | `/goals` | Long-term goal setting with milestones and timeframes |
-| `/reflection` | Morning intentions and evening reflections with energy tracking |
-| `/focus` | Pomodoro timer with session tracking and task linking |
+| `/goals/calendar` | Slight Edge monthly calendar with daily logging and streak stats |
+| `/reflection` | Morning intentions and evening Slight Edge log with energy tracking |
+| `/focus` | Pomodoro timer with background persistence and task linking |
 | `/bosses` | Boss battle system with dynamic HP and vocab mastery bonuses |
 | `/chains` | Multi-step quest chains with branching paths |
 | `/character` | Profile, class selection, skill tree, titles |
@@ -152,6 +167,7 @@ Serverless API routes powering AI features, payments, and game logic:
 | `/mindforge` | Cognitive training: argument, analogy, summary, speaking exercises |
 | `/analytics` | Stats, achievements, timeline, heatmap |
 | `/settings` | Sound, theme, data export/import, account reset |
+| `/wallpaper` | Slight Edge year-view dot calendar (full year at a glance) |
 | `/pricing` | Subscription plans with Stripe checkout |
 | `/tutorial` | Interactive onboarding guide |
 

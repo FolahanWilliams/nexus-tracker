@@ -470,7 +470,9 @@ function ShopTab() {
 
 // ─────────────────────────────────────────────
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('inventory');
+  const { uiTabs, setUiTab } = useGameStore();
+  const activeTab = (uiTabs['inventory'] as Tab) || 'inventory';
+  const setActiveTab = (t: Tab) => setUiTab('inventory', t);
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'inventory', label: 'Inventory', icon: '🎒' },

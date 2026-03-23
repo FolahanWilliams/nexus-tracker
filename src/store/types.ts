@@ -476,6 +476,71 @@ export interface HootSlice {
     updateHootLastInteraction: () => void;
 }
 
+// ─── UI Persistence Slice ───────────────────────────────────────
+
+export interface GoalFormDraft {
+    title: string;
+    description: string;
+    category: TaskCategory;
+    timeframe: GoalTimeframe;
+    targetDate: string;
+    milestones: string[];
+    xpReward: number;
+}
+
+export interface HabitFormDraft {
+    name: string;
+    icon: string;
+    category: TaskCategory;
+    xp: number;
+}
+
+export interface ArgumentDraft {
+    selectedTopic: string;
+    claim: string;
+    evidence: string;
+    counterargument: string;
+    rebuttal: string;
+}
+
+export interface WeeklyPlanCache {
+    plan: { briefing: string; days: { day: string; focus: string; tasks: string[] }[]; insight: string } | null;
+    generatedAt: string | null; // ISO date string
+}
+
+export interface UiSlice {
+    // Tab selections
+    uiTabs: Record<string, string>; // e.g. { mindforge: 'argument', wordforge: 'daily', ... }
+
+    // Calendar view position
+    uiCalendarYear: number;
+    uiCalendarMonth: number;
+
+    // Form drafts
+    uiGoalDraft: GoalFormDraft | null;
+    uiHabitDraft: HabitFormDraft | null;
+
+    // MindForge argument builder draft
+    uiArgumentDraft: ArgumentDraft | null;
+
+    // Weekly plan cache
+    uiWeeklyPlan: WeeklyPlanCache;
+
+    // WordForge review session
+    uiReviewMode: string | null; // 'study' | 'quiz' | 'recall' | null
+    uiReviewQuizMode: string; // 'adaptive' | specific QuizType
+
+    // Actions
+    setUiTab: (page: string, tab: string) => void;
+    setUiCalendarPosition: (year: number, month: number) => void;
+    setUiGoalDraft: (draft: GoalFormDraft | null) => void;
+    setUiHabitDraft: (draft: HabitFormDraft | null) => void;
+    setUiArgumentDraft: (draft: ArgumentDraft | null) => void;
+    setUiWeeklyPlan: (plan: WeeklyPlanCache['plan']) => void;
+    setUiReviewMode: (mode: string | null) => void;
+    setUiReviewQuizMode: (mode: string) => void;
+}
+
 // ─── Combined state ──────────────────────────────────────────────
 
-export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice;
+export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice;

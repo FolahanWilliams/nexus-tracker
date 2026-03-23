@@ -1,6 +1,5 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { ChevronLeft, Swords, Lightbulb, FileText, Mic } from 'lucide-react';
@@ -20,8 +19,9 @@ const TABS: { id: Tab; label: string; icon: typeof Swords; color: string; desc: 
 ];
 
 export default function MindForgePage() {
-  const [tab, setTab] = useState<Tab>('argument');
-  const { vocabWords } = useGameStore();
+  const { vocabWords, uiTabs, setUiTab } = useGameStore();
+  const tab = (uiTabs['mindforge'] as Tab) || 'argument';
+  const setTab = (t: Tab) => setUiTab('mindforge', t);
 
   // Pass learned vocab words for cross-integration
   const learnedWords = vocabWords.map(w => w.word);

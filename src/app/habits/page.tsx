@@ -44,15 +44,29 @@ function getLast30Days(): string[] {
 }
 
 export default function HabitsPage() {
-  const { habits, addHabit, completeHabit, deleteHabit, restoreHabit, checkHabitResets } = useGameStore();
+  const { habits, addHabit, completeHabit, deleteHabit, restoreHabit, checkHabitResets, uiHabitDraft, setUiHabitDraft } = useGameStore();
   const { addToast } = useToastStore();
 
   const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newIcon, setNewIcon] = useState('📚');
-  const [newCategory, setNewCategory] = useState<TaskCategory>('Personal');
-  const [newXP, setNewXP] = useState(15);
+  const [newName, setNewName] = useState(uiHabitDraft?.name ?? '');
+  const [newIcon, setNewIcon] = useState(uiHabitDraft?.icon ?? '📚');
+  const [newCategory, setNewCategory] = useState<TaskCategory>(uiHabitDraft?.category ?? 'Personal');
+  const [newXP, setNewXP] = useState(uiHabitDraft?.xp ?? 15);
   const [selectedHabit, setSelectedHabit] = useState<string | null>(null);
+
+  // Auto-open form if there's a draft
+  useEffect(() => {
+    if (uiHabitDraft && uiHabitDraft.name) setShowAdd(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Persist draft on changes
+  useEffect(() => {
+    if (newName.trim()) {
+      setUiHabitDraft({ name: newName, icon: newIcon, category: newCategory, xp: newXP });
+    } else {
+      setUiHabitDraft(null);
+    }
+  }, [newName, newIcon, newCategory, newXP, setUiHabitDraft]);
 
   const today = new Date().toISOString().split('T')[0];
   const last30 = useMemo(() => getLast30Days(), []);
@@ -86,6 +100,7 @@ export default function HabitsPage() {
     setNewIcon('📚');
     setNewCategory('Personal');
     setNewXP(15);
+    setUiHabitDraft(null);
     setShowAdd(false);
   };
 

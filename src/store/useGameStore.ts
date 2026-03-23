@@ -49,6 +49,10 @@ export type {
     HootMemoryNote,
     HootConversationSummary,
     DailyCalendarEntry,
+    GoalFormDraft,
+    HabitFormDraft,
+    ArgumentDraft,
+    WeeklyPlanCache,
 } from './types';
 
 // Re-export constants that were previously exported from this file
@@ -68,6 +72,7 @@ import { createHabitSlice } from './slices/habitSlice';
 import { createGoalSlice } from './slices/goalSlice';
 import { createVocabSlice } from './slices/vocabSlice';
 import { createHootSlice } from './slices/hootSlice';
+import { createUiSlice } from './slices/uiSlice';
 
 // ─── Compose store ───────────────────────────────────────────────
 
@@ -81,6 +86,7 @@ export const useGameStore = create<GameState>()(
             ...createGoalSlice(...a),
             ...createVocabSlice(...a),
             ...createHootSlice(...a),
+            ...createUiSlice(...a),
         }),
         {
             name: 'ai-productivity-storage',
