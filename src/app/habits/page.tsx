@@ -47,17 +47,12 @@ export default function HabitsPage() {
   const { habits, addHabit, completeHabit, deleteHabit, restoreHabit, checkHabitResets, uiHabitDraft, setUiHabitDraft } = useGameStore();
   const { addToast } = useToastStore();
 
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd, setShowAdd] = useState(() => !!(uiHabitDraft && uiHabitDraft.name));
   const [newName, setNewName] = useState(uiHabitDraft?.name ?? '');
   const [newIcon, setNewIcon] = useState(uiHabitDraft?.icon ?? '📚');
   const [newCategory, setNewCategory] = useState<TaskCategory>(uiHabitDraft?.category ?? 'Personal');
   const [newXP, setNewXP] = useState(uiHabitDraft?.xp ?? 15);
   const [selectedHabit, setSelectedHabit] = useState<string | null>(null);
-
-  // Auto-open form if there's a draft
-  useEffect(() => {
-    if (uiHabitDraft && uiHabitDraft.name) setShowAdd(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist draft on changes
   useEffect(() => {

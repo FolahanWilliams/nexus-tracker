@@ -43,7 +43,7 @@ export default function GoalsPage() {
   const { goals, addGoal, completeGoalMilestone, completeGoal, deleteGoal, restoreGoal, updateGoalProgress, uiGoalDraft, setUiGoalDraft } = useGameStore();
   const { addToast } = useToastStore();
 
-  const [showAdd, setShowAdd] = useState(false);
+  const [showAdd, setShowAdd] = useState(() => !!(uiGoalDraft && uiGoalDraft.title));
   const [expandedGoal, setExpandedGoal] = useState<string | null>(null);
 
   // Form state — restore from persisted draft
@@ -54,11 +54,6 @@ export default function GoalsPage() {
   const [targetDate, setTargetDate] = useState(uiGoalDraft?.targetDate ?? '');
   const [milestones, setMilestones] = useState(uiGoalDraft?.milestones ?? ['', '', '']);
   const [xpReward, setXpReward] = useState(uiGoalDraft?.xpReward ?? 200);
-
-  // Auto-open the form if there's a draft
-  useEffect(() => {
-    if (uiGoalDraft && uiGoalDraft.title) setShowAdd(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Persist draft on changes
   useEffect(() => {

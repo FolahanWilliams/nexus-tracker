@@ -9,6 +9,7 @@ import { hasApiKeyOrMock } from '@/lib/api-helpers';
  */
 export async function POST(request: Request) {
     try {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { text, source, sourceId, existingLabels } = await request.json();
 
         const mock = hasApiKeyOrMock({

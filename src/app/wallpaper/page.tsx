@@ -59,18 +59,16 @@ const MONTH_NAMES = [
 function WallpaperContent() {
   const { dailyCalendarEntries } = useGameStore();
   const searchParams = useSearchParams();
-  const [hydrated, setHydrated] = useState(false);
+  const [hydrated, setHydrated] = useState(() => useGameStore.persist.hasHydrated());
 
   // Wait for Zustand hydration from IndexedDB
   useEffect(() => {
+    if (hydrated) return;
     const unsub = useGameStore.persist.onFinishHydration(() => {
       setHydrated(true);
     });
-    if (useGameStore.persist.hasHydrated()) {
-      setHydrated(true);
-    }
     return unsub;
-  }, []);
+  }, [hydrated]);
 
   // Parse query params
   const yearParam = searchParams.get('year');

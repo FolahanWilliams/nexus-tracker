@@ -101,8 +101,8 @@ export default function SlightEdgeCalendarPage() {
   const { addToast } = useToastStore();
   const { extractAndStore } = useConceptExtraction();
 
-  const today = new Date();
-  const todayStr = toLocalDateStr(today);
+  const today = useMemo(() => new Date(), []);
+  const todayStr = useMemo(() => toLocalDateStr(today), [today]);
 
   const [viewYear, setViewYear] = useState(uiCalendarYear);
   const [viewMonth, setViewMonth] = useState(uiCalendarMonth);
@@ -135,7 +135,6 @@ export default function SlightEdgeCalendarPage() {
   const bestStreak = calcBestStreak(dailyCalendarEntries);
   const trackingStartDate = getTrackingStartDate(dailyCalendarEntries);
   const compoundMultiplier = calcCompoundGrowth(completedCount);
-  const percentGrowth = ((compoundMultiplier - 1) * 100).toFixed(1);
   const todayLogged = !!entryMap[todayStr];
 
   // Monthly completion rate for viewed month
