@@ -9,7 +9,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     ChevronLeft, Search, Filter, BookOpen, Brain, TrendingUp,
     Maximize2, Minimize2, Network, Loader2, RefreshCw,
-    Play, Pause, SkipBack, Clock,
+    Play, Pause, SkipBack, Clock, Crosshair, Box, Palette, Map,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import KnowledgeNodeDetail from '@/components/KnowledgeNodeDetail';
@@ -18,6 +18,7 @@ import dynamic from 'next/dynamic';
 
 // Dynamically import the graph to avoid SSR issues with canvas
 const ForceGraph2D = dynamic(() => import('react-force-graph-2d'), { ssr: false });
+const ForceGraph3D = dynamic(() => import('react-force-graph-3d'), { ssr: false });
 
 // Category color map
 const CATEGORY_COLORS: Record<string, string> = {
@@ -35,6 +36,18 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 function getCategoryColor(category: string): string {
     return CATEGORY_COLORS[category?.toLowerCase()] || CATEGORY_COLORS.other;
+}
+
+// Edge type color map
+const EDGE_TYPE_COLORS: Record<string, string> = {
+    co_occurrence: '#60a5fa',   // blue
+    semantic: '#c084fc',        // purple
+    vocab_concept: '#fb923c',   // orange
+    prerequisite: '#4ade80',    // green
+};
+
+function getEdgeTypeColor(edgeType: string): string {
+    return EDGE_TYPE_COLORS[edgeType] || '#475569';
 }
 
 function getMasteryColor(score: number | null): string {
@@ -84,8 +97,15 @@ export default function KnowledgePage() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [hoveredNode, setHoveredNode] = useState<string | null>(null);
     const [initialized, setInitialized] = useState(false);
-    const graphRef = useRef<{ d3ReheatSimulation: () => void } | null>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const graphRef = useRef<any>(null);
     const graphDimensions = useGraphDimensions(isFullscreen, 180);
+
+    // ── New visualization features ──
+    const [edgeColoringEnabled, setEdgeColoringEnabled] = useState(true);
+    const [is3D, setIs3D] = useState(false);
+    const [showMinimap, setShowMinimap] = useState(true);
+    const globalScaleRef = useRef(1);
 
     // ── Time Slider state ──
     const [timeSliderEnabled, setTimeSliderEnabled] = useState(false);
@@ -416,6 +436,27 @@ export default function KnowledgePage() {
         };
     }, [timeSliderPlaying]);
 
+    // ── Search-to-zoom: auto-center on matched node ──
+    useEffect(() => {
+        if (!searchQuery || !graphRef.current) return;
+        const q = searchQuery.toLowerCase();
+        const match = (graphData.nodes as GraphNode[]).find(
+            (n) => n.label.toLowerCase() === q
+        );
+        if (match && match.x != null && match.y != null) {
+            if (is3D) {
+                graphRef.current.cameraPosition?.(
+                    { x: match.x, y: match.y, z: 200 },
+                    { x: match.x, y: match.y, z: 0 },
+                    1200
+                );
+            } else {
+                graphRef.current.centerAt?.(match.x, match.y, 800);
+                graphRef.current.zoom?.(4, 800);
+            }
+        }
+    }, [searchQuery, graphData.nodes, is3D]);
+
     // ── Cluster label computation ──
     const clusterLabels = useMemo(() => {
         if (!graphData) return [];
@@ -537,9 +578,10 @@ export default function KnowledgePage() {
         })(),
     }), [filteredNodes, graphData.links]);
 
-    // Custom node rendering (with trace highlight support)
+    // Custom node rendering — zoom-adaptive detail levels
     const paintNode = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D) => {
-        const { x = 0, y = 0, size = 6, label, nodeType, color } = node;
+        const { x = 0, y = 0, size = 6, label, nodeType, color, category } = node;
+        const scale = globalScaleRef.current;
         const isHovered = hoveredNode === node.id;
         const isSelected = selectedKnowledgeNodeId === node.id;
         const isConnected = hoveredNode && knowledgeEdges.some(
@@ -550,8 +592,26 @@ export default function KnowledgePage() {
         const isTraced = tracedConcept && node.id === `concept-${tracedConcept}`;
         const isParticleTarget = particleFlowNodeId === node.id;
 
+        // ── Zoom-adaptive detail levels ──
+        // Low zoom (< 0.6): cluster blobs only — large translucent circles
+        // Medium zoom (0.6–1.8): shapes without labels
+        // High zoom (> 1.8): full labels + mastery rings + glow
+
         ctx.save();
         ctx.globalAlpha = dimmed ? 0.15 : 1;
+
+        if (scale < 0.6 && !isHovered && !isSelected && !isTraced) {
+            // LOW ZOOM: soft cluster blob
+            const blobSize = size * 1.5;
+            const catColor = getCategoryColor(category);
+            ctx.globalAlpha = dimmed ? 0.05 : 0.5;
+            ctx.fillStyle = catColor;
+            ctx.beginPath();
+            ctx.arc(x, y, blobSize, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.restore();
+            return;
+        }
 
         // Traced concept: pulsing ring
         if (isTraced) {
@@ -573,6 +633,27 @@ export default function KnowledgePage() {
         if (isSelected || isHovered) {
             ctx.shadowColor = color;
             ctx.shadowBlur = 15;
+        }
+
+        // HIGH ZOOM (> 1.8): mastery ring behind node
+        if (scale > 1.8 && nodeType === 'word') {
+            const masteryNode = knowledgeNodes.find((n) => n.id === node.id);
+            if (masteryNode?.masteryScore != null) {
+                const ringRadius = size + 3;
+                const masteryAngle = masteryNode.masteryScore * 2 * Math.PI;
+                // Background ring
+                ctx.beginPath();
+                ctx.arc(x, y, ringRadius, 0, 2 * Math.PI);
+                ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+                // Mastery arc
+                ctx.beginPath();
+                ctx.arc(x, y, ringRadius, -Math.PI / 2, -Math.PI / 2 + masteryAngle);
+                ctx.strokeStyle = getMasteryColor(masteryNode.masteryScore);
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            }
         }
 
         ctx.fillStyle = color;
@@ -607,9 +688,15 @@ export default function KnowledgePage() {
             ctx.stroke();
         }
 
-        if (isHovered || isSelected || isTraced || size > 6) {
+        // MEDIUM ZOOM: shapes only, no labels (unless hovered/selected/traced)
+        // HIGH ZOOM: full labels
+        const showLabel = scale > 1.8 || isHovered || isSelected || isTraced || (scale > 0.6 && size > 8);
+        if (showLabel) {
             ctx.shadowBlur = 0;
-            ctx.font = `${isHovered || isSelected || isTraced ? 'bold ' : ''}${Math.max(3, size * 0.8)}px sans-serif`;
+            const fontSize = scale > 1.8
+                ? Math.max(3.5, size * 0.85)
+                : Math.max(3, size * 0.7);
+            ctx.font = `${isHovered || isSelected || isTraced ? 'bold ' : ''}${fontSize}px sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             ctx.fillStyle = dimmed ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.9)';
@@ -617,21 +704,35 @@ export default function KnowledgePage() {
         }
 
         ctx.restore();
-    }, [hoveredNode, selectedKnowledgeNodeId, knowledgeEdges, tracedConcept, particleFlowNodeId]);
+    }, [hoveredNode, selectedKnowledgeNodeId, knowledgeEdges, tracedConcept, particleFlowNodeId, knowledgeNodes]);
 
     const paintLink = useCallback((link: GraphLink, ctx: CanvasRenderingContext2D) => {
         const source = link.source as unknown as GraphNode;
         const target = link.target as unknown as GraphNode;
         if (!source?.x || !target?.x) return;
 
+        const scale = globalScaleRef.current;
         const isHighlighted = hoveredNode &&
             (source.id === hoveredNode || target.id === hoveredNode);
         const dimmed = hoveredNode && !isHighlighted;
 
+        // Low zoom: skip thin edges entirely for performance
+        if (scale < 0.6 && link.weight < 0.5 && !isHighlighted) {
+            return;
+        }
+
         ctx.save();
         ctx.globalAlpha = dimmed ? 0.03 : 0.15 + link.weight * 0.4;
-        ctx.strokeStyle = isHighlighted ? '#60a5fa' : '#475569';
-        ctx.lineWidth = 0.5 + link.weight * 1.5;
+
+        // Edge type coloring
+        if (edgeColoringEnabled) {
+            ctx.strokeStyle = isHighlighted
+                ? '#ffffff'
+                : getEdgeTypeColor(link.edgeType);
+        } else {
+            ctx.strokeStyle = isHighlighted ? '#60a5fa' : '#475569';
+        }
+        ctx.lineWidth = isHighlighted ? 1.5 + link.weight * 1.5 : 0.5 + link.weight * 1.5;
 
         const midX = (source.x + target.x) / 2;
         const midY = ((source.y ?? 0) + (target.y ?? 0)) / 2;
@@ -643,6 +744,18 @@ export default function KnowledgePage() {
         ctx.moveTo(source.x, source.y ?? 0);
         ctx.quadraticCurveTo(midX + curveOffset, midY - curveOffset, target.x, target.y ?? 0);
         ctx.stroke();
+
+        // High zoom: show edge type label on hover
+        if (scale > 2.5 && isHighlighted) {
+            const labelX = midX + curveOffset * 0.5;
+            const labelY = midY - curveOffset * 0.5;
+            ctx.globalAlpha = 0.8;
+            ctx.font = `${Math.max(3, 8 / scale)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = edgeColoringEnabled ? getEdgeTypeColor(link.edgeType) : '#94a3b8';
+            ctx.fillText(link.edgeType.replace('_', ' '), labelX, labelY);
+        }
 
         // ── Particle flow on connected edges ──
         if (particleFlowNodeId && (source.id === particleFlowNodeId || target.id === particleFlowNodeId)) {
@@ -661,7 +774,7 @@ export default function KnowledgePage() {
                 const alpha = 0.8 * (1 - Math.abs(t - 0.5) * 2);
 
                 ctx.globalAlpha = alpha;
-                ctx.fillStyle = source.color || '#60a5fa';
+                ctx.fillStyle = edgeColoringEnabled ? getEdgeTypeColor(link.edgeType) : (source.color || '#60a5fa');
                 ctx.beginPath();
                 ctx.arc(px, py, 1.8, 0, 2 * Math.PI);
                 ctx.fill();
@@ -669,10 +782,11 @@ export default function KnowledgePage() {
         }
 
         ctx.restore();
-    }, [hoveredNode, particleFlowNodeId]);
+    }, [hoveredNode, particleFlowNodeId, edgeColoringEnabled]);
 
     // ── Cluster labels post-paint callback ──
     const onRenderFramePost = useCallback((ctx: CanvasRenderingContext2D, globalScale: number) => {
+        globalScaleRef.current = globalScale;
         if (globalScale > 1.8) return;
         for (const cl of clusterLabels) {
             ctx.save();
@@ -733,6 +847,39 @@ export default function KnowledgePage() {
                     <StatPill label="Skills" value={stats.skills} color="var(--color-purple)" />
                     <StatPill label="Top Cluster" value={stats.topCategory} />
                     <div className="flex-1" />
+                    <button
+                        onClick={() => setEdgeColoringEnabled(!edgeColoringEnabled)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${edgeColoringEnabled
+                            ? 'border-purple-500/50 text-purple-400 bg-purple-500/10'
+                            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-white'
+                        }`}
+                        title="Toggle edge type coloring"
+                    >
+                        <Palette size={10} />
+                        Edge Colors
+                    </button>
+                    <button
+                        onClick={() => setShowMinimap(!showMinimap)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${showMinimap
+                            ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10'
+                            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-white'
+                        }`}
+                        title="Toggle minimap"
+                    >
+                        <Map size={10} />
+                        Minimap
+                    </button>
+                    <button
+                        onClick={() => setIs3D(!is3D)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${is3D
+                            ? 'border-cyan-500/50 text-cyan-400 bg-cyan-500/10'
+                            : 'border-[var(--color-border)] text-[var(--color-text-muted)] hover:text-white'
+                        }`}
+                        title="Toggle 3D mode"
+                    >
+                        <Box size={10} />
+                        3D
+                    </button>
                     <button
                         onClick={() => { setTimeSliderEnabled(!timeSliderEnabled); setTimeSliderValue(100); setTimeSliderPlaying(false); }}
                         className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] border transition-colors ${timeSliderEnabled
@@ -830,11 +977,38 @@ export default function KnowledgePage() {
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]" />
                         <input
                             type="text"
-                            placeholder="Search nodes..."
+                            placeholder="Search nodes… (exact match zooms in)"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-9 pr-3 py-1.5 text-sm rounded-lg bg-[var(--color-bg-dark)] border border-[var(--color-border)] text-white placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-blue)]"
+                            className="w-full pl-9 pr-9 py-1.5 text-sm rounded-lg bg-[var(--color-bg-dark)] border border-[var(--color-border)] text-white placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-blue)]"
                         />
+                        {searchQuery && (
+                            <button
+                                onClick={() => {
+                                    const q = searchQuery.toLowerCase();
+                                    const match = (graphData.nodes as GraphNode[]).find(
+                                        (n) => n.label.toLowerCase().includes(q)
+                                    );
+                                    if (match && graphRef.current) {
+                                        if (is3D) {
+                                            graphRef.current.cameraPosition?.(
+                                                { x: match.x ?? 0, y: match.y ?? 0, z: 200 },
+                                                { x: match.x ?? 0, y: match.y ?? 0, z: 0 },
+                                                1200
+                                            );
+                                        } else {
+                                            graphRef.current.centerAt?.(match.x ?? 0, match.y ?? 0, 800);
+                                            graphRef.current.zoom?.(4, 800);
+                                        }
+                                        selectKnowledgeNode(match.id);
+                                    }
+                                }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)] hover:text-[var(--color-blue)] transition-colors"
+                                title="Zoom to node"
+                            >
+                                <Crosshair size={14} />
+                            </button>
+                        )}
                     </div>
                     <button
                         onClick={() => setShowFilters(!showFilters)}
@@ -955,9 +1129,33 @@ export default function KnowledgePage() {
                             </Link>
                         </div>
                     </div>
+                ) : is3D ? (
+                    <ForceGraph3D
+                        ref={graphRef}
+                        graphData={graphData}
+                        nodeLabel={(node) => (node as GraphNode).label}
+                        nodeColor={(node) => (node as GraphNode).color}
+                        nodeVal={(node) => (node as GraphNode).size * 0.8}
+                        nodeOpacity={0.92}
+                        linkColor={(link) => {
+                            const l = link as unknown as GraphLink;
+                            return edgeColoringEnabled ? getEdgeTypeColor(l.edgeType) : '#475569';
+                        }}
+                        linkOpacity={0.4}
+                        linkWidth={(link) => 0.3 + (link as unknown as GraphLink).weight * 1.2}
+                        onNodeClick={(node) => {
+                            const gn = node as GraphNode;
+                            selectKnowledgeNode(gn.id);
+                        }}
+                        onBackgroundClick={() => selectKnowledgeNode(null)}
+                        backgroundColor="rgba(0,0,0,0)"
+                        showNavInfo={false}
+                        width={graphDimensions.width}
+                        height={graphDimensions.height}
+                    />
                 ) : (
                     <ForceGraph2D
-                        ref={graphRef as React.MutableRefObject<never>}
+                        ref={graphRef}
                         graphData={graphData}
                         nodeCanvasObject={(node, ctx) => paintNode(node as GraphNode, ctx)}
                         nodePointerAreaPaint={(node, color, ctx) => {
@@ -989,6 +1187,16 @@ export default function KnowledgePage() {
                     />
                 )}
 
+                {/* ── Minimap ── */}
+                {showMinimap && !is3D && graphData.nodes.length > 0 && (
+                    <MinimapPanel
+                        nodes={graphData.nodes as GraphNode[]}
+                        links={graphData.links as GraphLink[]}
+                        edgeColoringEnabled={edgeColoringEnabled}
+                        graphRef={graphRef}
+                    />
+                )}
+
                 {/* Legend */}
                 <div className="absolute bottom-4 left-4 bg-[var(--color-bg-card)]/90 backdrop-blur-sm rounded-lg border border-[var(--color-border)] p-3 text-xs">
                     <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-2">Legend</p>
@@ -1005,6 +1213,19 @@ export default function KnowledgePage() {
                             <div className="w-3 h-3 bg-[var(--color-purple)]" style={{ clipPath: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)' }} />
                             <span className="text-[var(--color-text-secondary)]">Skills (diamond)</span>
                         </div>
+                        {edgeColoringEnabled && (
+                            <>
+                                <div className="mt-2 pt-2 border-t border-[var(--color-border)]">
+                                    <p className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)] mb-1">Edge Types</p>
+                                </div>
+                                {Object.entries(EDGE_TYPE_COLORS).map(([type, color]) => (
+                                    <div key={type} className="flex items-center gap-2">
+                                        <div className="w-4 h-0.5 rounded" style={{ background: color }} />
+                                        <span className="text-[var(--color-text-secondary)] capitalize">{type.replace('_', ' ')}</span>
+                                    </div>
+                                ))}
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1031,6 +1252,168 @@ function StatPill({ label, value, color }: { label: string; value: string | numb
             {color && <div className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />}
             <span className="text-[var(--color-text-muted)]">{label}</span>
             <span className="text-white font-mono font-semibold">{value}</span>
+        </div>
+    );
+}
+
+// ── Minimap Panel ──
+// Shows a simplified bird's-eye view of the entire graph with a viewport rectangle.
+function MinimapPanel({
+    nodes,
+    links,
+    edgeColoringEnabled,
+    graphRef,
+}: {
+    nodes: GraphNode[];
+    links: GraphLink[];
+    edgeColoringEnabled: boolean;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    graphRef: React.RefObject<any>;
+}) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const MINIMAP_W = 180;
+    const MINIMAP_H = 130;
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Compute bounds
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const n of nodes) {
+            if (n.x == null || n.y == null) continue;
+            if (n.x < minX) minX = n.x;
+            if (n.x > maxX) maxX = n.x;
+            if (n.y < minY) minY = n.y;
+            if (n.y > maxY) maxY = n.y;
+        }
+        if (!isFinite(minX)) return;
+
+        const padding = 30;
+        minX -= padding; maxX += padding; minY -= padding; maxY += padding;
+        const rangeX = maxX - minX || 1;
+        const rangeY = maxY - minY || 1;
+        const scaleX = MINIMAP_W / rangeX;
+        const scaleY = MINIMAP_H / rangeY;
+        const scale = Math.min(scaleX, scaleY);
+
+        const offsetX = (MINIMAP_W - rangeX * scale) / 2;
+        const offsetY = (MINIMAP_H - rangeY * scale) / 2;
+
+        const toMini = (x: number, y: number) => ({
+            mx: (x - minX) * scale + offsetX,
+            my: (y - minY) * scale + offsetY,
+        });
+
+        // Clear
+        ctx.clearRect(0, 0, MINIMAP_W, MINIMAP_H);
+
+        // Background
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
+
+        // Draw edges
+        ctx.globalAlpha = 0.2;
+        for (const link of links) {
+            const src = link.source as unknown as GraphNode;
+            const tgt = link.target as unknown as GraphNode;
+            if (src?.x == null || tgt?.x == null) continue;
+            const s = toMini(src.x, src.y ?? 0);
+            const t = toMini(tgt.x, tgt.y ?? 0);
+            ctx.strokeStyle = edgeColoringEnabled ? getEdgeTypeColor(link.edgeType) : '#334155';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(s.mx, s.my);
+            ctx.lineTo(t.mx, t.my);
+            ctx.stroke();
+        }
+
+        // Draw nodes
+        ctx.globalAlpha = 0.8;
+        for (const n of nodes) {
+            if (n.x == null || n.y == null) continue;
+            const { mx, my } = toMini(n.x, n.y);
+            ctx.fillStyle = n.color;
+            ctx.beginPath();
+            ctx.arc(mx, my, Math.max(1.5, n.size * scale * 0.15), 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // Draw viewport rectangle
+        ctx.globalAlpha = 1;
+        if (graphRef.current) {
+            try {
+                const screen2graph = graphRef.current.screen2GraphCoords;
+                if (screen2graph) {
+                    const topLeft = screen2graph(0, 0);
+                    const bottomRight = screen2graph(
+                        graphRef.current.width?.() || 800,
+                        graphRef.current.height?.() || 600
+                    );
+                    const vtl = toMini(topLeft.x, topLeft.y);
+                    const vbr = toMini(bottomRight.x, bottomRight.y);
+                    const vw = Math.abs(vbr.mx - vtl.mx);
+                    const vh = Math.abs(vbr.my - vtl.my);
+                    ctx.strokeStyle = '#60a5fa';
+                    ctx.lineWidth = 1.5;
+                    ctx.strokeRect(vtl.mx, vtl.my, vw, vh);
+                    // Subtle fill
+                    ctx.fillStyle = 'rgba(96, 165, 250, 0.06)';
+                    ctx.fillRect(vtl.mx, vtl.my, vw, vh);
+                }
+            } catch {
+                // screen2GraphCoords may not be available yet
+            }
+        }
+    });
+
+    const handleMinimapClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+        if (!graphRef.current || nodes.length === 0) return;
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const clickY = e.clientY - rect.top;
+
+        // Compute same bounds as render
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for (const n of nodes) {
+            if (n.x == null || n.y == null) continue;
+            if (n.x < minX) minX = n.x;
+            if (n.x > maxX) maxX = n.x;
+            if (n.y < minY) minY = n.y;
+            if (n.y > maxY) maxY = n.y;
+        }
+        if (!isFinite(minX)) return;
+        const padding = 30;
+        minX -= padding; maxX += padding; minY -= padding; maxY += padding;
+        const rangeX = maxX - minX || 1;
+        const rangeY = maxY - minY || 1;
+        const scaleX = MINIMAP_W / rangeX;
+        const scaleY = MINIMAP_H / rangeY;
+        const scale = Math.min(scaleX, scaleY);
+        const offsetX = (MINIMAP_W - rangeX * scale) / 2;
+        const offsetY = (MINIMAP_H - rangeY * scale) / 2;
+
+        // Reverse transform: minimap coords → graph coords
+        const graphX = (clickX - offsetX) / scale + minX;
+        const graphY = (clickY - offsetY) / scale + minY;
+
+        graphRef.current.centerAt?.(graphX, graphY, 600);
+    }, [nodes, graphRef]);
+
+    return (
+        <div className="absolute top-4 right-4 rounded-lg border border-[var(--color-border)] overflow-hidden shadow-lg shadow-black/30">
+            <canvas
+                ref={canvasRef}
+                width={MINIMAP_W}
+                height={MINIMAP_H}
+                className="cursor-crosshair"
+                onClick={handleMinimapClick}
+            />
         </div>
     );
 }
