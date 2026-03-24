@@ -142,7 +142,7 @@ export default function Onboarding() {
             )}
             <button
               onClick={handleNext}
-              className="flex-1 rpg-button !bg-[var(--color-purple)] !text-white"
+              className="flex-1 rpg-button btn-primary"
             >
               {currentStep < TUTORIAL_STEPS.length - 1 ? 'Next' : 'Get Started!'}
             </button>

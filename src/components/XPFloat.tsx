@@ -41,7 +41,7 @@ export default function XPFloat() {
   }, []);
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-[200]">
+    <div className="fixed inset-0 pointer-events-none z-[var(--z-xp-float)]">
       <AnimatePresence>
         {floats.map(f => (
           <motion.div

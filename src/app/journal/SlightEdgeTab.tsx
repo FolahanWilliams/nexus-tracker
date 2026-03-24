@@ -579,7 +579,7 @@ export default function SlightEdgeTab() {
                 <motion.button
                   onClick={saveEntry}
                   disabled={!formCompleted && !formSummary.trim() && !formLearned.trim()}
-                  className="flex-1 rpg-button !bg-[var(--color-green)] !text-white text-sm py-2.5 flex items-center justify-center gap-2 disabled:opacity-40"
+                  className="flex-1 rpg-button btn-success text-sm py-2.5 flex items-center justify-center gap-2"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}
                 >

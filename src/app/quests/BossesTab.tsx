@@ -190,14 +190,14 @@ export default function BossesTab() {
         <button
           onClick={handleGenerateBoss}
           disabled={isGeneratingBoss}
-          className="rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50"
+          className="rpg-button btn-primary"
         >
           <Zap size={18} className={isGeneratingBoss ? "animate-pulse" : ""} />
           {isGeneratingBoss ? "Summoning..." : "AI Summon"}
         </button>
         <button
           onClick={() => setShowBossSelect(true)}
-          className="rpg-button !bg-[var(--color-red)] !text-white"
+          className="rpg-button btn-danger"
         >
           <Play size={18} />
           Start Battle
@@ -272,7 +272,7 @@ export default function BossesTab() {
                     setSelectedBoss(boss);
                     setBattleTimer(0);
                   }}
-                  className="rpg-button !bg-[var(--color-red)] !text-white"
+                  className="rpg-button btn-danger"
                 >
                   <Sword size={16} />
                   Fight
@@ -471,7 +471,7 @@ export default function BossesTab() {
               <motion.button
                 onClick={handleAttack}
                 disabled={!selectedBoss || selectedBoss.completed || selectedBoss.failed}
-                className="w-full rpg-button !bg-[var(--color-red)] !text-white !py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full rpg-button btn-danger !py-4 text-lg"
                 whileHover={selectedBoss && !selectedBoss.completed && !selectedBoss.failed ? { scale: 1.05 } : {}}
                 whileTap={selectedBoss && !selectedBoss.completed && !selectedBoss.failed ? { scale: 0.95 } : {}}
               >

@@ -414,7 +414,7 @@ function AchievementsTab() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="flex justify-end mb-4">
-        <button onClick={handleShareAll} className="rpg-button !bg-[var(--color-blue)] !text-white"><Share2 size={18} /> Share Progress</button>
+        <button onClick={handleShareAll} className="rpg-button btn-primary"><Share2 size={18} /> Share Progress</button>
       </div>
 
       <motion.div className="rpg-card mb-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
@@ -484,7 +484,7 @@ function AchievementsTab() {
                 </div>
               )}
               <button onClick={() => handleShare(achievement)}
-                className={`w-full rpg-button text-sm ${isUnlocked ? '!bg-[var(--color-blue)] !text-white' : '!bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'}`}>
+                className={`w-full rpg-button text-sm ${isUnlocked ? 'btn-primary' : '!bg-[var(--color-bg-dark)] text-[var(--color-text-muted)]'}`}>
                 <Share2 size={14} /> {isUnlocked ? 'Share Achievement' : 'Share Progress'}
               </button>
             </motion.div>
@@ -640,7 +640,7 @@ function TimelineTab() {
                 <select value={newEventStatus} onChange={(e) => setNewEventStatus(e.target.value as typeof newEventStatus)} className="input-field">
                   <option>Ready</option><option>Not Ready</option><option>Confident</option><option>Getting There</option>
                 </select>
-                <button type="submit" className="rpg-button w-full !bg-[var(--color-purple)] !text-white">Add Event</button>
+                <button type="submit" className="rpg-button btn-primary w-full">Add Event</button>
               </div>
             </motion.form>
           )}

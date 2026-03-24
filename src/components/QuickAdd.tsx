@@ -48,7 +48,7 @@ export default function QuickAdd() {
       {/* Floating button — above mobile nav (bottom-24) on small screens, bottom-8 on desktop */}
       <motion.button
         onClick={() => setOpen(true)}
-        className="fixed bottom-24 right-4 lg:bottom-8 lg:right-6 z-50 w-14 h-14 rounded-full bg-[var(--color-purple)] text-white shadow-xl flex items-center justify-center"
+        className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom,0px))] right-4 lg:bottom-8 lg:right-6 z-[var(--z-fab)] w-14 h-14 rounded-full bg-[var(--color-purple)] text-white shadow-xl flex items-center justify-center"
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         aria-label="Quick add quest"
@@ -60,14 +60,14 @@ export default function QuickAdd() {
       <AnimatePresence>
         {open && (
           <motion.div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[var(--z-modal)] flex items-end sm:items-center justify-center p-0 sm:p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setOpen(false)}
           >
             <motion.div
-              className="rpg-card w-full max-w-md relative"
+              className="rpg-card w-full max-w-md relative rounded-t-2xl sm:rounded-xl"
               initial={{ y: 40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: 40, opacity: 0 }}
@@ -140,7 +140,7 @@ export default function QuickAdd() {
                   <button
                     type="submit"
                     disabled={!title.trim()}
-                    className="rpg-button flex-1 !bg-[var(--color-purple)] !text-white disabled:opacity-50"
+                    className="rpg-button btn-primary flex-1"
                   >
                     <Plus size={16} /> Add Quest
                   </button>

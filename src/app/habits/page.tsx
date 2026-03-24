@@ -121,7 +121,7 @@ export default function HabitsPage() {
           </div>
           <motion.button
             onClick={() => setShowAdd(v => !v)}
-            className="rpg-button !py-2 !px-4 !bg-[var(--color-purple)] !text-white text-sm flex items-center gap-1"
+            className="rpg-button btn-primary !py-2 !px-4 text-sm flex items-center gap-1"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
@@ -241,7 +241,7 @@ export default function HabitsPage() {
                   <motion.button
                     type="submit"
                     disabled={!newName.trim()}
-                    className="flex-1 rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50"
+                    className="flex-1 rpg-button btn-primary"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >

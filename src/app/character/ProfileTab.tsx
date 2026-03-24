@@ -186,7 +186,7 @@ export default function ProfileTab() {
                   className="input-field flex-1" autoFocus
                   onKeyDown={e => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') cancelEdit(); }}
                 />
-                <button onClick={saveEdit} className="rpg-button !py-2 !px-3 !bg-[var(--color-green)] !text-white"><Check size={18} /></button>
+                <button onClick={saveEdit} className="rpg-button btn-success !py-2 !px-3"><Check size={18} /></button>
                 <button onClick={cancelEdit} className="rpg-button !py-2 !px-3"><X size={18} /></button>
               </div>
             ) : (
@@ -516,7 +516,7 @@ export default function ProfileTab() {
             {level >= PRESTIGE_MIN_LEVEL ? (
               confirmPrestige ? (
                 <div className="flex gap-2">
-                  <button onClick={handlePrestige} className="flex-1 rpg-button !bg-[var(--color-yellow)] !text-black font-bold">
+                  <button onClick={handlePrestige} className="flex-1 rpg-button btn-primary font-bold">
                     Confirm Prestige Reset
                   </button>
                   <button onClick={() => setConfirmPrestige(false)} className="rpg-button !border-[var(--color-border)] text-[var(--color-text-muted)]">
@@ -524,7 +524,7 @@ export default function ProfileTab() {
                   </button>
                 </div>
               ) : (
-                <button onClick={() => setConfirmPrestige(true)} className="w-full rpg-button !border-[var(--color-yellow)] text-[var(--color-yellow)] hover:!bg-[var(--color-yellow)]/10 font-bold">
+                <button onClick={() => setConfirmPrestige(true)} className="w-full rpg-button btn-danger font-bold">
                   <Crown size={16} className="inline mr-2" /> Prestige to Level {prestige.level + 1}
                 </button>
               )
@@ -756,7 +756,7 @@ export default function ProfileTab() {
                           </span>
                         </div>
                         <button onClick={handleUpgrade} disabled={!canAffordSkill(selectedSkill)}
-                          className="w-full rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50">
+                          className="w-full rpg-button btn-primary">
                           Upgrade to Level {selectedSkill.currentLevel + 1}
                         </button>
                       </>
@@ -768,7 +768,7 @@ export default function ProfileTab() {
                     )}
                     {selectedSkill.currentLevel > 0 && (
                       <button onClick={() => { resetSkill(selectedSkill.id); addToast(`${selectedSkill.name} reset — 70% XP refunded`, 'info'); setSelectedSkill(null); }}
-                        className="w-full rpg-button !border-[var(--color-red)] text-[var(--color-red)] hover:!bg-[var(--color-red)]/10 mt-3 text-sm">
+                        className="w-full rpg-button btn-danger mt-3 text-sm">
                         Reset Skill (70% XP refund)
                       </button>
                     )}
@@ -780,7 +780,7 @@ export default function ProfileTab() {
                     </div>
                     <button onClick={handleUnlock}
                       disabled={!selectedSkill.prerequisites.every(id => skills.find(s => s.id === id)?.unlocked)}
-                      className="w-full rpg-button !bg-[var(--color-green)] !text-white disabled:opacity-50">
+                      className="w-full rpg-button btn-success">
                       Unlock Skill
                     </button>
                   </div>

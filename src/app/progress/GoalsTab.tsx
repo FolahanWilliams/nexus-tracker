@@ -105,14 +105,14 @@ export default function GoalsTab() {
       <div className="flex items-center justify-end gap-2 mb-6">
         <Link
           href="/journal?tab=edge"
-          className="rpg-button !py-2 !px-3 !bg-[var(--color-green)]/20 !text-[var(--color-green)] border border-[var(--color-green)]/40 text-sm flex items-center gap-1 hover:!bg-[var(--color-green)]/30 transition-colors"
+          className="rpg-button btn-success !py-2 !px-3 text-sm flex items-center gap-1 transition-colors"
         >
           <CalendarDays size={16} />
           <span className="hidden sm:inline">Daily Log</span>
         </Link>
         <motion.button
           onClick={() => setShowAdd(v => !v)}
-          className="rpg-button !py-2 !px-4 !bg-[var(--color-orange)] !text-white text-sm flex items-center gap-1"
+          className="rpg-button btn-primary !py-2 !px-4 text-sm flex items-center gap-1"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >
@@ -227,7 +227,7 @@ export default function GoalsTab() {
                   <motion.button
                     type="submit"
                     disabled={!title.trim() || !targetDate}
-                    className="flex-1 rpg-button !bg-[var(--color-orange)] !text-white disabled:opacity-50"
+                    className="flex-1 rpg-button btn-primary"
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                   >

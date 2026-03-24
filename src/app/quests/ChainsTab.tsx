@@ -211,7 +211,7 @@ export default function ChainsTab() {
       <div className="flex items-center justify-end mb-6">
         <button
           onClick={() => setShowAddChain(true)}
-          className="rpg-button !bg-[var(--color-purple)] !text-white"
+          className="rpg-button btn-primary"
         >
           <Plus size={18} />
           New Chain
@@ -259,8 +259,8 @@ export default function ChainsTab() {
             >
               <div className="flex items-start justify-between">
                 <div>
-                  <h3 className="font-bold text-lg">{chain.name}</h3>
-                  <p className="text-sm text-[var(--color-text-secondary)] mt-1">{chain.description}</p>
+                  <h3 className="font-bold text-lg truncate-1">{chain.name}</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)] mt-1 truncate-2">{chain.description}</p>
                   <div className="flex items-center gap-4 mt-3">
                     <span className={`text-xs font-bold ${DIFFICULTY_COLORS[chain.difficulty]}`}>
                       {chain.difficulty}
@@ -416,7 +416,7 @@ export default function ChainsTab() {
                             {isCurrent && !step.branches?.length && (
                               <button
                                 onClick={() => handleStepComplete(selectedChain, step)}
-                                className="mt-3 rpg-button !bg-[var(--color-purple)] !text-white text-sm"
+                                className="mt-3 rpg-button btn-primary text-sm"
                               >
                                 <Check size={14} />
                                 Complete Step
@@ -507,7 +507,7 @@ export default function ChainsTab() {
                     <button
                       onClick={handleGenerateChain}
                       disabled={isGenerating || !generatePrompt.trim()}
-                      className="rpg-button !bg-[var(--color-purple)] !text-white text-sm py-2 px-4 whitespace-nowrap disabled:opacity-50"
+                      className="rpg-button btn-primary text-sm py-2 px-4 whitespace-nowrap"
                     >
                       {isGenerating ? <span className="animate-spin">✨</span> : 'Generate'}
                     </button>
@@ -621,7 +621,7 @@ export default function ChainsTab() {
                   <button
                     onClick={handleCreateChain}
                     disabled={!newChainName.trim() || steps.some(s => !s.title.trim())}
-                    className="flex-1 rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50"
+                    className="flex-1 rpg-button btn-primary"
                   >
                     Create Chain
                   </button>
