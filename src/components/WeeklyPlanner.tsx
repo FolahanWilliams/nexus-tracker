@@ -6,7 +6,7 @@ import { useToastStore } from '@/components/ToastContainer';
 import { Calendar, Sparkles, X, Lightbulb, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
-import { logger } from '@/lib/logger';
+import { useAIFetch } from '@/hooks/useAIFetch';
 
 interface DayPlan {
     day: string;
@@ -24,39 +24,27 @@ export default function WeeklyPlanner() {
     const { tasks, questChains, reflectionNotes, habits, streak, characterName, characterClass, level, uiWeeklyPlan, setUiWeeklyPlan } = useGameStore();
     const { addToast } = useToastStore();
     const [isOpen, setIsOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
     const [plan, setPlan] = useState<WeeklyPlan | null>(uiWeeklyPlan.plan);
+    const planGen = useAIFetch<WeeklyPlan>('/api/weekly-plan', { logTag: 'WeeklyPlanner' });
 
     const handleGenerate = async () => {
-        setIsLoading(true);
         setPlan(null);
         setUiWeeklyPlan(null);
-        try {
-            const response = await fetch('/api/weekly-plan', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    tasks,
-                    chains: questChains,
-                    reflections: reflectionNotes,
-                    habits: habits?.map((h: { name: string; streak: number }) => ({ name: h.name, streak: h.streak })) || [],
-                    streaks: streak,
-                    playerContext: { name: characterName, characterClass, level, streak },
-                    pulseData: getPulseDataForRoute()
-                }),
-                signal: AbortSignal.timeout(30000),
-            });
 
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error);
+        const data = await planGen.execute({
+            tasks,
+            chains: questChains,
+            reflections: reflectionNotes,
+            habits: habits?.map((h: { name: string; streak: number }) => ({ name: h.name, streak: h.streak })) || [],
+            streaks: streak,
+            playerContext: { name: characterName, characterClass, level, streak },
+            pulseData: getPulseDataForRoute()
+        });
+
+        if (data) {
             setPlan(data);
             setUiWeeklyPlan(data);
             addToast('Weekly strategy generated! 📋', 'success');
-        } catch (error) {
-            logger.error('Weekly plan error', 'WeeklyPlanner', error);
-            addToast('Failed to generate plan. Try again.', 'error');
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -111,12 +99,12 @@ export default function WeeklyPlanner() {
                                 <div className="flex items-center gap-2">
                                     <motion.button
                                         onClick={handleGenerate}
-                                        disabled={isLoading}
+                                        disabled={planGen.isLoading}
                                         className="px-3 py-1.5 bg-[var(--color-purple)] text-white rounded text-xs font-bold disabled:opacity-50"
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                     >
-                                        {isLoading ? '✨ Generating...' : '🔄 Regenerate'}
+                                        {planGen.isLoading ? '✨ Generating...' : '🔄 Regenerate'}
                                     </motion.button>
                                     <button onClick={() => setIsOpen(false)} className="p-1 hover:text-[var(--color-text-primary)]">
                                         <X size={18} />
@@ -125,7 +113,7 @@ export default function WeeklyPlanner() {
                             </div>
 
                             <div className="p-6 space-y-5">
-                                {isLoading ? (
+                                {planGen.isLoading ? (
                                     <div className="text-center py-12">
                                         <motion.div
                                             animate={{ rotate: 360 }}

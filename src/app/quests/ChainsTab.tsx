@@ -3,7 +3,7 @@
 import { useGameStore, QuestChain, QuestStep, StepBranch } from '@/store/useGameStore';
 import { useState } from 'react';
 import { useToastStore } from '@/components/ToastContainer';
-import { logger } from '@/lib/logger';
+import { useAIFetch } from '@/hooks/useAIFetch';
 import {
   Map,
   Check,
@@ -43,7 +43,7 @@ export default function ChainsTab() {
   }[]>([{ title: '', description: '', hasBranches: false, branches: [{ label: '', description: '', xpBonus: 25 }, { label: '', description: '', xpBonus: 25 }] }]);
 
   // AI Generation State
-  const [isGenerating, setIsGenerating] = useState(false);
+  const chainGen = useAIFetch<{ name?: string; description?: string; difficulty?: string; steps?: { title: string; description: string }[] }>('/api/generate-chain', { logTag: 'chains' });
   const [generatePrompt, setGeneratePrompt] = useState('');
 
   const ITEM_REWARDS = [
@@ -83,23 +83,17 @@ export default function ChainsTab() {
 
   const handleGenerateChain = async () => {
     if (!generatePrompt.trim()) return;
-    setIsGenerating(true);
-    try {
-      const response = await fetch('/api/generate-chain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: generatePrompt })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
 
+    const data = await chainGen.execute({ prompt: generatePrompt });
+
+    if (data) {
       setNewChainName(data.name || '');
       setNewChainDesc(data.description || '');
-      setNewChainDifficulty(data.difficulty || 'Medium');
+      setNewChainDifficulty((data.difficulty as QuestChain['difficulty']) || 'Medium');
       setNewChainItem('');
 
       if (data.steps && Array.isArray(data.steps)) {
-        setSteps(data.steps.map((s: { title: string; description: string }) => ({
+        setSteps(data.steps.map((s) => ({
           title: s.title || '',
           description: s.description || '',
           hasBranches: false,
@@ -109,11 +103,6 @@ export default function ChainsTab() {
 
       addToast('AI Quest Chain generated! Review and create.', 'success');
       setGeneratePrompt('');
-    } catch (error) {
-      logger.error('Failed to generate chain', 'chains', error);
-      addToast('Failed to generate chain. Try again.', 'error');
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -501,15 +490,15 @@ export default function ChainsTab() {
                       onChange={(e) => setGeneratePrompt(e.target.value)}
                       placeholder="e.g., Learn Spanish basics..."
                       className="input-field flex-1 text-sm bg-[var(--color-bg-dark)] border-[var(--color-purple)]/30"
-                      disabled={isGenerating}
+                      disabled={chainGen.isLoading}
                       onKeyDown={(e) => e.key === 'Enter' && handleGenerateChain()}
                     />
                     <button
                       onClick={handleGenerateChain}
-                      disabled={isGenerating || !generatePrompt.trim()}
+                      disabled={chainGen.isLoading || !generatePrompt.trim()}
                       className="rpg-button btn-primary text-sm py-2 px-4 whitespace-nowrap"
                     >
-                      {isGenerating ? <span className="animate-spin">✨</span> : 'Generate'}
+                      {chainGen.isLoading ? <span className="animate-spin">✨</span> : 'Generate'}
                     </button>
                   </div>
                 </div>

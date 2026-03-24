@@ -8,9 +8,9 @@ import {
   BookOpen, PenLine, GitBranch, Search, X, Filter,
 } from 'lucide-react';
 import { useGameStore, VocabWord } from '@/store/useGameStore';
-import { logger } from '@/lib/logger';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+import { useAIFetch } from '@/hooks/useAIFetch';
 import { DIFFICULTY_COLORS, STATUS_LABELS } from './shared';
 import { VOCAB_DAILY_GENERATION_XP } from '@/lib/constants';
 
@@ -23,49 +23,31 @@ export default function DailyWordsTab() {
   const dailyWordCount = settings.dailyWordCount ?? 4;
   const { addToast } = useToastStore();
 
-  const [loading, setLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const wordGen = useAIFetch<{ words?: VocabWord[]; isMock?: boolean }>('/api/vocab/generate-words', { logTag: 'wordforge' });
 
   const today = new Date().toISOString().split('T')[0];
   const todaysWords = vocabWords.filter(w => w.dateAdded === today);
   const alreadyGenerated = vocabDailyDate === today && todaysWords.length > 0;
 
   const fetchDailyWords = useCallback(async () => {
-    setLoading(true);
-    try {
-      const existingWordList = vocabWords.map(w => w.word);
-      const res = await fetch('/api/vocab/generate-words', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentLevel: vocabCurrentLevel,
-          existingWords: existingWordList,
-          count: dailyWordCount,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-      const data = await res.json();
-      if (data.words && data.words.length > 0) {
-        addVocabWords(data.words);
-        setVocabDailyDate(today);
-        addXP(VOCAB_DAILY_GENERATION_XP);
-        triggerXPFloat(`+${VOCAB_DAILY_GENERATION_XP} XP`, '#4ade80');
-        addToast(`${data.words.length} new words unlocked! +${VOCAB_DAILY_GENERATION_XP} XP`, 'success');
-        logActivity('xp_earned', '📚', `Generated ${data.words.length} new vocab words`, `+${VOCAB_DAILY_GENERATION_XP} XP`);
-        if (data.isMock) addToast('Using sample words (no API key)', 'info');
-      } else {
-        addToast('No words returned. Try again.', 'error');
-      }
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error(`Failed to generate vocab words: ${message}`, 'wordforge');
-      addToast('Failed to generate words. Try again.', 'error');
-    } finally {
-      setLoading(false);
+    const existingWordList = vocabWords.map(w => w.word);
+    const data = await wordGen.execute({
+      currentLevel: vocabCurrentLevel,
+      existingWords: existingWordList,
+      count: dailyWordCount,
+    });
+
+    if (data?.words && data.words.length > 0) {
+      addVocabWords(data.words);
+      setVocabDailyDate(today);
+      addXP(VOCAB_DAILY_GENERATION_XP);
+      triggerXPFloat(`+${VOCAB_DAILY_GENERATION_XP} XP`, '#4ade80');
+      addToast(`${data.words.length} new words unlocked! +${VOCAB_DAILY_GENERATION_XP} XP`, 'success');
+      logActivity('xp_earned', '📚', `Generated ${data.words.length} new vocab words`, `+${VOCAB_DAILY_GENERATION_XP} XP`);
+      if (data.isMock) addToast('Using sample words (no API key)', 'info');
     }
-  }, [vocabWords, vocabCurrentLevel, addVocabWords, setVocabDailyDate, today, addToast, addXP, logActivity, dailyWordCount]);
+  }, [vocabWords, vocabCurrentLevel, addVocabWords, setVocabDailyDate, today, addToast, addXP, logActivity, dailyWordCount, wordGen]);
 
   return (
     <div className="space-y-4">
@@ -81,19 +63,19 @@ export default function DailyWordsTab() {
           </div>
           <button
             onClick={fetchDailyWords}
-            disabled={loading || alreadyGenerated}
+            disabled={wordGen.isLoading || alreadyGenerated}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all disabled:opacity-40"
             style={{
               background: alreadyGenerated ? 'var(--color-bg-hover)' : 'var(--color-blue)',
               color: 'white',
             }}
           >
-            {loading ? (
+            {wordGen.isLoading ? (
               <RefreshCw size={16} className="animate-spin" />
             ) : (
               <Sparkles size={16} />
             )}
-            {alreadyGenerated ? 'Words Delivered' : loading ? 'Generating...' : 'Generate Daily Words'}
+            {alreadyGenerated ? 'Words Delivered' : wordGen.isLoading ? 'Generating...' : 'Generate Daily Words'}
           </button>
         </div>
 
@@ -122,7 +104,7 @@ export default function DailyWordsTab() {
       </div>
 
       {/* Word cards */}
-      {todaysWords.length === 0 && !loading && (
+      {todaysWords.length === 0 && !wordGen.isLoading && (
         <div className="text-center py-12 text-[var(--color-text-secondary)]">
           <BookOpen size={40} className="mx-auto mb-3 opacity-40" />
           <p className="text-sm">No words yet today. Hit the button above to get started!</p>

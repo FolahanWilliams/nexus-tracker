@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
 import { sanitizePromptInput, clampNumber } from '@/lib/sanitize';
+import { generateAndExtractJSON, validateDifficulty } from '@/lib/ai-route-helpers';
 
 export const POST = withAuth(async (request) => {
     try {
@@ -34,58 +34,22 @@ export const POST = withAuth(async (request) => {
         });
         if (mock) return mock;
 
-        // Google Search Grounding lets the AI research the user's project topic
-        // to create steps that reference real tools, frameworks, and best practices.
-        const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
-            tools: [{ googleSearch: {} } as any],
-        });
-
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG.
-The user wants to accomplish a large project or goal. Your job is to break this goal down into a "Quest Chain" consisting of multiple logical steps, with optional branching paths to give the player meaningful choices.
+Break down the user's large project into a "Quest Chain" of 3-6 logical steps with optional branching paths.
 
-You have access to Google Search. Use it to:
-- Research the user's project topic for current best practices, tools, and resources
-- Make steps reference real, up-to-date techniques and tools
-- Ensure the chain is accurate and actionable based on current information
+You have access to Google Search. Use it to research the user's project topic for current best practices, tools, and resources.
 
-Output ONLY a valid JSON object with the following properties:
-- name: String. A cool, RPG-styled name for this overall quest chain (e.g. "The Great Refactoring", "Path to Fluency").
-- description: String. A short, motivating description of what this chain aims to achieve.
-- difficulty: String. Must be exactly 'Easy', 'Medium', 'Hard', or 'Epic'.
-- steps: Array of Objects. Between 3 and 6 steps. Each step object must have:
-  - title: String. Actionable task name.
-  - description: String. Brief details on how to complete it.
-  - branches: (Optional) Array of 2 branch objects, included on 1-2 steps where the player has a meaningful choice of approach. Each branch must have:
-    - label: String. Short name for this approach (e.g. "Deep Dive", "Quick Review").
-    - description: String. One sentence explaining this approach.
-    - xpBonus: Number. Extra XP for choosing this path (10-50).
-- reward: Object containing:
-  - xp: Number. Base it on the total effort of all steps combined (e.g. 50-500).
-  - gold: Number. Usually half of XP (e.g. 25-250).
+Output ONLY a valid JSON object with:
+- name: RPG-styled quest chain name
+- description: Short motivating description
+- difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic'
+- steps: Array of 3-6 objects with { title, description, branches? }
+  - branches (optional, 1-2 steps): Array of 2 { label, description, xpBonus (10-50) }
+- reward: { xp: number (50-500), gold: number (25-250) }`;
 
-Example of a step with branches:
-{
-  "title": "Learn the fundamentals",
-  "description": "Build your foundation before advancing.",
-  "branches": [
-    { "label": "Deep Study", "description": "Read documentation and take detailed notes for thorough understanding.", "xpBonus": 30 },
-    { "label": "Practice First", "description": "Jump straight into exercises and learn by doing.", "xpBonus": 20 }
-  ]
-}
+        const data = await generateAndExtractJSON(`${systemPrompt}\n\nUser Goal: ${prompt}`);
 
-Generate a quest chain for the following user goal:`;
-
-        const result = await model.generateContent(`${systemPrompt}\n\nUser Goal: ${prompt}`);
-        const response = result.response;
-        const text = response.text();
-
-        const data = extractJSON(text) as Record<string, unknown>;
-
-        // Basic validation
-        const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
-        if (!validDifficulties.includes(data.difficulty as string)) data.difficulty = 'Medium';
+        data.difficulty = validateDifficulty(data.difficulty);
         const reward = data.reward as { xp?: number; gold?: number } | undefined;
         data.reward = {
             xp: clampNumber(reward?.xp, 10, 500, 100),
@@ -96,7 +60,7 @@ Generate a quest chain for the following user goal:`;
     } catch (error) {
         logger.error('Gemini Generate Chain Error', 'generate-chain', error);
         return NextResponse.json({
-            name: `Project: ${prompt}`,
+            name: `Project`,
             description: 'Failed to generate AI steps.',
             difficulty: 'Medium',
             steps: [

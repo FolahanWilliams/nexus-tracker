@@ -5,6 +5,7 @@ import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { ValidationError } from '@/lib/validation';
 import { logger } from '@/lib/logger';
+import { useAIFetch } from '@/hooks/useAIFetch';
 import { useState, useEffect } from 'react';
 import {
   Plus,
@@ -56,9 +57,9 @@ export default function QuestsTab() {
   const [duration, setDuration] = useState<TaskDuration>('1-hour');
   const [filterCategory, setFilterCategory] = useState<TaskCategory | 'All'>('All');
   const [questsVisible, setQuestsVisible] = useState(QUESTS_PER_PAGE);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
-  const [isAutoTagging, setIsAutoTagging] = useState(false);
+  const questGen = useAIFetch<{ quests?: GeneratedQuest[]; isMock?: boolean }>('/api/generate-quest', { logTag: 'quests' });
+  const autoTag = useAIFetch<{ cleanTitle: string; difficulty: string; category: string; duration: string; recurring: string; xpReward: number }>('/api/auto-tag', { timeout: 15000, logTag: 'quests' });
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [aiPreview, setAiPreview] = useState<{ cleanTitle: string; difficulty: string; category: string; duration: string; recurring: string; xpReward: number } | null>(null);
 
@@ -131,42 +132,19 @@ export default function QuestsTab() {
   const handleGenerateQuests = async () => {
     if (!generatePrompt.trim()) return;
 
-    setIsGenerating(true);
-    try {
-      const response = await fetch('/api/generate-quest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          prompt: generatePrompt,
-          context: { name: characterName, characterClass, level, totalQuestsCompleted, streak, pulseData: getPulseDataForRoute() }
-        }),
-        signal: AbortSignal.timeout(30000),
+    const data = await questGen.execute({
+      prompt: generatePrompt,
+      context: { name: characterName, characterClass, level, totalQuestsCompleted, streak, pulseData: getPulseDataForRoute() }
+    });
+
+    if (data?.quests && Array.isArray(data.quests)) {
+      data.quests.forEach((quest: GeneratedQuest) => {
+        addTask(quest.title, quest.difficulty, quest.xp);
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        addToast('Failed to generate quests. Please try again.', 'error');
-        return;
-      }
-
-      if (data.quests && Array.isArray(data.quests)) {
-        data.quests.forEach((quest: GeneratedQuest) => {
-          addTask(quest.title, quest.difficulty, quest.xp);
-        });
-        const count = data.quests.length;
-        const note = data.isMock ? ' (fallback quests)' : '';
-        addToast(`${count} quest${count !== 1 ? 's' : ''} generated${note}!`, 'success');
-      }
-
+      const count = data.quests.length;
+      const note = data.isMock ? ' (fallback quests)' : '';
+      addToast(`${count} quest${count !== 1 ? 's' : ''} generated${note}!`, 'success');
       setGeneratePrompt('');
-    } catch (error) {
-      logger.error('Failed to generate quests', 'quests', error);
-      const msg = error instanceof DOMException && error.name === 'TimeoutError'
-        ? 'AI request timed out. Try again.' : 'Network error. Check your connection and try again.';
-      addToast(msg, 'error');
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -176,38 +154,17 @@ export default function QuestsTab() {
       return;
     }
 
-    setIsAutoTagging(true);
     setAiPreview(null);
-    try {
-      const response = await fetch('/api/auto-tag', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-        signal: AbortSignal.timeout(15000),
-      });
+    const data = await autoTag.execute({ title });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        addToast('Failed to auto-tag. Please try again.', 'error');
-        return;
-      }
-
-      // Apply all AI-suggested values
+    if (data) {
       if (data.cleanTitle) setTitle(data.cleanTitle);
-      setDifficulty(data.difficulty);
-      setCategory(data.category);
-      setDuration(data.duration || '1-hour');
-      setRecurring(data.recurring || 'none');
-
-      // Show preview
+      setDifficulty(data.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic');
+      setCategory(data.category as TaskCategory);
+      setDuration((data.duration || '1-hour') as TaskDuration);
+      setRecurring((data.recurring || 'none') as 'none' | 'daily' | 'weekly');
       setAiPreview(data);
       addToast('Quest classified by AI! Review and create. ✨', 'success');
-    } catch (error) {
-      logger.error('Failed to auto-tag', 'quests', error);
-      addToast('Network error. Check your connection.', 'error');
-    } finally {
-      setIsAutoTagging(false);
     }
   };
 
@@ -380,7 +337,7 @@ export default function QuestsTab() {
                 aria-invalid={!!titleError}
                 aria-describedby={titleError ? 'title-error' : undefined}
                 maxLength={500}
-                disabled={isSubmitting || isAutoTagging}
+                disabled={isSubmitting || autoTag.isLoading}
                 rows={2}
               />
               {titleError && (
@@ -427,12 +384,12 @@ export default function QuestsTab() {
               <motion.button
                 type="button"
                 onClick={handleAutoTag}
-                disabled={!title.trim() || isAutoTagging || isSubmitting}
+                disabled={!title.trim() || autoTag.isLoading || isSubmitting}
                 className="flex-1 rpg-button btn-primary font-bold"
-                whileHover={{ scale: (isAutoTagging || !title.trim()) ? 1 : 1.02 }}
-                whileTap={{ scale: (isAutoTagging || !title.trim()) ? 1 : 0.98 }}
+                whileHover={{ scale: (autoTag.isLoading || !title.trim()) ? 1 : 1.02 }}
+                whileTap={{ scale: (autoTag.isLoading || !title.trim()) ? 1 : 0.98 }}
               >
-                {isAutoTagging ? (
+                {autoTag.isLoading ? (
                   <><span className="animate-spin">✨</span> Classifying...</>
                 ) : (
                   <><Sparkles size={18} /> Classify with AI</>
@@ -602,18 +559,18 @@ export default function QuestsTab() {
               className="input-field"
               aria-label="AI quest generation prompt"
               maxLength={500}
-              disabled={isGenerating}
+              disabled={questGen.isLoading}
             />
             <motion.button
               onClick={handleGenerateQuests}
-              disabled={isGenerating || !generatePrompt.trim()}
+              disabled={questGen.isLoading || !generatePrompt.trim()}
               className="rpg-button btn-primary w-full"
-              whileHover={{ scale: isGenerating ? 1 : 1.02 }}
-              whileTap={{ scale: isGenerating ? 1 : 0.98 }}
-              aria-busy={isGenerating}
+              whileHover={{ scale: questGen.isLoading ? 1 : 1.02 }}
+              whileTap={{ scale: questGen.isLoading ? 1 : 0.98 }}
+              aria-busy={questGen.isLoading}
             >
               <Sparkles size={20} />
-              {isGenerating ? (
+              {questGen.isLoading ? (
                 <>
                   <span className="animate-spin mr-2">✨</span>
                   Generating...
