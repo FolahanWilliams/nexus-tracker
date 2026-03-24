@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSON } from '@/lib/gemini';
+import { genAI, extractJSONObject } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/with-auth';
 
@@ -53,8 +53,7 @@ Analyze the following task:`;
         const response = result.response;
         const text = response.text();
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = extractJSON(text) as any;
+        const data = extractJSONObject(text);
 
         // Validation
         const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
@@ -62,11 +61,11 @@ Analyze the following task:`;
         const validDurations = ['quick', '1-hour', 'half-day', 'full-day', 'multi-day', 'week', 'month'];
         const validRecurring = ['none', 'daily', 'weekly'];
 
-        if (!validDifficulties.includes(data.difficulty)) data.difficulty = 'Medium';
-        if (!validCategories.includes(data.category)) data.category = 'Other';
+        if (typeof data.difficulty !== 'string' || !validDifficulties.includes(data.difficulty)) data.difficulty = 'Medium';
+        if (typeof data.category !== 'string' || !validCategories.includes(data.category)) data.category = 'Other';
         if (typeof data.xpReward !== 'number') data.xpReward = 25;
-        if (!validDurations.includes(data.duration)) data.duration = '1-hour';
-        if (!validRecurring.includes(data.recurring)) data.recurring = 'none';
+        if (typeof data.duration !== 'string' || !validDurations.includes(data.duration)) data.duration = '1-hour';
+        if (typeof data.recurring !== 'string' || !validRecurring.includes(data.recurring)) data.recurring = 'none';
         if (!data.cleanTitle || typeof data.cleanTitle !== 'string') data.cleanTitle = title;
 
         return NextResponse.json(data);

@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { withAuth } from '@/lib/with-auth';
 import { logger } from '@/lib/logger';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export const POST = withAuth(async (_request, user) => {
   try {

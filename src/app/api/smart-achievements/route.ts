@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSON } from '@/lib/gemini';
+import { genAI, extractJSONObject } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
@@ -41,8 +41,7 @@ Output ONLY valid JSON:
 
         const result = await model.generateContent(systemPrompt);
         const text = result.response.text();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = extractJSON(text) as any;
+        const data = extractJSONObject(text);
 
         return NextResponse.json(data);
     } catch (error) {

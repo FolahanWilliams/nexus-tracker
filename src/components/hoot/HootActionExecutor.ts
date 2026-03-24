@@ -7,6 +7,19 @@ import type { CharacterClass } from '@/store/types';
 type GameState = ReturnType<typeof useGameStore.getState>;
 
 /**
+ * Word-boundary-aware fuzzy match.
+ * Every word in `query` must appear as a prefix of some word in `target`.
+ * "run" matches "Run 5k" but NOT "current task".
+ */
+function fuzzyMatch(target: string, query: string): boolean {
+    const targetWords = target.toLowerCase().split(/\s+/);
+    const queryWords = query.toLowerCase().split(/\s+/);
+    return queryWords.every(qw =>
+        targetWords.some(tw => tw.startsWith(qw))
+    );
+}
+
+/**
  * Execute an array of HootActions against the game store.
  * Returns a list of human-readable result strings.
  */
@@ -38,7 +51,7 @@ export async function executeHootActions(
                     const taskName = (params.taskName as string | undefined)?.toLowerCase();
                     if (!taskName) { results.push(`⚠️ No task name provided`); break; }
                     const task = state.tasks.find(t =>
-                        !t.completed && t.title.toLowerCase().includes(taskName)
+                        !t.completed && fuzzyMatch(t.title, taskName)
                     );
                     if (task) {
                         state.toggleTask(task.id);
@@ -64,7 +77,7 @@ export async function executeHootActions(
                     if (!habitName) { results.push(`⚠️ No habit name provided`); break; }
                     const today = new Date().toISOString().split('T')[0];
                     const habit = state.habits.find(h =>
-                        h.name.toLowerCase().includes(habitName) && !h.completedDates.includes(today)
+                        fuzzyMatch(h.name, habitName) && !h.completedDates.includes(today)
                     );
                     if (habit) {
                         state.completeHabit(habit.id);
@@ -113,7 +126,7 @@ export async function executeHootActions(
                     const itemName = (params.itemName as string | undefined)?.toLowerCase();
                     if (!itemName) { results.push(`⚠️ No item name provided`); break; }
                     const act = (params.action as string) || 'equip';
-                    const item = state.inventory.find(i => i.name.toLowerCase().includes(itemName));
+                    const item = state.inventory.find(i => fuzzyMatch(i.name, itemName));
                     if (!item) {
                         results.push(`⚠️ Couldn't find "${params.itemName}" in your inventory`);
                     } else if (act === 'use' && (item.usable || item.consumableEffect)) {
@@ -138,7 +151,7 @@ export async function executeHootActions(
                 case 'buy_item': {
                     const itemName = (params.itemName as string | undefined)?.toLowerCase();
                     if (!itemName) { results.push(`⚠️ No item name provided`); break; }
-                    const shopItem = state.shopItems.find(r => !r.purchased && r.name.toLowerCase().includes(itemName));
+                    const shopItem = state.shopItems.find(r => !r.purchased && fuzzyMatch(r.name, itemName));
                     if (!shopItem) {
                         results.push(`⚠️ Couldn't find "${params.itemName}" in the shop`);
                     } else if (shopItem.cost > state.gold) {
@@ -154,11 +167,11 @@ export async function executeHootActions(
                     const goalName = (params.goalName as string | undefined)?.toLowerCase();
                     const msName = (params.milestoneName as string | undefined)?.toLowerCase();
                     if (!goalName || !msName) { results.push(`⚠️ Missing goal or milestone name`); break; }
-                    const goal = state.goals.find(g => !g.completed && g.title.toLowerCase().includes(goalName));
+                    const goal = state.goals.find(g => !g.completed && fuzzyMatch(g.title, goalName));
                     if (!goal) {
                         results.push(`⚠️ Couldn't find an active goal matching "${params.goalName}"`);
                     } else {
-                        const milestone = goal.milestones.find(m => !m.completed && m.title.toLowerCase().includes(msName));
+                        const milestone = goal.milestones.find(m => !m.completed && fuzzyMatch(m.title, msName));
                         if (!milestone) {
                             results.push(`⚠️ Couldn't find an uncompleted milestone matching "${params.milestoneName}" in goal "${goal.title}"`);
                         } else {
@@ -178,7 +191,7 @@ export async function executeHootActions(
                 case 'suggest_quest_tags': {
                     const taskName = (params.taskName as string | undefined)?.toLowerCase();
                     if (!taskName) { results.push(`⚠️ No task name provided`); break; }
-                    const task = state.tasks.find(t => t.title.toLowerCase().includes(taskName));
+                    const task = state.tasks.find(t => fuzzyMatch(t.title, taskName));
                     if (!task) {
                         results.push(`⚠️ Couldn't find a quest matching "${params.taskName}"`);
                     } else {
@@ -305,7 +318,7 @@ export async function executeHootActions(
                     const itemName = (params.itemName as string | undefined)?.toLowerCase();
                     if (!itemName) { results.push(`⚠️ No item name provided`); break; }
                     const item = state.inventory.find(i =>
-                        i.name.toLowerCase().includes(itemName) && (i.usable || i.consumableEffect)
+                        fuzzyMatch(i.name, itemName) && (i.usable || i.consumableEffect)
                     );
                     if (!item) {
                         results.push(`⚠️ Couldn't find a usable item matching "${params.itemName}"`);

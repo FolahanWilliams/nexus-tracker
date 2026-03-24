@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { withAuth } from '@/lib/with-auth';
 
 // Server-side only — the ACCESS_CODE env var is never sent to the browser.
@@ -36,12 +36,7 @@ export const POST = withAuth(async (request, user) => {
 
   // Grant access by setting subscription_status = 'access' in the profile.
   // Must use the service role key to bypass RLS.
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-  const { error } = await supabase
+  const { error } = await getSupabaseAdmin()
     .from('profiles')
     .update({ subscription_status: 'access' })
     .eq('id', userId);

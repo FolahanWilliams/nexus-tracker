@@ -54,3 +54,16 @@ export function extractJSON(text: string): unknown {
 
     throw new Error('Could not extract JSON from response');
 }
+
+/**
+ * Type-safe wrapper: extract JSON and verify it's a non-null object.
+ * Returns `Record<string, unknown>` so callers can safely access
+ * properties with type narrowing instead of `as any`.
+ */
+export function extractJSONObject(text: string): Record<string, unknown> {
+    const parsed = extractJSON(text);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new Error('Expected JSON object from AI response');
+    }
+    return parsed as Record<string, unknown>;
+}
