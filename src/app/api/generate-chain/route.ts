@@ -3,11 +3,13 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
+import { sanitizePromptInput, clampNumber } from '@/lib/sanitize';
 
 export const POST = withAuth(async (request) => {
     try {
-        const { prompt } = await request.json();
+        const { prompt: rawPrompt } = await request.json();
 
+        const prompt = sanitizePromptInput(rawPrompt, 1000);
         if (!prompt) {
             return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
         }
@@ -85,7 +87,10 @@ Generate a quest chain for the following user goal:`;
         const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
         if (!validDifficulties.includes(data.difficulty as string)) data.difficulty = 'Medium';
         const reward = data.reward as { xp?: number; gold?: number } | undefined;
-        if (typeof reward?.xp !== 'number') data.reward = { xp: 100, gold: 50 };
+        data.reward = {
+            xp: clampNumber(reward?.xp, 10, 500, 100),
+            gold: clampNumber(reward?.gold, 5, 250, 50),
+        };
 
         return NextResponse.json(data);
     } catch (error) {

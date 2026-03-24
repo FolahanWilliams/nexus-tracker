@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import { genAI, extractJSONObject } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/with-auth';
+import { sanitizePromptInput, clampNumber } from '@/lib/sanitize';
 
 export const POST = withAuth(async (request) => {
     try {
-        const { title } = await request.json();
+        const { title: rawTitle } = await request.json();
 
+        const title = sanitizePromptInput(rawTitle, 500);
         if (!title) {
             return NextResponse.json({ error: 'Title is required' }, { status: 400 });
         }
@@ -63,7 +65,7 @@ Analyze the following task:`;
 
         if (typeof data.difficulty !== 'string' || !validDifficulties.includes(data.difficulty)) data.difficulty = 'Medium';
         if (typeof data.category !== 'string' || !validCategories.includes(data.category)) data.category = 'Other';
-        if (typeof data.xpReward !== 'number') data.xpReward = 25;
+        data.xpReward = clampNumber(data.xpReward, 5, 200, 25);
         if (typeof data.duration !== 'string' || !validDurations.includes(data.duration)) data.duration = '1-hour';
         if (typeof data.recurring !== 'string' || !validRecurring.includes(data.recurring)) data.recurring = 'none';
         if (!data.cleanTitle || typeof data.cleanTitle !== 'string') data.cleanTitle = title;

@@ -3,6 +3,7 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
+import { sanitizePromptInput, sanitizeStringArray } from '@/lib/sanitize';
 
 /**
  * POST: Extract concepts from text (daily logs, reflections, etc.) using Gemini.
@@ -11,7 +12,15 @@ import { withAuth } from '@/lib/with-auth';
 export const POST = withAuth(async (request) => {
     try {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { text, source, sourceId, existingLabels } = await request.json();
+        const { text: rawText, source: rawSource, sourceId, existingLabels: rawLabels } = await request.json();
+
+        const text = sanitizePromptInput(rawText, 5000);
+        const source = sanitizePromptInput(rawSource, 100);
+        const existingLabels = sanitizeStringArray(rawLabels, 100, 100);
+
+        if (!text) {
+            return NextResponse.json({ error: 'Text is required' }, { status: 400 });
+        }
 
         const mock = hasApiKeyOrMock({
             concepts: [
@@ -79,8 +88,8 @@ Output JSON:
 export const GET = withAuth(async (request) => {
     try {
         const { searchParams } = new URL(request.url);
-        const concepts = searchParams.get('concepts')?.split(',').filter(Boolean) || [];
-        const existing = searchParams.get('existing')?.split(',').filter(Boolean) || [];
+        const concepts = sanitizeStringArray(searchParams.get('concepts')?.split(','), 20, 100);
+        const existing = sanitizeStringArray(searchParams.get('existing')?.split(','), 50, 100);
 
         if (concepts.length === 0) {
             return NextResponse.json({ similarities: [] });

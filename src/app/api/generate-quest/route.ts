@@ -3,10 +3,12 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/with-auth';
+import { sanitizePromptInput, clampNumber } from '@/lib/sanitize';
 
 export const POST = withAuth(async (request) => {
     try {
-        const { prompt, context } = await request.json();
+        const { prompt: rawPrompt, context } = await request.json();
+        const prompt = sanitizePromptInput(rawPrompt, 1000);
 
         const mock = hasApiKeyOrMock({
             quests: [
@@ -66,7 +68,16 @@ Output ONLY a valid JSON object with a "quests" array. No other text.`;
         const response = result.response;
         const text = response.text();
 
-        const data = extractJSON(text);
+        const data = extractJSON(text) as Record<string, unknown>;
+
+        // Clamp XP values on generated quests
+        if (Array.isArray(data.quests)) {
+            const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
+            for (const q of data.quests as Record<string, unknown>[]) {
+                q.xp = clampNumber(q.xp, 5, 200, 25);
+                if (typeof q.difficulty !== 'string' || !validDifficulties.includes(q.difficulty)) q.difficulty = 'Medium';
+            }
+        }
 
         return NextResponse.json(data);
     } catch (error) {

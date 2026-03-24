@@ -511,39 +511,49 @@ interface CachedSynthesis {
     timestamp: number; // epoch ms for cooldown tracking
 }
 
-function getCachedSynthesis(): AISynthesis | null {
+// Cache the parsed localStorage entry in memory to avoid repeated
+// getItem + JSON.parse calls on every render / cooldown check.
+let _cachedEntry: CachedSynthesis | null = null;
+let _cachedRaw: string | null = null; // tracks the raw string to detect external changes
+
+function _loadCacheEntry(): CachedSynthesis | null {
     if (typeof window === 'undefined') return null;
     try {
         const raw = localStorage.getItem(AI_CACHE_KEY);
-        if (!raw) return null;
-        const cached: CachedSynthesis = JSON.parse(raw);
-        // Cache is valid within the same day
-        if (cached.date === today()) return cached.data;
-        return null;
+        if (!raw) { _cachedEntry = null; _cachedRaw = null; return null; }
+        // Only re-parse if the raw string changed
+        if (raw !== _cachedRaw) {
+            _cachedRaw = raw;
+            _cachedEntry = JSON.parse(raw);
+        }
+        return _cachedEntry;
     } catch {
+        _cachedEntry = null;
+        _cachedRaw = null;
         return null;
     }
 }
 
+function getCachedSynthesis(): AISynthesis | null {
+    const cached = _loadCacheEntry();
+    if (!cached) return null;
+    // Cache is valid within the same day
+    return cached.date === today() ? cached.data : null;
+}
+
 function getCacheTimestamp(): number {
-    if (typeof window === 'undefined') return 0;
-    try {
-        const raw = localStorage.getItem(AI_CACHE_KEY);
-        if (!raw) return 0;
-        const cached: CachedSynthesis = JSON.parse(raw);
-        return cached.timestamp || 0;
-    } catch {
-        return 0;
-    }
+    const cached = _loadCacheEntry();
+    return cached?.timestamp || 0;
 }
 
 function setCachedSynthesis(data: AISynthesis): void {
     if (typeof window === 'undefined') return;
-    localStorage.setItem(AI_CACHE_KEY, JSON.stringify({
-        data,
-        date: today(),
-        timestamp: Date.now(),
-    }));
+    const entry: CachedSynthesis = { data, date: today(), timestamp: Date.now() };
+    const raw = JSON.stringify(entry);
+    localStorage.setItem(AI_CACHE_KEY, raw);
+    // Update in-memory cache immediately
+    _cachedEntry = entry;
+    _cachedRaw = raw;
 }
 
 function isCooldownActive(): boolean {

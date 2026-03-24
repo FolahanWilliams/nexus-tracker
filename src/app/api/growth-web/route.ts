@@ -25,13 +25,18 @@ export const POST = withAuth(async (request) => {
             return NextResponse.json({ edges: [] });
         }
 
+        // Limit to the most recent 30 days to avoid O(n²) explosion on large datasets
+        const recentNodes = dailyNodes
+            .sort((a, b) => b.logDate.localeCompare(a.logDate))
+            .slice(0, 30);
+
         const edges: { source: string; target: string; type: string; weight: number }[] = [];
 
         // Compute edges between all pairs
-        for (let i = 0; i < dailyNodes.length; i++) {
+        for (let i = 0; i < recentNodes.length; i++) {
             for (let j = i + 1; j < dailyNodes.length; j++) {
-                const a = dailyNodes[i];
-                const b = dailyNodes[j];
+                const a = recentNodes[i];
+                const b = recentNodes[j];
 
                 // Continued topics: shared concepts
                 const sharedConcepts = a.conceptsLearned.filter(

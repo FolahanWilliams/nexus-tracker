@@ -3,16 +3,23 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
+import { sanitizePromptInput } from '@/lib/sanitize';
 
 export const POST = withAuth(async (request) => {
     try {
-        const { word, definition, partOfSpeech, sentence, challengeType } = await request.json() as {
+        const raw = await request.json() as {
             word: string;
             definition: string;
             partOfSpeech: string;
             sentence: string;
             challengeType: 'sentence_construction' | 'paraphrase_challenge';
         };
+
+        const word = sanitizePromptInput(raw.word, 100);
+        const definition = sanitizePromptInput(raw.definition, 500);
+        const partOfSpeech = sanitizePromptInput(raw.partOfSpeech, 50);
+        const sentence = sanitizePromptInput(raw.sentence, 2000);
+        const challengeType = raw.challengeType;
 
         if (!word || !sentence) {
             return NextResponse.json({ error: 'Missing word or sentence' }, { status: 400 });

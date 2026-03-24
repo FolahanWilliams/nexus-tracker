@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useId, useMemo } from 'react';
+import { memo, useId, useMemo } from 'react';
 import {
   FruitLayer,
   BirdLayer,
@@ -47,7 +47,7 @@ const CANOPY_CLUSTERS = [
 ];
 
 // Each "leaf cluster" is actually multiple overlapping circles for depth
-function LeafCluster({
+const LeafCluster = memo(function LeafCluster({
   cx, cy, size, colors, delay, running,
 }: {
   cx: number; cy: number; size: number;
@@ -98,7 +98,7 @@ function LeafCluster({
       />
     </g>
   );
-}
+});
 
 // Flower component
 function Flower({ cx, cy, color, size, delay, running }: {
