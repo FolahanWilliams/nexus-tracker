@@ -53,5 +53,7 @@ export function clampNumber(
     defaultValue: number,
 ): number {
     if (typeof value !== 'number' || !Number.isFinite(value)) return defaultValue;
-    return Math.max(min, Math.min(max, Math.round(value)));
+    const rounded = Math.round(value);
+    if (!Number.isFinite(rounded)) return defaultValue;
+    return Math.max(min, Math.min(max, rounded));
 }

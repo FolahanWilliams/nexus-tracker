@@ -25,7 +25,13 @@ export const POST = withAuth(async (_request, user) => {
     }
 
     const userId = user.id;
-    const email = user.email!;
+    const email = user.email;
+    if (!email) {
+      return NextResponse.json(
+        { error: 'User email is required for checkout' },
+        { status: 400 }
+      );
+    }
 
     // Check if user already has a stripe customer ID
     const { data: profile } = await getSupabaseAdmin()

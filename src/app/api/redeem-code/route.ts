@@ -25,9 +25,16 @@ export const POST = withAuth(async (request, user) => {
     return NextResponse.json({ error: 'Missing code.' }, { status: 400 });
   }
 
+  // Reject empty codes before comparison
+  const trimmedCode = code.trim();
+  const trimmedAccess = ACCESS_CODE.trim();
+  if (!trimmedCode || !trimmedAccess) {
+    return NextResponse.json({ error: 'Invalid access code.' }, { status: 403 });
+  }
+
   // Constant-time comparison to prevent timing attacks
-  const a = Buffer.from(code.trim());
-  const b = Buffer.from(ACCESS_CODE.trim());
+  const a = Buffer.from(trimmedCode);
+  const b = Buffer.from(trimmedAccess);
   const isValid = a.length === b.length && timingSafeEqual(a, b);
 
   if (!isValid) {

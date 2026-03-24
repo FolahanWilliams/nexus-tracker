@@ -34,7 +34,7 @@ export const POST = withAuth(async (request) => {
 
         // Compute edges between all pairs
         for (let i = 0; i < recentNodes.length; i++) {
-            for (let j = i + 1; j < dailyNodes.length; j++) {
+            for (let j = i + 1; j < recentNodes.length; j++) {
                 const a = recentNodes[i];
                 const b = recentNodes[j];
 

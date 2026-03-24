@@ -103,6 +103,7 @@ export default memo(function Navigation() {
                     {isActive && (
                       <motion.div
                         layoutId="nav-active-indicator"
+                        aria-hidden="true"
                         className="absolute inset-0 bg-[var(--color-bg-hover)] rounded-sm border-l-2 border-[var(--color-green)]"
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                       />
