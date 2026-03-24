@@ -6,23 +6,17 @@ import { useState } from 'react';
 import {
   Home,
   Target,
-  BarChart3,
-  Sword,
-  Sparkles,
   Settings,
   X,
   MoreHorizontal,
   Repeat2,
   Timer,
   Flag,
-  Map,
   User,
   BookOpen,
   Library,
   HelpCircle,
-  CalendarDays,
   Network,
-  GitBranch,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -30,20 +24,14 @@ const mainNavItems = [
   { href: '/quests', label: 'Quests', icon: Target },
   { href: '/habits', label: 'Habits', icon: Repeat2 },
   { href: '/focus', label: 'Focus', icon: Timer },
-  { href: '/reflection', label: 'Check-In', icon: BookOpen },
+  { href: '/journal', label: 'Journal', icon: BookOpen },
 ];
 
 const secondaryNavItems = [
-  { href: '/goals', label: 'Goals', icon: Flag },
-  { href: '/goals/calendar', label: 'Edge Log', icon: CalendarDays },
-  { href: '/wordforge', label: 'WordForge', icon: Library },
-  { href: '/chains', label: 'Chains', icon: Map },
-  { href: '/bosses', label: 'Boss', icon: Sword },
   { href: '/character', label: 'Character', icon: User },
-  { href: '/inventory', label: 'Items', icon: Sparkles },
-  { href: '/knowledge', label: 'Knowledge', icon: Network },
-  { href: '/growth', label: 'Growth', icon: GitBranch },
-  { href: '/analytics', label: 'Progress', icon: BarChart3 },
+  { href: '/forge', label: 'Forge', icon: Library },
+  { href: '/progress', label: 'Progress', icon: Flag },
+  { href: '/insights', label: 'Insights', icon: Network },
   { href: '/tutorial', label: 'Guide', icon: HelpCircle },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];

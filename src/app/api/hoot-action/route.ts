@@ -107,7 +107,7 @@ const hootFunctions = [
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /goals, /focus, /reflection, /bosses, /chains, /analytics, /character, /inventory, /shop, /skills, /crafting, /achievements, /timeline, /settings, /wordforge, /knowledge, /growth' },
+                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /focus, /journal, /character, /forge, /progress, /insights, /settings' },
                 reason: { type: SchemaType.STRING, description: 'Brief reason for suggesting this page' },
             },
             required: ['page'],
@@ -349,27 +349,15 @@ const hootFunctions = [
 // ── Page context descriptions ────────────────────────────────────────────
 const PAGE_CONTEXT: Record<string, string> = {
     '/': 'Dashboard — overview of XP, level, streak, daily quests, and productivity score',
-    '/quests': 'Quests — task list where users create and complete quests for XP',
+    '/quests': 'Quests — task list, quest chains, and boss battles (tabbed)',
     '/habits': 'Habits — daily habit tracker with streaks',
-    '/goals': 'Goals — long-term goals with milestone tracking',
     '/focus': 'Focus Timer — Pomodoro-style focus sessions',
-    '/reflection': 'Reflection — daily journaling with energy ratings and trend analysis',
-    '/bosses': 'Boss Battles — AI-generated bosses themed around uncompleted tasks',
-    '/chains': 'Quest Chains — multi-step projects with branching paths',
-    '/analytics': 'Analytics — productivity charts and trends',
-    '/character': 'Character — RPG profile, class selection, stats',
-    '/inventory': 'Inventory — collected items and equipment',
-    '/shop': 'Shop — spend gold and gems on rewards',
-    '/skills': 'Skills — skill tree with upgrade paths',
-    '/crafting': 'Crafting — combine items to create better gear',
-    '/achievements': 'Achievements — unlockable badges and milestones',
-    '/timeline': 'Timeline — upcoming events and deadlines',
+    '/journal': 'Daily Journal — morning/evening check-in and slight edge log (tabbed)',
+    '/character': 'Character — RPG profile, class, skills, inventory, and shop (tabbed)',
+    '/forge': 'Forge — vocabulary builder and cognitive challenges (tabbed)',
+    '/progress': 'Progress — long-term goals, stats, achievements, and timeline (tabbed)',
+    '/insights': 'Insights — knowledge graph and growth web visualizations (tabbed)',
     '/settings': 'Settings — app preferences and data management',
-    '/wordforge': 'WordForge — AI-powered vocabulary builder with spaced repetition',
-    '/goals/calendar': 'Slight Edge Log — daily productivity tracking with 1-10 scores, streaks, and compound growth visualization',
-    '/wallpaper': 'Wallpaper — year-view dot calendar for iPhone wallpaper automation',
-    '/knowledge': 'Knowledge Graph — visual network of concepts, words, and skills with time slider, cluster labels, and particle flow',
-    '/growth': 'Growth Web — daily growth visualization showing compound learning progress and concept connections',
 };
 
 export const POST = withAuth(async (request) => {

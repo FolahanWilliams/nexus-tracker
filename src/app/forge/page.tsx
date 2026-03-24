@@ -3,21 +3,21 @@
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { User, Sparkles, ChevronLeft } from 'lucide-react';
+import { Library, Brain, ChevronLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import TabShell from '@/components/TabShell';
-import ProfileTab from './ProfileTab';
-import InventoryTab from './InventoryTab';
+import VocabularyTab from './VocabularyTab';
+import ChallengesTab from './ChallengesTab';
 
 const TABS = [
-  { id: 'profile', label: 'Profile & Skills', icon: <User size={16} /> },
-  { id: 'inventory', label: 'Items & Shop', icon: <Sparkles size={16} /> },
+  { id: 'vocabulary', label: 'Vocabulary', icon: <Library size={16} /> },
+  { id: 'challenges', label: 'Challenges', icon: <Brain size={16} /> },
 ];
 
-export default function CharacterPage() {
+export default function ForgePage() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get('tab') || 'profile';
-  const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'profile');
+  const initialTab = searchParams.get('tab') || 'vocabulary';
+  const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'vocabulary');
 
   return (
     <motion.div className="min-h-screen pb-20" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -26,15 +26,15 @@ export default function CharacterPage() {
           <Link href="/" className="text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] transition-colors">
             <ChevronLeft size={24} />
           </Link>
-          <h1 className="text-xl font-bold">Character</h1>
+          <h1 className="text-xl font-bold">Forge</h1>
         </div>
         <div className="max-w-5xl mx-auto px-4">
           <TabShell tabs={TABS} activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
       </div>
       <div className="max-w-5xl mx-auto px-4 py-6">
-        {activeTab === 'profile' && <ProfileTab />}
-        {activeTab === 'inventory' && <InventoryTab />}
+        {activeTab === 'vocabulary' && <VocabularyTab />}
+        {activeTab === 'challenges' && <ChallengesTab />}
       </div>
     </motion.div>
   );

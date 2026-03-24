@@ -59,13 +59,11 @@ const menuItems = [
   { href: '/quests', icon: Target, label: 'Quests', color: 'var(--color-green)' },
   { href: '/habits', icon: Repeat2, label: 'Habits', color: 'var(--color-purple)' },
   { href: '/focus', icon: Timer, label: 'Focus Timer', color: 'var(--color-blue)' },
-  { href: '/goals', icon: Flag, label: 'Goals', color: 'var(--color-orange)' },
-  { href: '/reflection', icon: BookOpen, label: 'Daily Check-In', color: 'var(--color-yellow)' },
-  { href: '/chains', icon: Map, label: 'Quest Chains', color: 'var(--color-blue)' },
-  { href: '/bosses', icon: Sword, label: 'Boss Battles', color: 'var(--color-red)' },
-  { href: '/character', icon: User, label: 'Character & Skills', color: 'var(--color-purple-light)' },
-  { href: '/inventory', icon: Backpack, label: 'Items & Shop', color: 'var(--color-yellow)' },
-  { href: '/analytics', icon: BarChart3, label: 'Progress & Records', color: 'var(--color-green)' },
+  { href: '/journal', icon: BookOpen, label: 'Daily Journal', color: 'var(--color-yellow)' },
+  { href: '/character', icon: User, label: 'Character', color: 'var(--color-purple-light)' },
+  { href: '/forge', icon: Backpack, label: 'Forge', color: 'var(--color-orange)' },
+  { href: '/progress', icon: Flag, label: 'Progress', color: 'var(--color-green)' },
+  { href: '/insights', icon: BarChart3, label: 'Insights', color: 'var(--color-blue)' },
   { href: '/settings', icon: Settings, label: 'Settings', color: 'var(--color-text-muted)' },
 ];
 
@@ -380,7 +378,7 @@ function DashboardContent() {
               { href: '/quests', icon: Target, label: 'Quests', color: '#4ade80', bg: 'rgba(74, 222, 128, 0.1)', glow: 'rgba(74, 222, 128, 0.15)' },
               { href: '/habits', icon: Repeat2, label: 'Habits', color: '#a78bfa', bg: 'rgba(167, 139, 250, 0.1)', glow: 'rgba(167, 139, 250, 0.15)' },
               { href: '/focus', icon: Timer, label: 'Focus', color: '#60a5fa', bg: 'rgba(96, 165, 250, 0.1)', glow: 'rgba(96, 165, 250, 0.15)' },
-              { href: '/goals', icon: Flag, label: 'Goals', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.1)', glow: 'rgba(251, 146, 60, 0.15)' },
+              { href: '/progress', icon: Flag, label: 'Goals', color: '#fb923c', bg: 'rgba(251, 146, 60, 0.1)', glow: 'rgba(251, 146, 60, 0.15)' },
             ].map(({ href, icon: Icon, label, color, bg, glow }) => (
               <Link key={href} href={href}>
                 <motion.div

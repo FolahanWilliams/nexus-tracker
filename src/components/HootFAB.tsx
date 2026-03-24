@@ -87,19 +87,16 @@ function generateQuickReplies(
             case '/habits':
                 chips.push({ label: '🔥 Streak check', message: 'How are my habit streaks?' });
                 break;
-            case '/goals':
+            case '/progress':
                 chips.push({ label: '🎯 New goal', message: 'Help me set a new goal' });
                 break;
-            case '/reflection':
+            case '/journal':
                 chips.push({ label: '📝 Coach me', message: 'Give me coaching based on my reflections' });
-                break;
-            case '/bosses':
-                chips.push({ label: '⚔️ Strategy', message: 'What\'s my boss battle strategy?' });
                 break;
             case '/focus':
                 chips.push({ label: '⏱️ Start focus', message: 'Start a 25-minute focus session' });
                 break;
-            case '/wordforge':
+            case '/forge':
                 chips.push({ label: '📖 New words', message: 'Generate some new vocab words for me' });
                 break;
             default:
@@ -361,7 +358,7 @@ export default function HootFAB() {
             if (dueVocab >= 10 && checkTrigger('vocab_pileup', () => true, {
                 text: `${dueVocab} vocab words are due for review. A quick 5-minute session can keep your memory fresh!`,
                 actionLabel: "Review now",
-                actions: [{ action: 'navigate', params: { path: '/wordforge' } }],
+                actions: [{ action: 'navigate', params: { path: '/forge' } }],
                 priority: 'medium',
                 type: 'quest'
             })) return;
