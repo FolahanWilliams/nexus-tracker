@@ -193,6 +193,17 @@ export interface Habit {
     completedDates: string[];
     createdAt: string;
     lastCompletedDate: string | null;
+    // SM-2 spaced repetition fields for smart habit scheduling
+    /** SM-2 ease factor (1.3–3.0). Higher = easier to maintain. */
+    habitEase: number;
+    /** Current reminder interval in days. */
+    habitInterval: number;
+    /** Consecutive successful completions (for SM-2 progression). */
+    habitReps: number;
+    /** Next recommended focus date (YYYY-MM-DD). Used for priority sorting. */
+    nextFocusDate: string;
+    /** Total times the habit was missed after being scheduled. */
+    totalMisses: number;
 }
 
 export interface VocabWord {
@@ -488,10 +499,32 @@ export interface HootConversationSummary {
     date: string;
 }
 
+/** Learned user preferences for Hoot personalization. */
+export interface HootUserProfile {
+    /** Preferred task difficulty based on completion patterns. */
+    preferredDifficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic' | null;
+    /** Peak productivity hours (e.g. "morning", "afternoon", "evening"). */
+    peakProductivityTime: string | null;
+    /** Categories the user completes most often. */
+    topCategories: string[];
+    /** Average daily tasks completed (rolling 7-day). */
+    avgDailyTasks: number;
+    /** Communication style preference. */
+    coachingStyle: 'encouraging' | 'direct' | 'analytical' | null;
+    /** Known struggles the user has mentioned. */
+    knownStruggles: string[];
+    /** Known goals extracted from conversations. */
+    activeGoalSummaries: string[];
+    /** Last time the profile was auto-updated. */
+    lastProfileUpdate: string | null;
+}
+
 export interface HootMemory {
     notes: HootMemoryNote[];
     summaries: HootConversationSummary[];
     lastInteractionDate: string | null;
+    /** Learned user profile for personalization. */
+    userProfile: HootUserProfile;
 }
 
 export interface HootSlice {
@@ -501,6 +534,8 @@ export interface HootSlice {
     removeHootMemoryNote: (noteId: string) => void;
     addHootConversationSummary: (summary: string, topics: string[], actionsTaken: string[]) => void;
     updateHootLastInteraction: () => void;
+    updateHootUserProfile: (updates: Partial<HootUserProfile>) => void;
+    refreshUserProfile: () => void;
 }
 
 // ─── UI Persistence Slice ───────────────────────────────────────

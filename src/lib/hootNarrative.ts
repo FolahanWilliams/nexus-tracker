@@ -91,14 +91,23 @@ Active (${active.length}): ${active.slice(0, 8).map(t => `${t.title} [${t.diffic
 ${hard.length > 0 ? `Hard/Epic: ${hard.map(t => t.title).join(', ')}` : ''}`;
         }
         case '/habits': {
-            const habitsInfo = state.habits.map(h => ({
-                name: h.name,
-                done: h.completedDates.includes(today),
-                streak: h.streak,
-                longest: h.longestStreak,
-            }));
+            const habitsInfo = state.habits.map(h => {
+                const done = h.completedDates.includes(today);
+                const overdue = !done && (h.nextFocusDate || today) <= today;
+                return {
+                    name: h.name,
+                    done,
+                    streak: h.streak,
+                    longest: h.longestStreak,
+                    overdue,
+                    nextFocus: h.nextFocusDate,
+                    misses: h.totalMisses || 0,
+                };
+            });
+            const overdueHabits = habitsInfo.filter(h => h.overdue);
             return `=== PAGE: HABITS ===
-${habitsInfo.map(h => `${h.done ? '✅' : '⬜'} ${h.name} (streak: ${h.streak}, best: ${h.longest})`).join('\n') || 'No habits yet'}`;
+${habitsInfo.map(h => `${h.done ? '✅' : h.overdue ? '🔴' : '⬜'} ${h.name} (streak: ${h.streak}, best: ${h.longest}${h.overdue ? ', OVERDUE' : ''}${h.misses > 3 ? `, ${h.misses} total misses` : ''})`).join('\n') || 'No habits yet'}
+${overdueHabits.length > 0 ? `⚠️ ${overdueHabits.length} habit${overdueHabits.length > 1 ? 's' : ''} need attention today (SM-2 scheduled)` : ''}`;
         }
         case '/goals': {
             const active = state.goals.filter(g => !g.completed);
@@ -294,6 +303,22 @@ function buildCorrelations(state: GameState, today: string): string | null {
 
 function buildMemoryContext(memory: HootMemory): string | null {
     const parts: string[] = [];
+
+    // User profile (learned preferences)
+    const profile = memory.userProfile;
+    if (profile?.lastProfileUpdate) {
+        const profileLines: string[] = [];
+        if (profile.preferredDifficulty) profileLines.push(`Preferred difficulty: ${profile.preferredDifficulty}`);
+        if (profile.peakProductivityTime) profileLines.push(`Peak time: ${profile.peakProductivityTime}`);
+        if (profile.topCategories.length > 0) profileLines.push(`Top categories: ${profile.topCategories.join(', ')}`);
+        if (profile.avgDailyTasks > 0) profileLines.push(`Avg daily tasks: ${profile.avgDailyTasks}`);
+        if (profile.coachingStyle) profileLines.push(`Coaching style: ${profile.coachingStyle}`);
+        if (profile.knownStruggles.length > 0) profileLines.push(`Known struggles: ${profile.knownStruggles.join('; ')}`);
+        if (profile.activeGoalSummaries.length > 0) profileLines.push(`Active goals: ${profile.activeGoalSummaries.join(', ')}`);
+        if (profileLines.length > 0) {
+            parts.push(`User Profile (auto-learned):\n${profileLines.map(l => `  ${l}`).join('\n')}`);
+        }
+    }
 
     if (memory.notes.length > 0) {
         const recentNotes = memory.notes.slice(0, 10);

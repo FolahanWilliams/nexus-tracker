@@ -59,6 +59,20 @@ export const SM2_REVIEWING_REPS = 3;
 /** Minimum interval (days) to be considered "mastered". */
 export const SM2_MASTERY_INTERVAL = 21;
 
+// ─── Habit SM-2 Scheduling ───────────────────────────────────────
+
+/** Default ease factor for new habits. */
+export const HABIT_SM2_DEFAULT_EASE = 2.5;
+
+/** Minimum ease factor for habits. */
+export const HABIT_SM2_MIN_EASE = 1.3;
+
+/** Maximum ease factor for habits. */
+export const HABIT_SM2_MAX_EASE = 3.0;
+
+/** Maximum interval (days) for habit focus reminders. */
+export const HABIT_SM2_MAX_INTERVAL = 7;
+
 // ─── Auto-Levelling Thresholds ───────────────────────────────────
 
 /** Accuracy above this promotes to the next difficulty level. */
