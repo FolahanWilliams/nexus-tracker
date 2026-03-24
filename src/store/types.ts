@@ -109,6 +109,9 @@ export interface CraftingRecipe {
     rarity: ItemRarity;
 }
 
+export type SkillCategory = 'productivity' | 'combat' | 'magic' | 'crafting';
+export type Specialization = 'Productivity' | 'Creativity' | 'Learning' | 'Fitness';
+
 export interface Skill {
     id: string;
     name: string;
@@ -119,12 +122,32 @@ export interface Skill {
     unlocked: boolean;
     prerequisites: string[];
     cost: number;
-    category: 'productivity' | 'combat' | 'magic' | 'crafting';
+    category: SkillCategory;
+    specialization?: Specialization;
+    passive?: PassiveAbility;
     effects: {
         xpMultiplier?: number;
         goldMultiplier?: number;
         taskEfficiency?: number;
     };
+}
+
+export interface PassiveAbility {
+    type: 'auto_complete_easy' | 'double_xp_weekends' | 'streak_shield' | 'bonus_daily_gold' | 'focus_burst' | 'creative_spark' | 'knowledge_retention' | 'endurance_boost';
+    description: string;
+    /** Minimum skill level required to activate this passive */
+    activationLevel: number;
+}
+
+export interface PrestigeState {
+    /** Number of times the player has prestiged */
+    level: number;
+    /** Permanent multiplier: 1 + (level * 0.1) */
+    permanentMultiplier: number;
+    /** Total XP earned across all prestiges (for display) */
+    lifetimeXpEarned: number;
+    /** Timestamp of last prestige */
+    lastPrestigeAt: string | null;
 }
 
 export interface QuestChain {
@@ -350,6 +373,7 @@ export interface RpgSlice {
     activeBuffs: { type: string; value: number; expiresAt: string }[];
     shopItems: Reward[];
     purchasedRewards: Reward[];
+    prestige: PrestigeState;
 
     addItem: (item: Omit<InventoryItem, 'id'>) => void;
     removeItem: (id: string, quantity?: number) => void;
@@ -360,6 +384,9 @@ export interface RpgSlice {
     unlockSkill: (skillId: string) => void;
     resetSkill: (skillId: string) => void;
     getSkillMultiplier: (type: 'xp' | 'gold') => number;
+    getActivePassives: () => PassiveAbility[];
+    hasPassive: (type: PassiveAbility['type']) => boolean;
+    prestigeReset: () => boolean;
     craftItem: (recipeId: string) => boolean;
     addBuff: (type: string, value: number, durationMinutes: number) => void;
     checkBuffs: () => void;

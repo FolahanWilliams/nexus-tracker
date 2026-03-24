@@ -1,11 +1,13 @@
 'use client';
 
-import { useGameStore, CLASS_BONUSES, xpForLevel, Skill } from '@/store/useGameStore';
+import { useGameStore, CLASS_BONUSES, xpForLevel, Skill, Specialization } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { CLASS_RESPEC_GOLD_COST, previewAllClasses, buildRewardContext } from '@/lib/rewardCalculator';
+import { PRESTIGE_MIN_LEVEL } from '@/store/slices/rpgSlice';
 import {
   Pencil, Check, X,
-  Brain, Zap, Flame, Lock, Star, AlertCircle, RefreshCw
+  Brain, Zap, Flame, Lock, Star, AlertCircle, RefreshCw,
+  Shield, Sparkles, BookOpen, Dumbbell, Crown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useMemo } from 'react';
@@ -13,6 +15,16 @@ import { useState, useMemo } from 'react';
 const CLASSES = ['Scholar', 'Strategist', 'Warrior', 'Merchant', 'Creator'] as const;
 type AboutField = 'characterAge' | 'characterYearLevel' | 'characterMotto' | 'characterStrengths';
 type Tab = 'profile' | 'skills' | 'classes';
+type SkillSubTab = 'all' | Specialization;
+
+const SPECIALIZATIONS: Specialization[] = ['Productivity', 'Creativity', 'Learning', 'Fitness'];
+
+const SPEC_META: Record<Specialization, { color: string; icon: React.ReactNode; description: string }> = {
+  Productivity: { color: 'var(--color-green)', icon: <Zap size={18} />, description: 'Efficiency & automation' },
+  Creativity: { color: 'var(--color-yellow)', icon: <Sparkles size={18} />, description: 'Crafting & gold mastery' },
+  Learning: { color: 'var(--color-purple)', icon: <BookOpen size={18} />, description: 'Knowledge & vocab power' },
+  Fitness: { color: 'var(--color-red)', icon: <Dumbbell size={18} />, description: 'Streaks & endurance' },
+};
 
 const CLASS_EMOJI: Record<typeof CLASSES[number], string> = {
   Scholar: '📚', Strategist: '🧠', Warrior: '⚔️', Merchant: '💰', Creator: '🎨',
@@ -23,6 +35,9 @@ const SKILL_ICONS: Record<string, React.ReactNode> = {
   'coins': <Star size={24} />,
   'flame': <Flame size={24} />,
   'zap': <Zap size={24} />,
+  'star': <Sparkles size={24} />,
+  'sword': <Shield size={24} />,
+  'target': <Zap size={24} />,
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -38,12 +53,15 @@ export default function ProfileTab() {
     characterClass, characterName, characterAge, characterYearLevel, characterMotto, characterStrengths,
     setCharacterClass, respecClass, updateCharacterInfo,
     skills, upgradeSkill, unlockSkill, resetSkill, getSkillMultiplier,
+    getActivePassives, prestigeReset, prestige,
     activeBuffs, vocabWords,
   } = useGameStore();
   const { addToast } = useToastStore();
 
   const [activeTab, setActiveTab] = useState<Tab>('profile');
+  const [skillSubTab, setSkillSubTab] = useState<SkillSubTab>('all');
   const [confirmRespec, setConfirmRespec] = useState<typeof CLASSES[number] | null>(null);
+  const [confirmPrestige, setConfirmPrestige] = useState(false);
   const [editingField, setEditingField] = useState<AboutField | 'name' | null>(null);
   const [editValue, setEditValue] = useState('');
   const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
@@ -99,10 +117,22 @@ export default function ProfileTab() {
   };
 
   // Class comparison data
+  const activePassives = getActivePassives();
+
   const classPreview = useMemo(() => {
-    const ctx = buildRewardContext({ characterClass, skills, activeBuffs, vocabWords });
+    const ctx = buildRewardContext({ characterClass, skills, activeBuffs, vocabWords, prestige });
     return previewAllClasses(ctx, 100); // base 100 for easy percentage reading
-  }, [characterClass, skills, activeBuffs, vocabWords]);
+  }, [characterClass, skills, activeBuffs, vocabWords, prestige]);
+
+  const handlePrestige = () => {
+    const success = prestigeReset();
+    if (success) {
+      addToast(`Prestige ${prestige.level + 1}! All progress reset with permanent x${(1 + (prestige.level + 1) * 0.1).toFixed(1)} multiplier!`, 'success');
+    } else {
+      addToast(`Reach level ${PRESTIGE_MIN_LEVEL} to prestige.`, 'error');
+    }
+    setConfirmPrestige(false);
+  };
 
   const handleRespec = (newClass: typeof CLASSES[number]) => {
     if (!characterClass) {
@@ -289,9 +319,17 @@ export default function ProfileTab() {
       {/* ── Skills Tab ── */}
       {activeTab === 'skills' && (
         <div className="max-w-5xl mx-auto px-4 py-6">
-          {/* Active Bonuses */}
+          {/* Active Bonuses + Prestige */}
           <motion.div className="rpg-card mb-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <h2 className="text-lg font-bold mb-4">Active Bonuses</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold">Active Bonuses</h2>
+              {prestige.level > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--color-yellow)]/15 border border-[var(--color-yellow)]/30">
+                  <Crown size={14} className="text-[var(--color-yellow)]" />
+                  <span className="text-xs font-bold text-[var(--color-yellow)]">Prestige {prestige.level} — x{prestige.permanentMultiplier.toFixed(1)}</span>
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-[var(--color-bg-dark)] p-4 rounded-lg">
                 <p className="text-sm text-[var(--color-text-secondary)]">XP Multiplier</p>
@@ -313,9 +351,80 @@ export default function ProfileTab() {
             </p>
           </motion.div>
 
+          {/* Active Passives */}
+          {activePassives.length > 0 && (
+            <motion.div className="rpg-card mb-6" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+                <Shield size={18} className="text-[var(--color-blue)]" /> Passive Abilities
+              </h2>
+              <div className="space-y-2">
+                {activePassives.map((passive, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-[var(--color-bg-dark)] rounded-lg">
+                    <div className="w-8 h-8 rounded-full bg-[var(--color-blue)]/20 flex items-center justify-center">
+                      <Sparkles size={14} className="text-[var(--color-blue)]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold capitalize">{passive.type.replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">{passive.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Specialization Sub-Tabs */}
+          <div className="flex gap-1 mb-6 overflow-x-auto pb-1">
+            <button
+              onClick={() => setSkillSubTab('all')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-full whitespace-nowrap transition-colors ${
+                skillSubTab === 'all'
+                  ? 'bg-[var(--color-text-primary)] text-[var(--color-bg)]'
+                  : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
+              }`}
+            >
+              All Skills
+            </button>
+            {SPECIALIZATIONS.map((spec) => (
+              <button
+                key={spec}
+                onClick={() => setSkillSubTab(spec)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-full whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+                  skillSubTab === spec
+                    ? 'text-white'
+                    : 'bg-[var(--color-bg-dark)] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]'
+                }`}
+                style={skillSubTab === spec ? { backgroundColor: SPEC_META[spec].color } : undefined}
+              >
+                {SPEC_META[spec].icon} {spec}
+              </button>
+            ))}
+          </div>
+
+          {/* Specialization Header (when filtered) */}
+          {skillSubTab !== 'all' && (
+            <motion.div className="rpg-card mb-6 p-4" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              style={{ borderColor: SPEC_META[skillSubTab].color, borderWidth: 1 }}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: SPEC_META[skillSubTab].color }}>
+                  {SPEC_META[skillSubTab].icon}
+                </div>
+                <div>
+                  <h3 className="font-bold">{skillSubTab} Path</h3>
+                  <p className="text-xs text-[var(--color-text-muted)]">{SPEC_META[skillSubTab].description}</p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
           {/* Skill Categories */}
           {['productivity', 'crafting', 'combat', 'magic'].map((category) => {
-            const categorySkills = skills.filter(s => s.category === category);
+            const categorySkills = skills.filter(s => {
+              if (s.category !== category) return false;
+              if (skillSubTab === 'all') return true;
+              // Show core skills (no specialization) + matching specialization
+              return !s.specialization || s.specialization === skillSubTab;
+            });
             if (categorySkills.length === 0) return null;
             return (
               <div key={category} className="mb-8">
@@ -336,7 +445,14 @@ export default function ProfileTab() {
                           <div className="bg-[var(--color-yellow)] rounded-full p-1"><Star size={12} className="text-black" /></div>
                         </div>
                       )}
-                      <div className="flex items-center gap-3 mb-3">
+                      {skill.specialization && (
+                        <div className="absolute top-2 left-2">
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${SPEC_META[skill.specialization].color}30`, color: SPEC_META[skill.specialization].color }}>
+                            {skill.specialization}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-3 mb-3" style={skill.specialization ? { marginTop: 16 } : undefined}>
                         <div className="w-12 h-12 rounded-lg flex items-center justify-center"
                           style={{ backgroundColor: skill.unlocked ? CATEGORY_COLORS[category] : 'var(--color-border)', opacity: skill.unlocked ? 1 : 0.3 }}>
                           {SKILL_ICONS[skill.icon] || <Star size={24} />}
@@ -358,12 +474,69 @@ export default function ProfileTab() {
                       {skill.currentLevel > 0 && skill.effects.goldMultiplier && (
                         <p className="text-xs text-[var(--color-yellow)] mt-2">+{(skill.effects.goldMultiplier * skill.currentLevel * 100).toFixed(0)}% Gold</p>
                       )}
+                      {skill.passive && skill.currentLevel >= skill.passive.activationLevel && (
+                        <p className="text-xs text-[var(--color-blue)] mt-1 flex items-center gap-1"><Shield size={10} /> Passive active</p>
+                      )}
                     </motion.div>
                   ))}
                 </div>
               </div>
             );
           })}
+
+          {/* Prestige Section */}
+          <motion.div className="rpg-card mt-8" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[var(--color-yellow)] to-[var(--color-orange)] flex items-center justify-center">
+                <Crown size={24} className="text-black" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Prestige System</h2>
+                <p className="text-xs text-[var(--color-text-muted)]">Reset all progress for a permanent multiplier boost</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-[var(--color-bg-dark)] p-3 rounded-lg text-center">
+                <p className="text-xs text-[var(--color-text-muted)]">Prestige Level</p>
+                <p className="text-xl font-bold text-[var(--color-yellow)]">{prestige.level}</p>
+              </div>
+              <div className="bg-[var(--color-bg-dark)] p-3 rounded-lg text-center">
+                <p className="text-xs text-[var(--color-text-muted)]">Permanent Bonus</p>
+                <p className="text-xl font-bold text-[var(--color-green)]">x{prestige.permanentMultiplier.toFixed(1)}</p>
+              </div>
+              <div className="bg-[var(--color-bg-dark)] p-3 rounded-lg text-center">
+                <p className="text-xs text-[var(--color-text-muted)]">Lifetime XP</p>
+                <p className="text-xl font-bold text-[var(--color-purple)]">{(prestige.lifetimeXpEarned + xp).toLocaleString()}</p>
+              </div>
+            </div>
+            <p className="text-xs text-[var(--color-text-secondary)] mb-4">
+              Reach level <span className="font-bold">{PRESTIGE_MIN_LEVEL}</span> to prestige. Resets your level, XP, gold, skills, and inventory — but grants a permanent
+              <span className="text-[var(--color-yellow)] font-bold"> +{(0.1 * 100).toFixed(0)}%</span> multiplier to all rewards. Current level: <span className="font-bold">{level}/{PRESTIGE_MIN_LEVEL}</span>
+            </p>
+            {level >= PRESTIGE_MIN_LEVEL ? (
+              confirmPrestige ? (
+                <div className="flex gap-2">
+                  <button onClick={handlePrestige} className="flex-1 rpg-button !bg-[var(--color-yellow)] !text-black font-bold">
+                    Confirm Prestige Reset
+                  </button>
+                  <button onClick={() => setConfirmPrestige(false)} className="rpg-button !border-[var(--color-border)] text-[var(--color-text-muted)]">
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => setConfirmPrestige(true)} className="w-full rpg-button !border-[var(--color-yellow)] text-[var(--color-yellow)] hover:!bg-[var(--color-yellow)]/10 font-bold">
+                  <Crown size={16} className="inline mr-2" /> Prestige to Level {prestige.level + 1}
+                </button>
+              )
+            ) : (
+              <div className="w-full">
+                <div className="w-full h-3 bg-[var(--color-border)] rounded-full overflow-hidden">
+                  <div className="h-full bg-[var(--color-yellow)] rounded-full transition-all" style={{ width: `${Math.min((level / PRESTIGE_MIN_LEVEL) * 100, 100)}%` }} />
+                </div>
+                <p className="text-xs text-center text-[var(--color-text-muted)] mt-1">{level}/{PRESTIGE_MIN_LEVEL} levels to prestige</p>
+              </div>
+            )}
+          </motion.div>
         </div>
       )}
 
@@ -519,12 +692,32 @@ export default function ProfileTab() {
                   </div>
                   <div>
                     <h2 className="text-2xl font-bold">{selectedSkill.name}</h2>
-                    <p className="text-[var(--color-text-secondary)] capitalize">{selectedSkill.category}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[var(--color-text-secondary)] capitalize">{selectedSkill.category}</p>
+                      {selectedSkill.specialization && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: `${SPEC_META[selectedSkill.specialization].color}30`, color: SPEC_META[selectedSkill.specialization].color }}>
+                          {selectedSkill.specialization} Path
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
               <div className="p-6">
-                <p className="text-[var(--color-text-secondary)] mb-6">{selectedSkill.description}</p>
+                <p className="text-[var(--color-text-secondary)] mb-4">{selectedSkill.description}</p>
+                {selectedSkill.passive && (
+                  <div className="mb-4 p-3 bg-[var(--color-blue)]/10 border border-[var(--color-blue)]/30 rounded-lg">
+                    <p className="text-xs font-bold text-[var(--color-blue)] mb-1 flex items-center gap-1">
+                      <Shield size={12} /> Passive: {selectedSkill.passive.type.replace(/_/g, ' ')}
+                    </p>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{selectedSkill.passive.description}</p>
+                    <p className="text-[10px] text-[var(--color-text-muted)] mt-1">
+                      {selectedSkill.currentLevel >= selectedSkill.passive.activationLevel
+                        ? 'Active'
+                        : `Unlocks at level ${selectedSkill.passive.activationLevel}`}
+                    </p>
+                  </div>
+                )}
                 {selectedSkill.prerequisites.length > 0 && (
                   <div className="mb-6">
                     <p className="text-sm font-bold mb-2">Prerequisites:</p>
