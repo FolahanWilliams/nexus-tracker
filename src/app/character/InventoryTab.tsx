@@ -87,7 +87,7 @@ function InventorySubTab() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
       <div className="flex justify-end mb-4">
-        <button onClick={() => setShowAddItem(true)} className="rpg-button !bg-[var(--color-purple)] !text-white">
+        <button onClick={() => setShowAddItem(true)} className="rpg-button btn-primary">
           <Plus size={18} /> Add Item
         </button>
       </div>
@@ -177,13 +177,13 @@ function InventorySubTab() {
                 )}
                 <div className="flex gap-3">
                   {(selectedItem.type === 'weapon' || selectedItem.type === 'armor' || selectedItem.type === 'accessory') && (
-                    <button onClick={() => handleEquip(selectedItem)} className="flex-1 rpg-button !bg-[var(--color-purple)] !text-white">
+                    <button onClick={() => handleEquip(selectedItem)} className="flex-1 rpg-button btn-primary">
                       {selectedItem.equipped ? 'Unequip' : 'Equip'}
                     </button>
                   )}
                   {selectedItem.type === 'consumable' && (
                     <button onClick={() => { consumeItem(selectedItem.id); addToast(`Used ${selectedItem.name}!`, 'success'); setSelectedItem(null); }}
-                      className="flex-1 rpg-button !bg-[var(--color-green)] !text-white">Use</button>
+                      className="flex-1 rpg-button btn-success">Use</button>
                   )}
                   <button onClick={() => { removeItem(selectedItem.id); addToast(`Discarded ${selectedItem.name}`, 'info'); setSelectedItem(null); }}
                     className="rpg-button !text-[var(--color-red)]"><Trash2 size={18} /></button>
@@ -223,7 +223,7 @@ function InventorySubTab() {
                 </div>
                 <div className="flex gap-3 pt-4">
                   <button onClick={() => setShowAddItem(false)} className="flex-1 rpg-button">Cancel</button>
-                  <button onClick={handleAddNewItem} disabled={!newItemName.trim()} className="flex-1 rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50">Add Item</button>
+                  <button onClick={handleAddNewItem} disabled={!newItemName.trim()} className="flex-1 rpg-button btn-primary">Add Item</button>
                 </div>
               </div>
             </motion.div>
@@ -363,7 +363,7 @@ function ShopTab() {
               className="bg-transparent w-full font-bold text-lg focus:outline-none text-[var(--color-text-primary)]" />
           </div>
           <motion.button type="submit" disabled={!newItemName.trim()}
-            className="rpg-button w-full !bg-[var(--color-purple)] !text-white disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rpg-button btn-primary w-full"
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
             <Plus size={20} /> Create Reward
           </motion.button>
@@ -389,7 +389,7 @@ function ShopTab() {
               <h3 className="font-bold mb-1">{item.label}</h3>
               <p className="text-xs text-[var(--color-text-secondary)] mb-3">{item.desc}</p>
               <motion.button onClick={() => { if (!canAfford) { addToast(`Need ${item.cost - gems} more gems.`, 'error'); return; } addGems(-item.cost); item.onBuy(); }}
-                className={`rpg-button w-full !text-white text-sm !py-2 ${canAfford ? '!bg-[var(--color-orange)]' : 'opacity-50 cursor-not-allowed !bg-[var(--color-bg-hover)]'}`}
+                className={`rpg-button w-full text-sm !py-2 ${canAfford ? 'btn-primary' : 'opacity-50 cursor-not-allowed'}`}
                 whileHover={canAfford ? { scale: 1.05 } : {}} whileTap={canAfford ? { scale: 0.95 } : {}}>
                 <Gem size={16} /> {item.cost} Gems
               </motion.button>
@@ -415,7 +415,7 @@ function ShopTab() {
               <h3 className="font-bold mb-1">{item.label}</h3>
               <p className="text-xs text-[var(--color-text-secondary)] mb-3">{item.desc}</p>
               <motion.button onClick={() => { const ok = buyGoldBuff(item.type, item.duration, item.cost); if (ok) addToast(`${item.label} active!`, 'success'); else addToast(`Need ${item.cost - gold} more gold!`, 'error'); }}
-                className={`rpg-button w-full !text-white text-sm !py-2 ${canAfford ? '!bg-[var(--color-yellow)] !text-black' : 'opacity-50 cursor-not-allowed'}`}
+                className={`rpg-button w-full text-sm !py-2 ${canAfford ? 'btn-primary' : 'opacity-50 cursor-not-allowed'}`}
                 whileHover={canAfford ? { scale: 1.05 } : {}} whileTap={canAfford ? { scale: 0.95 } : {}}>
                 🪙 {item.cost} Gold
               </motion.button>
@@ -448,7 +448,7 @@ function ShopTab() {
                   </div>
                   <div className="flex gap-2">
                     <motion.button onClick={() => handleBuy(item.id, item.name, item.cost)} disabled={!canAfford}
-                      className={`rpg-button !py-2 !px-4 text-sm ${canAfford ? '!bg-[var(--color-purple)] !text-white' : 'opacity-50 cursor-not-allowed'}`}
+                      className={`rpg-button !py-2 !px-4 text-sm ${canAfford ? 'btn-primary' : 'opacity-50 cursor-not-allowed'}`}
                       whileHover={canAfford ? { scale: 1.05 } : {}} whileTap={canAfford ? { scale: 0.95 } : {}}>
                       {canAfford ? 'Buy' : 'Locked'}
                     </motion.button>

@@ -428,7 +428,7 @@ export default function QuestsTab() {
                 type="button"
                 onClick={handleAutoTag}
                 disabled={!title.trim() || isAutoTagging || isSubmitting}
-                className="flex-1 rpg-button !bg-[var(--color-bg-dark)] border-2 !border-[var(--color-purple)] !text-[var(--color-purple)] hover:!bg-[var(--color-purple)] hover:!text-white disabled:opacity-50 font-bold"
+                className="flex-1 rpg-button btn-primary font-bold"
                 whileHover={{ scale: (isAutoTagging || !title.trim()) ? 1 : 1.02 }}
                 whileTap={{ scale: (isAutoTagging || !title.trim()) ? 1 : 0.98 }}
               >
@@ -441,7 +441,7 @@ export default function QuestsTab() {
               <motion.button
                 type="submit"
                 disabled={!title.trim() || isSubmitting}
-                className="flex-1 rpg-button !bg-[var(--color-purple)] !text-white disabled:opacity-50 font-bold"
+                className="flex-1 rpg-button btn-primary font-bold"
                 whileHover={{ scale: isSubmitting ? 1 : 1.02 }}
                 whileTap={{ scale: isSubmitting ? 1 : 0.98 }}
                 aria-busy={isSubmitting}
@@ -607,7 +607,7 @@ export default function QuestsTab() {
             <motion.button
               onClick={handleGenerateQuests}
               disabled={isGenerating || !generatePrompt.trim()}
-              className="rpg-button w-full !bg-[var(--color-purple)] !text-white hover:!bg-[var(--color-purple-light)] disabled:opacity-50"
+              className="rpg-button btn-primary w-full"
               whileHover={{ scale: isGenerating ? 1 : 1.02 }}
               whileTap={{ scale: isGenerating ? 1 : 0.98 }}
               aria-busy={isGenerating}
@@ -653,7 +653,7 @@ export default function QuestsTab() {
             <motion.button
               onClick={handleNLCommand}
               disabled={!nlCommand.trim() || isCommandProcessing}
-              className="rpg-button !bg-[var(--color-blue)] !text-white text-sm py-2 px-4 whitespace-nowrap disabled:opacity-50"
+              className="rpg-button btn-primary text-sm py-2 px-4 whitespace-nowrap"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
@@ -775,7 +775,7 @@ export default function QuestsTab() {
                     </motion.button>
 
                     <div className="flex-1 min-w-0">
-                      <p className={`font-semibold ${task.completed ? 'line-through text-[var(--color-text-muted)]' : ''}`}>
+                      <p className={`font-semibold truncate-1 ${task.completed ? 'line-through text-[var(--color-text-muted)]' : ''}`}>
                         {task.title}
                       </p>
                       <div className="flex items-center gap-2 mt-1 flex-wrap">

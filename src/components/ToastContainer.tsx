@@ -48,7 +48,7 @@ export default function ToastContainer() {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2.5">
+    <div className="fixed top-4 right-4 z-[var(--z-toast)] flex flex-col gap-2.5 safe-top" role="status" aria-live="polite" aria-atomic="true">
       <AnimatePresence>
         {toasts.map((toast) => (
           <motion.div

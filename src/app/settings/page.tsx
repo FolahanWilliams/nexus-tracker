@@ -283,12 +283,12 @@ export default function SettingsPage() {
             <div className="flex gap-3">
               <button
                 onClick={handleExport}
-                className="rpg-button !bg-[var(--color-blue)] !text-white"
+                className="rpg-button btn-primary"
               >
                 <Download size={16} />
                 Export Data
               </button>
-              <label className="rpg-button !bg-[var(--color-green)] !text-white cursor-pointer">
+              <label className="rpg-button btn-success cursor-pointer">
                 <Upload size={16} />
                 Import Data
                 <input
@@ -319,7 +319,7 @@ export default function SettingsPage() {
             {!showResetConfirm ? (
               <button
                 onClick={() => setShowResetConfirm(true)}
-                className="rpg-button !bg-[var(--color-red)]/20 !text-[var(--color-red)] border border-[var(--color-red)]"
+                className="rpg-button btn-danger"
               >
                 <Trash2 size={16} />
                 Reset Progress
@@ -328,7 +328,7 @@ export default function SettingsPage() {
               <div className="flex gap-3">
                 <button
                   onClick={handleReset}
-                  className="rpg-button !bg-[var(--color-red)] !text-white"
+                  className="rpg-button btn-danger"
                 >
                   Yes, Reset Everything
                 </button>
@@ -360,7 +360,7 @@ export default function SettingsPage() {
             </div>
             <Link
               href="/tutorial"
-              className="rpg-button !bg-[var(--color-blue)] !text-white inline-flex items-center gap-2"
+              className="rpg-button btn-primary inline-flex items-center gap-2"
             >
               Open Guide <ArrowRight size={16} />
             </Link>

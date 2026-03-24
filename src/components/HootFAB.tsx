@@ -1015,7 +1015,7 @@ export default function HootFAB() {
                         initial={{ opacity: 0, y: 20, scale: 0.8, x: -20 }}
                         animate={{ opacity: 1, y: 0, scale: 1, x: 0 }}
                         exit={{ opacity: 0, scale: 0.8, y: 10 }}
-                        className="fixed bottom-40 right-6 z-50 w-72 pointer-events-auto"
+                        className="fixed bottom-40 right-6 z-[var(--z-fab)] w-72 pointer-events-auto"
                     >
                         <div className="relative bg-[var(--color-bg-secondary)] border border-[var(--color-border)] rounded-2xl p-4 shadow-2xl glow-purple overflow-hidden">
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)]" />
@@ -1063,7 +1063,7 @@ export default function HootFAB() {
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={() => setOpen(true)}
-                        className={`fixed bottom-24 right-4 lg:bottom-6 lg:right-6 z-50 w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${activeNudge ? 'ring-2 ring-[var(--color-purple)]' : 'shadow-[var(--color-purple)]/30'}`}
+                        className={`fixed bottom-[calc(6rem+env(safe-area-inset-bottom,0px))] right-4 lg:bottom-6 lg:right-6 z-[var(--z-fab)] w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${activeNudge ? 'ring-2 ring-[var(--color-purple)]' : 'shadow-[var(--color-purple)]/30'}`}
                         style={{
                             background: recentCompletion
                                 ? 'linear-gradient(135deg, #4ade80, #22c55e)'
@@ -1105,7 +1105,7 @@ export default function HootFAB() {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none lg:pointer-events-none"
+                            className="fixed inset-0 z-[var(--z-overlay)] bg-black/40 backdrop-blur-sm lg:bg-transparent lg:backdrop-blur-none lg:pointer-events-none"
                             onClick={() => setOpen(false)}
                         />
 
@@ -1115,7 +1115,7 @@ export default function HootFAB() {
                             animate={{ y: 0, opacity: 1 }}
                             exit={{ y: '100%', opacity: 0 }}
                             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                            className="fixed bottom-0 left-0 right-0 lg:bottom-6 lg:right-6 lg:left-auto lg:w-[420px] z-50 max-h-[85vh] lg:max-h-[600px] flex flex-col rounded-t-2xl lg:rounded-2xl overflow-hidden"
+                            className="fixed bottom-0 left-0 right-0 lg:bottom-6 lg:right-6 lg:left-auto lg:w-[420px] z-[var(--z-overlay)] max-h-[85vh] lg:max-h-[600px] flex flex-col rounded-t-2xl lg:rounded-2xl overflow-hidden safe-bottom"
                             style={{
                                 background: 'var(--color-bg-secondary)',
                                 border: '1px solid var(--color-border)',
@@ -1357,7 +1357,7 @@ export default function HootFAB() {
                                         value={input}
                                         onChange={e => setInput(e.target.value)}
                                         placeholder="Ask Hoot anything..."
-                                        className="flex-1 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-xl px-3.5 py-2.5 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-[var(--color-purple)]/50 transition-colors"
+                                        className="input-field flex-1 rounded-xl"
                                         disabled={isLoading}
                                     />
                                     <button

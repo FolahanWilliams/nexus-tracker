@@ -112,7 +112,7 @@ export default function CheckInTab() {
               <motion.button
                 onClick={handleMorningSubmit}
                 disabled={!intention.trim()}
-                className="w-full rpg-button !bg-[var(--color-yellow)] !text-black font-bold disabled:opacity-50"
+                className="w-full rpg-button btn-primary font-bold"
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               >
                 <Zap size={18} /> Set Intention &amp; Earn +10 XP
@@ -193,7 +193,7 @@ export default function CheckInTab() {
               </div>
               <motion.button
                 onClick={handleEveningSubmit}
-                className="w-full rpg-button !bg-[var(--color-blue)] !text-white font-bold"
+                className="w-full rpg-button btn-primary font-bold"
                 whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
               >
                 <Moon size={16} /> Submit Reflection &amp; Earn +{stars * 10}+ XP

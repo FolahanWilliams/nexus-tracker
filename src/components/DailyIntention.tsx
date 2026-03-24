@@ -151,7 +151,7 @@ export default function DailyIntention() {
                 <motion.button
                   onClick={handleMorningSubmit}
                   disabled={!intention.trim()}
-                  className="w-full rpg-button !bg-[var(--color-yellow)] !text-black font-bold disabled:opacity-50"
+                  className="w-full rpg-button btn-primary font-bold"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
@@ -246,7 +246,7 @@ export default function DailyIntention() {
 
                 <motion.button
                   onClick={handleEveningSubmit}
-                  className="w-full rpg-button !bg-[var(--color-green)] !text-white font-bold"
+                  className="w-full rpg-button btn-success font-bold"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
