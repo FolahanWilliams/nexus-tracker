@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Sparkles, Check, ChevronLeft, Loader2, KeyRound } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { validateAccessCode } from '@/lib/validation';
 
 function PricingContent() {
   const { user, loading: authLoading, signIn } = useAuth();
@@ -87,11 +88,19 @@ function PricingContent() {
     if (!accessCode.trim()) return;
     setCodeLoading(true);
     setCodeError('');
+    let validCode: string;
+    try {
+      validCode = validateAccessCode(accessCode);
+    } catch {
+      setCodeError('Invalid access code format.');
+      setCodeLoading(false);
+      return;
+    }
     try {
       const res = await fetch('/api/redeem-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: accessCode.trim(), userId: user.id }),
+        body: JSON.stringify({ code: validCode, userId: user.id }),
       });
       const data = await res.json();
       if (res.ok && data.success) {

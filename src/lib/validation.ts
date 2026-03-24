@@ -175,6 +175,33 @@ function sanitizeInput(input: string): string {
   return input;
 }
 
+// Intention text validation
+export function validateIntention(text: string): string {
+  const trimmed = text.trim();
+  if (trimmed.length < 1) {
+    throw new ValidationError('Intention cannot be empty', 'intention');
+  }
+  if (trimmed.length > 200) {
+    throw new ValidationError('Intention must be 200 characters or less', 'intention');
+  }
+  return sanitizeInput(trimmed);
+}
+
+// Access code validation (alphanumeric + dashes only, max 64 chars)
+export function validateAccessCode(code: string): string {
+  const trimmed = code.trim();
+  if (trimmed.length < 1) {
+    throw new ValidationError('Access code cannot be empty', 'code');
+  }
+  if (trimmed.length > 64) {
+    throw new ValidationError('Access code is too long', 'code');
+  }
+  if (!/^[\w\-]+$/.test(trimmed)) {
+    throw new ValidationError('Access code contains invalid characters', 'code');
+  }
+  return trimmed;
+}
+
 // Cost validation
 export function validateCost(cost: number): number {
   if (isNaN(cost) || cost < 0) {

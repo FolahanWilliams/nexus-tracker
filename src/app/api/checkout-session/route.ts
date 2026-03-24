@@ -54,8 +54,8 @@ export const POST = withAuth(async (_request, user) => {
       subscription_data: {
         trial_period_days: 3,
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://questflo.vercel.app'}/overview?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://questflo.vercel.app'}/pricing`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/overview?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });
