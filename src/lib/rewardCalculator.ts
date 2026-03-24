@@ -9,12 +9,13 @@
  *   1. Class bonus         — from CHARACTER_CLASS (constants.ts)
  *   2. Skill bonus         — cumulative from skill tree levels
  *   3. Active buffs        — temporary potions / scrolls
- *   4. Vocab mastery bonus — cross-domain reward for mastered words
- *   5. Lucky star proc     — random chance to double (rolled last)
+ *   4. Prestige bonus      — permanent multiplier from prestige resets
+ *   5. Vocab mastery bonus — cross-domain reward for mastered words
+ *   6. Lucky star proc     — random chance to double (rolled last)
  */
 
 import { CLASS_BONUSES, type CharacterClass } from './constants';
-import type { Skill } from '@/store/types';
+import type { Skill, PrestigeState } from '@/store/types';
 
 // ─── Vocab mastery → boss damage thresholds ─────────────────────
 // Every MASTERY_STEP mastered words gives +MASTERY_BONUS_PER_STEP to boss damage.
@@ -32,6 +33,7 @@ export interface RewardContext {
     skills: Skill[];
     activeBuffs: { type: string; value: number; expiresAt: string }[];
     vocabMasteredCount: number;
+    prestige?: PrestigeState;
 }
 
 export interface RewardBreakdown {
@@ -40,6 +42,7 @@ export interface RewardBreakdown {
     skillMultiplier: number;
     buffMultiplier: number;
     vocabMultiplier: number;
+    prestigeMultiplier: number;
     luckyProc: boolean;
     final: number;
 }
@@ -68,6 +71,7 @@ export function calculateReward(
         skillMultiplier: 1,
         buffMultiplier: 1,
         vocabMultiplier: 1,
+        prestigeMultiplier: 1,
         luckyProc: false,
         final: base,
     };
@@ -126,7 +130,13 @@ export function calculateReward(
     breakdown.buffMultiplier = buffMult;
     amount = Math.floor(amount * buffMult);
 
-    // 4. Vocab mastery → boss damage bonus (cross-domain reward)
+    // 4. Prestige permanent multiplier
+    if (ctx.prestige && ctx.prestige.permanentMultiplier > 1) {
+        breakdown.prestigeMultiplier = ctx.prestige.permanentMultiplier;
+        amount = Math.floor(amount * ctx.prestige.permanentMultiplier);
+    }
+
+    // 5. Vocab mastery → boss damage bonus (cross-domain reward)
     if (type === 'boss' && ctx.vocabMasteredCount > 0) {
         const steps = Math.floor(ctx.vocabMasteredCount / VOCAB_MASTERY_BOSS_STEP);
         const bonus = Math.min(steps * VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS);
@@ -136,7 +146,7 @@ export function calculateReward(
         }
     }
 
-    // 5. Lucky star proc (only for XP/gold, not boss damage)
+    // 6. Lucky star proc (only for XP/gold, not boss damage)
     if (!skipLucky && type !== 'boss') {
         const luckySkill = ctx.skills.find(s => s.id === 'lucky-star');
         if (luckySkill && luckySkill.currentLevel > 0 && Math.random() < luckySkill.currentLevel * 0.05) {
@@ -160,12 +170,14 @@ export function buildRewardContext(state: {
     skills: Skill[];
     activeBuffs: { type: string; value: number; expiresAt: string }[];
     vocabWords: { status: string }[];
+    prestige?: PrestigeState;
 }): RewardContext {
     return {
         characterClass: state.characterClass,
         skills: state.skills,
         activeBuffs: state.activeBuffs,
         vocabMasteredCount: state.vocabWords.filter(w => w.status === 'mastered').length,
+        prestige: state.prestige,
     };
 }
 

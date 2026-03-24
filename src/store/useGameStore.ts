@@ -60,6 +60,10 @@ export type {
     KnowledgeNodeType,
     KnowledgeEdgeType,
     KnowledgeNodeSource,
+    SkillCategory,
+    Specialization,
+    PassiveAbility,
+    PrestigeState,
 } from './types';
 
 // Re-export constants that were previously exported from this file
