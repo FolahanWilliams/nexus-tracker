@@ -195,6 +195,28 @@ function detectInsights(state: ReturnType<typeof useGameStore.getState>): PulseI
         });
     }
 
+    // 3b. SM-2 overdue habits (habits scheduled for focus today)
+    const overdueHabits = state.habits.filter(h => {
+        if (h.completedDates.includes(t)) return false;
+        return (h.nextFocusDate || t) <= t;
+    });
+    const overdueNonStreak = overdueHabits.filter(
+        h => !habitsAtRisk.some(r => r.id === h.id)
+    );
+    if (overdueNonStreak.length > 0) {
+        const names = overdueNonStreak.slice(0, 3).map(h => h.name).join(', ');
+        insights.push({
+            id: 'habit-sm2-overdue',
+            icon: '📅',
+            title: `${overdueNonStreak.length} habit${overdueNonStreak.length > 1 ? 's' : ''} scheduled for today`,
+            description: `${names}${overdueNonStreak.length > 3 ? ` and ${overdueNonStreak.length - 3} more` : ''} — SM-2 says these need reinforcement today.`,
+            severity: 'info',
+            domain: 'habits',
+            actionLabel: 'Do habits',
+            actionHref: '/habits',
+        });
+    }
+
     // 4. Habit completion rate trend (7-day vs previous 7-day)
     const recentRate = habitCompletionRate(state.habits, 7);
     const priorRate = habitCompletionRate(state.habits, 14) - recentRate; // approx
@@ -679,6 +701,11 @@ export function useNexusPulse(): NexusPulseData {
         const force = event === 'manual_refresh';
         logger.info(`Event: ${event}`, 'NexusPulse');
         refreshAI(force);
+
+        // Auto-refresh user profile on meaningful events
+        if (['quest_batch_complete', 'reflection_submitted', 'manual_refresh'].includes(event)) {
+            try { useGameStore.getState().refreshUserProfile(); } catch { /* optional */ }
+        }
     }, [refreshAI]);
 
     // Auto-detect meaningful state changes and trigger refresh

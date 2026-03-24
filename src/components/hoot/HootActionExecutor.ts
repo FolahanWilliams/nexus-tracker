@@ -381,6 +381,51 @@ export async function executeHootActions(
                     addToast(`🦉 Day logged in Slight Edge!`, 'success');
                     break;
                 }
+                case 'breakdown_task': {
+                    const goal = params.goal as string;
+                    if (!goal) { results.push('⚠️ No goal provided for breakdown'); break; }
+                    try {
+                        const profile = state.hootMemory.userProfile;
+                        const res = await fetch('/api/task-breakdown', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                goal,
+                                context: {
+                                    level: state.level,
+                                    characterClass: state.characterClass,
+                                    preferredDifficulty: profile?.preferredDifficulty,
+                                    avgDailyTasks: profile?.avgDailyTasks,
+                                    peakProductivityTime: profile?.peakProductivityTime,
+                                },
+                            }),
+                            signal: AbortSignal.timeout(30000),
+                        });
+                        if (!res.ok) throw new Error('Breakdown API failed');
+                        const data = await res.json();
+                        const subtasks = data.subtasks as { title: string; difficulty: string; category: string; xpReward: number; estimatedMinutes: number }[];
+                        if (subtasks && subtasks.length > 0) {
+                            // Add each sub-task as a quest
+                            for (const sub of subtasks) {
+                                state.addTask(
+                                    sub.title,
+                                    (sub.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic') || 'Medium',
+                                    sub.xpReward,
+                                    (sub.category as 'Study' | 'Health' | 'Creative' | 'Social' | 'Work' | 'Personal' | 'Other') || 'Other',
+                                );
+                            }
+                            const totalMins = data.estimatedTotalMinutes || 0;
+                            const timeStr = totalMins > 60 ? `~${Math.round(totalMins / 60)}h` : `~${totalMins}min`;
+                            results.push(`✅ Broke down "${goal}" into ${subtasks.length} sub-quests (${timeStr} total). Strategy: ${data.strategy || 'Start from the top!'}`);
+                            addToast(`🦉 Created ${subtasks.length} sub-quests from goal breakdown`, 'success');
+                        } else {
+                            results.push(`⚠️ Couldn't break down "${goal}" — try rephrasing`);
+                        }
+                    } catch {
+                        results.push(`⚠️ Task breakdown failed — try again later`);
+                    }
+                    break;
+                }
                 default:
                     results.push(`⚠️ Unknown action: ${action}`);
             }
