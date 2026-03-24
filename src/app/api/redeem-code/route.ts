@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { withAuth } from '@/lib/with-auth';
 
@@ -25,7 +26,9 @@ export const POST = withAuth(async (request, user) => {
   }
 
   // Constant-time comparison to prevent timing attacks
-  const isValid = code.trim() === ACCESS_CODE.trim();
+  const a = Buffer.from(code.trim());
+  const b = Buffer.from(ACCESS_CODE.trim());
+  const isValid = a.length === b.length && timingSafeEqual(a, b);
 
   if (!isValid) {
     return NextResponse.json({ error: 'Invalid access code.' }, { status: 403 });

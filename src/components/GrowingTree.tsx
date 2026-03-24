@@ -2,6 +2,14 @@
 
 import { motion } from 'framer-motion';
 import { useId, useMemo } from 'react';
+import {
+  FruitLayer,
+  BirdLayer,
+  FallingLeaves,
+  Mushrooms,
+  Fireflies,
+  CelestialBody,
+} from '@/components/tree/TreeDetails';
 
 interface GrowingTreeProps {
   /** 0 → 1 progress through the timer */
@@ -444,6 +452,18 @@ export default function GrowingTree({ progress, running, mode }: GrowingTreeProp
         />
       ))}
 
+      {/* Mushrooms at base */}
+      <Mushrooms progress={progress} />
+
+      {/* Fruit on branches */}
+      <FruitLayer progress={progress} isBreak={isBreak} />
+
+      {/* Birds sitting on branches */}
+      <BirdLayer progress={progress} running={running} />
+
+      {/* Falling leaves */}
+      <FallingLeaves progress={progress} running={running} color={greens[1]} />
+
       {/* Butterfly near completion */}
       <Butterfly progress={progress} running={running} />
 
@@ -467,6 +487,12 @@ export default function GrowingTree({ progress, running, mode }: GrowingTreeProp
           }}
         />
       ))}
+
+      {/* Sun or Moon */}
+      <CelestialBody isBreak={isBreak} progress={progress} />
+
+      {/* Fireflies (break mode ambiance) */}
+      {isBreak && <Fireflies progress={progress} running={running} />}
 
       {/* Completion glow ring */}
       {progress >= 0.95 && (

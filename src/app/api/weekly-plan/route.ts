@@ -79,6 +79,11 @@ Prioritize Epic/Hard quests on high-energy days and Easy quests on recovery days
         const text = result.response.text();
         const data = extractJSONObject(text);
 
+        // Validate required fields — AI may return malformed JSON
+        if (typeof data.briefing !== 'string') data.briefing = 'Your weekly plan is ready!';
+        if (!Array.isArray(data.days)) data.days = [];
+        if (typeof data.insight !== 'string') data.insight = '';
+
         return NextResponse.json(data);
     } catch (error) {
         logger.error('Weekly Plan Error', 'weekly-plan', error);

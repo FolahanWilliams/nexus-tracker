@@ -15,6 +15,15 @@ export const POST = withAuth(async (_request, user) => {
       );
     }
 
+    const priceId = process.env.STRIPE_PRICE_ID;
+    if (!priceId) {
+      logger.error('STRIPE_PRICE_ID is not configured', 'stripe');
+      return NextResponse.json(
+        { error: 'Server configuration error: missing price ID' },
+        { status: 500 }
+      );
+    }
+
     const userId = user.id;
     const email = user.email!;
 
@@ -49,7 +58,7 @@ export const POST = withAuth(async (_request, user) => {
       payment_method_types: ['card'],
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID!,
+          price: priceId,
           quantity: 1,
         },
       ],

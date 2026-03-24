@@ -43,6 +43,14 @@ Output ONLY valid JSON:
         const text = result.response.text();
         const data = extractJSONObject(text);
 
+        // Validate required fields — AI may return malformed JSON
+        if (typeof data.earned !== 'boolean') data.earned = false;
+        if (data.earned) {
+            if (typeof data.name !== 'string' || !data.name) data.earned = false;
+            if (typeof data.description !== 'string') data.description = '';
+            if (typeof data.icon !== 'string') data.icon = '🏆';
+        }
+
         return NextResponse.json(data);
     } catch (error) {
         logger.error('Smart Achievement Error', 'smart-achievements', error);
