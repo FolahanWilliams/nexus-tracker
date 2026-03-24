@@ -30,7 +30,7 @@ interface GeneratedQuest {
 const QUESTS_PER_PAGE = 20;
 
 export default function QuestsTab() {
-  const { tasks, addTask, toggleTask, deleteTask, restoreTask, xp, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, lastCriticalHit, clearCriticalHit, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
+  const { tasks, addTask, toggleTask, deleteTask, restoreTask, getSkillMultiplier, equippedItems, lastDroppedItem, clearDroppedItem, lastCriticalHit, clearCriticalHit, characterName, characterClass, level, totalQuestsCompleted, streak, addDynamicAchievement } = useGameStore();
   const { addToast } = useToastStore();
 
   // Show toast when an item drops from the store

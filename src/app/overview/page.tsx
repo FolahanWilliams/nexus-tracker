@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useGameStore, xpForLevel } from '@/store/useGameStore';
 import { useState, useEffect, useMemo } from 'react';
-import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight, Sword, User, Backpack, BarChart3, Settings, Map, BookOpen } from 'lucide-react';
+import { Flame, Gift, Sparkles, Target, Zap, Flag, Repeat2, Timer, Trophy, ChevronRight, User, Backpack, BarChart3, Settings, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 import WeeklyPlanner from '@/components/WeeklyPlanner';
