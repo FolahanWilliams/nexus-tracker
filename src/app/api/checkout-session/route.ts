@@ -13,6 +13,15 @@ function getSupabaseAdmin() {
 
 export const POST = withAuth(async (_request, user) => {
   try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      logger.error('NEXT_PUBLIC_APP_URL is not configured', 'stripe');
+      return NextResponse.json(
+        { error: 'Server configuration error: missing app URL' },
+        { status: 500 }
+      );
+    }
+
     const userId = user.id;
     const email = user.email!;
 
@@ -54,8 +63,8 @@ export const POST = withAuth(async (_request, user) => {
       subscription_data: {
         trial_period_days: 3,
       },
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/overview?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
+      success_url: `${appUrl}/overview?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/pricing`,
     });
 
     return NextResponse.json({ sessionId: session.id, url: session.url });

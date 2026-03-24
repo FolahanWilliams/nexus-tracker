@@ -1,19 +1,15 @@
+'use client';
+
 import { useRef, useEffect, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Send, X, ExternalLink, Loader2, Sparkles, Trash2, ListChecks } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import type { HootMessage, QuickReply } from '@/store/useHootStore';
+import type { HootMessage, QuickReply, PlanningContext } from '@/store/useHootStore';
 
 const ReactMarkdown = dynamic(() => import('react-markdown'), {
     loading: () => <span className="text-xs text-[var(--color-text-muted)]">...</span>,
     ssr: false,
 });
-
-interface PlanningContext {
-    goal: string;
-    steps: { label: string; done: boolean }[];
-    currentStepIndex: number;
-}
 
 interface HootChatPanelProps {
     messages: HootMessage[];
