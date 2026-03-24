@@ -467,7 +467,11 @@ RULES:
             const confirmResult = await chat.sendMessage(
                 `You just called these functions: ${JSON.stringify(actions.map(a => a.action))}. Now respond to the user confirming what you did, in character as Hoot. Keep it short and fun.`
             );
-            textMessage = confirmResult.response.text();
+            try {
+                textMessage = confirmResult.response.text();
+            } catch {
+                textMessage = '';
+            }
         }
 
         return NextResponse.json({
