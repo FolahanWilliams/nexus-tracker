@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSON } from '@/lib/gemini';
+import { genAI, extractJSONObject } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
@@ -77,8 +77,12 @@ Prioritize Epic/Hard quests on high-energy days and Easy quests on recovery days
 
         const result = await model.generateContent(systemPrompt);
         const text = result.response.text();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = extractJSON(text) as any;
+        const data = extractJSONObject(text);
+
+        // Validate required fields — AI may return malformed JSON
+        if (typeof data.briefing !== 'string') data.briefing = 'Your weekly plan is ready!';
+        if (!Array.isArray(data.days)) data.days = [];
+        if (typeof data.insight !== 'string') data.insight = '';
 
         return NextResponse.json(data);
     } catch (error) {

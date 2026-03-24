@@ -1,7 +1,15 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useId, useMemo } from 'react';
+import { memo, useId, useMemo } from 'react';
+import {
+  FruitLayer,
+  BirdLayer,
+  FallingLeaves,
+  Mushrooms,
+  Fireflies,
+  CelestialBody,
+} from '@/components/tree/TreeDetails';
 
 interface GrowingTreeProps {
   /** 0 → 1 progress through the timer */
@@ -39,7 +47,7 @@ const CANOPY_CLUSTERS = [
 ];
 
 // Each "leaf cluster" is actually multiple overlapping circles for depth
-function LeafCluster({
+const LeafCluster = memo(function LeafCluster({
   cx, cy, size, colors, delay, running,
 }: {
   cx: number; cy: number; size: number;
@@ -90,7 +98,7 @@ function LeafCluster({
       />
     </g>
   );
-}
+});
 
 // Flower component
 function Flower({ cx, cy, color, size, delay, running }: {
@@ -188,28 +196,60 @@ export default function GrowingTree({ progress, running, mode }: GrowingTreeProp
   const glowId = `glow-${uid}`;
   const isBreak = mode !== 'focus';
 
-  // Growth stages
+  // Growth stages — 7 distinct visual phases
+  //   seed        0–5%    bare seed on the ground
+  //   sprout      5–12%   green stem with two tiny leaves
+  //   sapling     12–22%  thin woody trunk, 2 small branches, 3 leaf clusters
+  //   young-tree  22–40%  thicker trunk, short branches, sparse canopy, first roots
+  //   mature-tree 40–60%  full trunk & branches, canopy filling in
+  //   flowering   60–80%  full canopy, flowers blooming, birds arriving
+  //   ancient     80–100% fruit, thick gnarly roots, moss/vines, butterfly
   const stage = progress < 0.05 ? 'seed'
     : progress < 0.12 ? 'sprout'
-    : progress < 0.25 ? 'sapling'
-    : 'tree';
+    : progress < 0.22 ? 'sapling'
+    : progress < 0.40 ? 'young-tree'
+    : progress < 0.60 ? 'mature-tree'
+    : progress < 0.80 ? 'flowering'
+    : 'ancient';
 
-  const trunkGrowth = Math.min(1, Math.max(0, (progress - 0.1) / 0.25));
+  const isTreeStage = ['young-tree', 'mature-tree', 'flowering', 'ancient'].includes(stage);
+
+  // Trunk grows from 22% to 45%, reaching full height
+  const trunkGrowth = Math.min(1, Math.max(0, (progress - 0.22) / 0.23));
   const trunkTopY = 155 - trunkGrowth * 50;
 
+  // Trunk thickness scales up through tree stages
+  const trunkThickness = stage === 'young-tree' ? 0.7
+    : stage === 'mature-tree' ? 0.85
+    : stage === 'flowering' ? 0.95
+    : stage === 'ancient' ? 1.0
+    : 0.5;
+
+  // Leaves: start at young-tree (22%), fill across 50% of progress
   const leafCount = useMemo(() => {
-    if (progress < 0.2) return 0;
-    return Math.min(CANOPY_CLUSTERS.length, Math.floor((progress - 0.2) / 0.6 * CANOPY_CLUSTERS.length));
-  }, [progress]);
+    if (progress < 0.25) return 0;
+    if (stage === 'young-tree') return Math.min(6, Math.floor((progress - 0.25) / 0.15 * 6));
+    if (stage === 'mature-tree') return Math.min(12, Math.floor((progress - 0.40) / 0.20 * 6) + 6);
+    return Math.min(CANOPY_CLUSTERS.length, Math.floor((progress - 0.25) / 0.55 * CANOPY_CLUSTERS.length));
+  }, [progress, stage]);
 
+  // Flowers: start at flowering stage (60%)
   const flowerCount = useMemo(() => {
-    if (progress < 0.7) return 0;
-    return Math.min(FLOWER_SPOTS.length, Math.floor((progress - 0.7) / 0.3 * FLOWER_SPOTS.length));
+    if (progress < 0.62) return 0;
+    return Math.min(FLOWER_SPOTS.length, Math.floor((progress - 0.62) / 0.25 * FLOWER_SPOTS.length));
   }, [progress]);
 
-  const showBranches = progress >= 0.2;
-  const branchScale = Math.min(1, Math.max(0, (progress - 0.2) / 0.2));
+  // Branches appear at young-tree, scale up through stages
+  const showBranches = progress >= 0.25;
+  const branchScale = Math.min(1, Math.max(0, (progress - 0.25) / 0.25));
   const particleCount = running ? Math.min(PARTICLES.length, Math.floor(progress * PARTICLES.length)) : 0;
+
+  // Root visibility — starts thin at young-tree, thickens each stage
+  const rootScale = stage === 'young-tree' ? 0.4
+    : stage === 'mature-tree' ? 0.65
+    : stage === 'flowering' ? 0.85
+    : stage === 'ancient' ? 1.0
+    : 0;
 
   // Colors
   const greens = isBreak
@@ -343,83 +383,167 @@ export default function GrowingTree({ progress, running, mode }: GrowingTreeProp
         </motion.g>
       )}
 
-      {/* Full tree trunk + roots */}
-      {stage === 'tree' && (
+      {/* Tree trunk + roots — rendered for all tree stages */}
+      {isTreeStage && (
         <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-          {/* Root system */}
-          <path d="M125,168 Q115,172 100,170" fill="none" stroke={trunkDark} strokeWidth={3} strokeLinecap="round" opacity={0.6} />
-          <path d="M145,168 Q155,172 170,170" fill="none" stroke={trunkDark} strokeWidth={3} strokeLinecap="round" opacity={0.6} />
-          <path d="M130,170 Q120,175 108,173" fill="none" stroke={trunkDark} strokeWidth={2} strokeLinecap="round" opacity={0.4} />
-          <path d="M140,170 Q150,175 162,173" fill="none" stroke={trunkDark} strokeWidth={2} strokeLinecap="round" opacity={0.4} />
+          {/* Root system — grows with rootScale */}
+          <motion.path d="M125,168 Q115,172 100,170" fill="none" stroke={trunkDark}
+            strokeWidth={3 * rootScale} strokeLinecap="round"
+            initial={{ opacity: 0 }} animate={{ opacity: 0.6 * rootScale }}
+          />
+          <motion.path d="M145,168 Q155,172 170,170" fill="none" stroke={trunkDark}
+            strokeWidth={3 * rootScale} strokeLinecap="round"
+            initial={{ opacity: 0 }} animate={{ opacity: 0.6 * rootScale }}
+          />
+          {/* Extra roots for mature+ */}
+          {rootScale > 0.5 && (
+            <>
+              <motion.path d="M130,170 Q120,175 108,173" fill="none" stroke={trunkDark}
+                strokeWidth={2 * rootScale} strokeLinecap="round"
+                initial={{ opacity: 0 }} animate={{ opacity: 0.4 * rootScale }}
+              />
+              <motion.path d="M140,170 Q150,175 162,173" fill="none" stroke={trunkDark}
+                strokeWidth={2 * rootScale} strokeLinecap="round"
+                initial={{ opacity: 0 }} animate={{ opacity: 0.4 * rootScale }}
+              />
+            </>
+          )}
+          {/* Gnarly extra roots for ancient stage */}
+          {stage === 'ancient' && (
+            <>
+              <path d="M122,170 Q108,176 95,172" fill="none" stroke={trunkDark} strokeWidth={2.5} strokeLinecap="round" opacity={0.5} />
+              <path d="M148,170 Q162,176 175,172" fill="none" stroke={trunkDark} strokeWidth={2.5} strokeLinecap="round" opacity={0.5} />
+              <path d="M127,171 Q118,178 105,176" fill="none" stroke={trunkDark} strokeWidth={1.5} strokeLinecap="round" opacity={0.3} />
+            </>
+          )}
 
-          {/* Main trunk — tapered shape */}
-          <motion.path
-            d={`M125,170 Q122,160 124,${trunkTopY + 8} L128,${trunkTopY} L142,${trunkTopY} L146,${trunkTopY + 8} Q148,160 145,170 Z`}
-            fill={trunkColor}
-          />
-          {/* Bark texture lines */}
-          <path d={`M130,170 Q129,160 131,${trunkTopY + 15}`} fill="none" stroke={trunkDark} strokeWidth={0.8} opacity={0.4} />
-          <path d={`M137,170 Q138,158 136,${trunkTopY + 12}`} fill="none" stroke={trunkDark} strokeWidth={0.8} opacity={0.35} />
-          <path d={`M140,170 Q141,162 140,${trunkTopY + 18}`} fill="none" stroke={trunkDark} strokeWidth={0.6} opacity={0.3} />
-          {/* Trunk highlight */}
-          <path
-            d={`M132,168 Q131,158 133,${trunkTopY + 10} L136,${trunkTopY + 10} Q137,158 136,168 Z`}
-            fill={trunkLight}
-            opacity={0.2}
-          />
-          {/* Knot hole */}
-          <ellipse cx={138} cy={155} rx={3} ry={4} fill={trunkDark} opacity={0.5} />
-          <ellipse cx={138} cy={154.5} rx={2} ry={2.5} fill={trunkDark} opacity={0.3} />
+          {/* Main trunk — width scales with trunkThickness */}
+          {(() => {
+            const hw = 10 * trunkThickness; // half-width
+            return (
+              <>
+                <motion.path
+                  d={`M${135 - hw},170 Q${135 - hw - 3},160 ${135 - hw + 2},${trunkTopY + 8} L${135 - hw + 4},${trunkTopY} L${135 + hw - 4},${trunkTopY} L${135 + hw - 2},${trunkTopY + 8} Q${135 + hw + 3},160 ${135 + hw},170 Z`}
+                  fill={trunkColor}
+                />
+                {/* Bark texture lines — more for older trees */}
+                <path d={`M130,170 Q129,160 131,${trunkTopY + 15}`} fill="none" stroke={trunkDark} strokeWidth={0.8} opacity={0.4} />
+                {trunkThickness > 0.6 && (
+                  <path d={`M137,170 Q138,158 136,${trunkTopY + 12}`} fill="none" stroke={trunkDark} strokeWidth={0.8} opacity={0.35} />
+                )}
+                {trunkThickness > 0.8 && (
+                  <path d={`M140,170 Q141,162 140,${trunkTopY + 18}`} fill="none" stroke={trunkDark} strokeWidth={0.6} opacity={0.3} />
+                )}
+                {/* Trunk highlight */}
+                <path
+                  d={`M132,168 Q131,158 133,${trunkTopY + 10} L136,${trunkTopY + 10} Q137,158 136,168 Z`}
+                  fill={trunkLight} opacity={0.2}
+                />
+              </>
+            );
+          })()}
+
+          {/* Knot hole — appears at mature+ */}
+          {(stage === 'mature-tree' || stage === 'flowering' || stage === 'ancient') && (
+            <>
+              <ellipse cx={138} cy={155} rx={3} ry={4} fill={trunkDark} opacity={0.5} />
+              <ellipse cx={138} cy={154.5} rx={2} ry={2.5} fill={trunkDark} opacity={0.3} />
+            </>
+          )}
+
+          {/* Moss patches on ancient trunk */}
+          {stage === 'ancient' && (
+            <motion.g initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} transition={{ duration: 1 }}>
+              <ellipse cx={127} cy={158} rx={4} ry={2.5} fill="#4ade80" opacity={0.35} />
+              <ellipse cx={143} cy={148} rx={3} ry={2} fill="#22c55e" opacity={0.3} />
+              <ellipse cx={130} cy={145} rx={2.5} ry={1.5} fill="#86efac" opacity={0.25} />
+            </motion.g>
+          )}
+
+          {/* Hanging vine on ancient tree */}
+          {stage === 'ancient' && (
+            <motion.g initial={{ opacity: 0 }} animate={{ opacity: 0.5 }} transition={{ duration: 1.2 }}>
+              <motion.path
+                d={`M95,${trunkTopY + 5} Q92,${trunkTopY + 20} 94,${trunkTopY + 35}`}
+                fill="none" stroke="#22c55e" strokeWidth={1.5} strokeLinecap="round"
+                animate={{ d: [
+                  `M95,${trunkTopY + 5} Q92,${trunkTopY + 20} 94,${trunkTopY + 35}`,
+                  `M95,${trunkTopY + 5} Q90,${trunkTopY + 20} 93,${trunkTopY + 35}`,
+                  `M95,${trunkTopY + 5} Q92,${trunkTopY + 20} 94,${trunkTopY + 35}`,
+                ]}}
+                transition={{ repeat: Infinity, duration: 5, ease: 'easeInOut' }}
+              />
+              <motion.path
+                d={`M185,${trunkTopY + 8} Q188,${trunkTopY + 22} 186,${trunkTopY + 38}`}
+                fill="none" stroke="#4ade80" strokeWidth={1.2} strokeLinecap="round"
+                animate={{ d: [
+                  `M185,${trunkTopY + 8} Q188,${trunkTopY + 22} 186,${trunkTopY + 38}`,
+                  `M185,${trunkTopY + 8} Q190,${trunkTopY + 22} 187,${trunkTopY + 38}`,
+                  `M185,${trunkTopY + 8} Q188,${trunkTopY + 22} 186,${trunkTopY + 38}`,
+                ]}}
+                transition={{ repeat: Infinity, duration: 6, ease: 'easeInOut' }}
+              />
+            </motion.g>
+          )}
         </motion.g>
       )}
 
-      {/* Branches */}
-      {showBranches && stage === 'tree' && (
+      {/* Branches — grow across tree stages */}
+      {showBranches && isTreeStage && (
         <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           {/* Major left branch */}
           <motion.path
             d={`M128,${trunkTopY + 12} Q105,${trunkTopY} 80,${trunkTopY + 5}`}
-            fill="none" stroke={trunkColor} strokeWidth={5} strokeLinecap="round"
+            fill="none" stroke={trunkColor} strokeWidth={5 * trunkThickness} strokeLinecap="round"
             initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
             transition={{ duration: 0.8 }}
           />
           {/* Major right branch */}
           <motion.path
             d={`M142,${trunkTopY + 12} Q165,${trunkTopY} 190,${trunkTopY + 5}`}
-            fill="none" stroke={trunkColor} strokeWidth={5} strokeLinecap="round"
+            fill="none" stroke={trunkColor} strokeWidth={5 * trunkThickness} strokeLinecap="round"
             initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
             transition={{ duration: 0.8, delay: 0.15 }}
           />
-          {/* Upper left */}
-          <motion.path
-            d={`M130,${trunkTopY + 5} Q112,${trunkTopY - 15} 95,${trunkTopY - 12}`}
-            fill="none" stroke={trunkColor} strokeWidth={3.5} strokeLinecap="round"
-            initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          />
-          {/* Upper right */}
-          <motion.path
-            d={`M140,${trunkTopY + 5} Q158,${trunkTopY - 15} 175,${trunkTopY - 12}`}
-            fill="none" stroke={trunkColor} strokeWidth={3.5} strokeLinecap="round"
-            initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          />
-          {/* Crown branch */}
-          <motion.path
-            d={`M135,${trunkTopY} Q135,${trunkTopY - 20} 135,${trunkTopY - 25}`}
-            fill="none" stroke={trunkColor} strokeWidth={3} strokeLinecap="round"
-            initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
-            transition={{ duration: 0.5, delay: 0.5 }}
-          />
-          {/* Small twigs */}
-          <motion.path d={`M90,${trunkTopY + 3} Q82,${trunkTopY - 5} 78,${trunkTopY + 2}`}
-            fill="none" stroke={trunkLight} strokeWidth={2} strokeLinecap="round"
-            initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
-            transition={{ duration: 0.4, delay: 0.6 }} />
-          <motion.path d={`M180,${trunkTopY + 3} Q188,${trunkTopY - 5} 192,${trunkTopY + 2}`}
-            fill="none" stroke={trunkLight} strokeWidth={2} strokeLinecap="round"
-            initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
-            transition={{ duration: 0.4, delay: 0.65 }} />
+          {/* Upper branches — only mature+ */}
+          {branchScale > 0.5 && (
+            <>
+              <motion.path
+                d={`M130,${trunkTopY + 5} Q112,${trunkTopY - 15} 95,${trunkTopY - 12}`}
+                fill="none" stroke={trunkColor} strokeWidth={3.5 * trunkThickness} strokeLinecap="round"
+                initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
+                transition={{ duration: 0.6, delay: 0.3 }}
+              />
+              <motion.path
+                d={`M140,${trunkTopY + 5} Q158,${trunkTopY - 15} 175,${trunkTopY - 12}`}
+                fill="none" stroke={trunkColor} strokeWidth={3.5 * trunkThickness} strokeLinecap="round"
+                initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
+                transition={{ duration: 0.6, delay: 0.4 }}
+              />
+            </>
+          )}
+          {/* Crown branch — mature+ */}
+          {branchScale > 0.7 && (
+            <motion.path
+              d={`M135,${trunkTopY} Q135,${trunkTopY - 20} 135,${trunkTopY - 25}`}
+              fill="none" stroke={trunkColor} strokeWidth={3 * trunkThickness} strokeLinecap="round"
+              initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+            />
+          )}
+          {/* Small twigs — flowering+ */}
+          {branchScale > 0.85 && (
+            <>
+              <motion.path d={`M90,${trunkTopY + 3} Q82,${trunkTopY - 5} 78,${trunkTopY + 2}`}
+                fill="none" stroke={trunkLight} strokeWidth={2} strokeLinecap="round"
+                initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
+                transition={{ duration: 0.4, delay: 0.6 }} />
+              <motion.path d={`M180,${trunkTopY + 3} Q188,${trunkTopY - 5} 192,${trunkTopY + 2}`}
+                fill="none" stroke={trunkLight} strokeWidth={2} strokeLinecap="round"
+                initial={{ pathLength: 0 }} animate={{ pathLength: branchScale }}
+                transition={{ duration: 0.4, delay: 0.65 }} />
+            </>
+          )}
         </motion.g>
       )}
 
@@ -444,6 +568,18 @@ export default function GrowingTree({ progress, running, mode }: GrowingTreeProp
         />
       ))}
 
+      {/* Mushrooms at base */}
+      <Mushrooms progress={progress} />
+
+      {/* Fruit on branches */}
+      <FruitLayer progress={progress} isBreak={isBreak} />
+
+      {/* Birds sitting on branches */}
+      <BirdLayer progress={progress} running={running} />
+
+      {/* Falling leaves */}
+      <FallingLeaves progress={progress} running={running} color={greens[1]} />
+
       {/* Butterfly near completion */}
       <Butterfly progress={progress} running={running} />
 
@@ -467,6 +603,12 @@ export default function GrowingTree({ progress, running, mode }: GrowingTreeProp
           }}
         />
       ))}
+
+      {/* Sun or Moon */}
+      <CelestialBody isBreak={isBreak} progress={progress} />
+
+      {/* Fireflies (break mode ambiance) */}
+      {isBreak && <Fireflies progress={progress} running={running} />}
 
       {/* Completion glow ring */}
       {progress >= 0.95 && (

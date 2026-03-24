@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { timingSafeEqual } from 'crypto';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { withAuth } from '@/lib/with-auth';
 
 // Server-side only — the ACCESS_CODE env var is never sent to the browser.
@@ -24,8 +25,17 @@ export const POST = withAuth(async (request, user) => {
     return NextResponse.json({ error: 'Missing code.' }, { status: 400 });
   }
 
+  // Reject empty codes before comparison
+  const trimmedCode = code.trim();
+  const trimmedAccess = ACCESS_CODE.trim();
+  if (!trimmedCode || !trimmedAccess) {
+    return NextResponse.json({ error: 'Invalid access code.' }, { status: 403 });
+  }
+
   // Constant-time comparison to prevent timing attacks
-  const isValid = code.trim() === ACCESS_CODE.trim();
+  const a = Buffer.from(trimmedCode);
+  const b = Buffer.from(trimmedAccess);
+  const isValid = a.length === b.length && timingSafeEqual(a, b);
 
   if (!isValid) {
     return NextResponse.json({ error: 'Invalid access code.' }, { status: 403 });
@@ -36,12 +46,7 @@ export const POST = withAuth(async (request, user) => {
 
   // Grant access by setting subscription_status = 'access' in the profile.
   // Must use the service role key to bypass RLS.
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-  const { error } = await supabase
+  const { error } = await getSupabaseAdmin()
     .from('profiles')
     .update({ subscription_status: 'access' })
     .eq('id', userId);

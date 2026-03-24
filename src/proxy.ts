@@ -34,7 +34,7 @@ export function proxy(_request: NextRequest) {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
     const csp = [
         "default-src 'self'",
-        `script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com`,
+        `script-src 'self' 'unsafe-inline' https://js.stripe.com`,
         `style-src 'self' 'unsafe-inline'`,
         `img-src 'self' data: blob: ${supabaseUrl}`,
         `font-src 'self'`,

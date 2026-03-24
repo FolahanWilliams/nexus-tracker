@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { logger } from '@/lib/logger';
 
 export default function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
@@ -32,7 +33,7 @@ export default function SubscriptionGate({ children }: { children: React.ReactNo
         // Log the failure so it's visible in monitoring, but don't silently
         // grant access — treat unknown subscription state as inactive so
         // users aren't accidentally given free access on API errors.
-        console.error('Subscription check failed:', error);
+        logger.error('Subscription check failed', 'subscription', error);
         setStatus('inactive');
         router.replace('/pricing');
       }

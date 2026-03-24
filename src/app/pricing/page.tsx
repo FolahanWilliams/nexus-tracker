@@ -7,6 +7,7 @@ import { Shield, Sparkles, Check, ChevronLeft, Loader2, KeyRound } from 'lucide-
 import { useAuth } from '@/components/AuthProvider';
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { validateAccessCode } from '@/lib/validation';
+import { logger } from '@/lib/logger';
 
 function PricingContent() {
   const { user, loading: authLoading, signIn } = useAuth();
@@ -48,11 +49,11 @@ function PricingContent() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        console.error('No checkout URL returned:', data);
+        logger.error('No checkout URL returned', 'pricing', data);
         setLoading(false);
       }
     } catch (error) {
-      console.error('Checkout error:', error);
+      logger.error('Checkout error', 'pricing', error);
       setLoading(false);
     }
   }, [user]);

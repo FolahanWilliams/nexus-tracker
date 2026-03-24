@@ -21,7 +21,7 @@ interface ToastStore {
 export const useToastStore = create<ToastStore>((set) => ({
   toasts: [],
   addToast: (message, type, onUndo?) => {
-    const id = Math.random().toString(36).substr(2, 9);
+    const id = crypto.randomUUID();
     set((state) => ({ toasts: [...state.toasts, { id, message, type, onUndo }] }));
     const duration = onUndo ? 5000 : 3000;
     setTimeout(() => {

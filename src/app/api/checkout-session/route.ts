@@ -1,15 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { withAuth } from '@/lib/with-auth';
 import { logger } from '@/lib/logger';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export const POST = withAuth(async (_request, user) => {
   try {
@@ -22,8 +15,23 @@ export const POST = withAuth(async (_request, user) => {
       );
     }
 
+    const priceId = process.env.STRIPE_PRICE_ID;
+    if (!priceId) {
+      logger.error('STRIPE_PRICE_ID is not configured', 'stripe');
+      return NextResponse.json(
+        { error: 'Server configuration error: missing price ID' },
+        { status: 500 }
+      );
+    }
+
     const userId = user.id;
-    const email = user.email!;
+    const email = user.email;
+    if (!email) {
+      return NextResponse.json(
+        { error: 'User email is required for checkout' },
+        { status: 400 }
+      );
+    }
 
     // Check if user already has a stripe customer ID
     const { data: profile } = await getSupabaseAdmin()
@@ -56,7 +64,7 @@ export const POST = withAuth(async (_request, user) => {
       payment_method_types: ['card'],
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID!,
+          price: priceId,
           quantity: 1,
         },
       ],

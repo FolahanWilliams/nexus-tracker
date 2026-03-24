@@ -3,6 +3,7 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
+import { sanitizePromptInput, sanitizeStringArray } from '@/lib/sanitize';
 
 interface ArgumentRequest {
     type: 'argument';
@@ -44,7 +45,21 @@ type MindForgeRequest = ArgumentRequest | AnalogyRequest | SummaryRequest | Spea
 
 export const POST = withAuth(async (request) => {
     try {
-        const body = await request.json() as MindForgeRequest;
+        const raw = await request.json();
+        // Sanitize all user-provided text fields before casting
+        if (raw.topic) raw.topic = sanitizePromptInput(raw.topic, 500);
+        if (raw.claim) raw.claim = sanitizePromptInput(raw.claim, 2000);
+        if (raw.evidence) raw.evidence = sanitizePromptInput(raw.evidence, 2000);
+        if (raw.counterargument) raw.counterargument = sanitizePromptInput(raw.counterargument, 2000);
+        if (raw.rebuttal) raw.rebuttal = sanitizePromptInput(raw.rebuttal, 2000);
+        if (raw.analogy) raw.analogy = sanitizePromptInput(raw.analogy, 2000);
+        if (raw.conceptA) raw.conceptA = sanitizePromptInput(raw.conceptA, 200);
+        if (raw.conceptB) raw.conceptB = sanitizePromptInput(raw.conceptB, 200);
+        if (raw.passage) raw.passage = sanitizePromptInput(raw.passage, 3000);
+        if (raw.summary) raw.summary = sanitizePromptInput(raw.summary, 2000);
+        if (raw.transcript) raw.transcript = sanitizePromptInput(raw.transcript, 5000);
+        if (raw.vocabWords) raw.vocabWords = sanitizeStringArray(raw.vocabWords, 15, 100);
+        const body = raw as MindForgeRequest;
 
         // ── ARGUMENT BUILDER ──
         if (body.type === 'argument') {

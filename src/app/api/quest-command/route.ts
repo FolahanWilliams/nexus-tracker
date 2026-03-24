@@ -1,16 +1,20 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSON } from '@/lib/gemini';
+import { genAI, extractJSONObject } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
+import { sanitizePromptInput } from '@/lib/sanitize';
 
 export const POST = withAuth(async (request) => {
     try {
-        const { command, tasks } = await request.json();
+        const { command: rawCommand, tasks: rawTasks } = await request.json();
 
+        const command = sanitizePromptInput(rawCommand, 500);
         if (!command) {
             return NextResponse.json({ error: 'Command is required' }, { status: 400 });
         }
+
+        const tasks = Array.isArray(rawTasks) ? rawTasks : [];
 
         const mock = hasApiKeyOrMock({
             action: 'none',
@@ -23,9 +27,11 @@ export const POST = withAuth(async (request) => {
             generationConfig: { responseMimeType: "application/json" }
         });
 
-        const taskList = tasks?.map((t: { id: string; title: string; completed: boolean; difficulty: string; category: string }) =>
-            `- ID: "${t.id}" | Title: "${t.title}" | Status: ${t.completed ? 'Done' : 'Active'} | ${t.difficulty} | ${t.category}`
-        ).join('\n') || 'No tasks.';
+        const taskList = tasks.length > 0
+            ? tasks.map((t: { id: string; title: string; completed: boolean; difficulty: string; category: string }) =>
+                `- ID: "${t.id}" | Title: "${sanitizePromptInput(t.title, 200)}" | Status: ${t.completed ? 'Done' : 'Active'} | ${t.difficulty} | ${t.category}`
+            ).join('\n')
+            : 'No tasks.';
 
         const systemPrompt = `You are a quest management AI for QuestFlow RPG.
 The user will give a natural language command to modify their quest list.
@@ -56,12 +62,20 @@ Interpret this command:`;
 
         const result = await model.generateContent(`${systemPrompt}\n\n"${command}"`);
         const text = result.response.text();
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data = extractJSON(text) as any;
+        const data = extractJSONObject(text);
 
         // Validate action
         const validActions = ['delete', 'edit', 'complete', 'none'];
-        if (!validActions.includes(data.action)) data.action = 'none';
+        if (typeof data.action !== 'string' || !validActions.includes(data.action)) data.action = 'none';
+
+        // Validate changes object for edit action — only allow known fields
+        if (data.action === 'edit' && data.changes && typeof data.changes === 'object') {
+            const allowedKeys = new Set(['title', 'difficulty', 'category', 'duration', 'recurring']);
+            const changes = data.changes as Record<string, unknown>;
+            for (const key of Object.keys(changes)) {
+                if (!allowedKeys.has(key)) delete changes[key];
+            }
+        }
 
         return NextResponse.json(data);
     } catch (error) {

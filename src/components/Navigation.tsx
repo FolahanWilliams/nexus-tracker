@@ -94,6 +94,7 @@ export default memo(function Navigation() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    aria-current={isActive ? 'page' : undefined}
                     className={`relative flex items-center gap-3 px-3 py-2 rounded-sm text-sm transition-colors ${isActive
                       ? 'text-white'
                       : 'text-[var(--color-text-secondary)] hover:text-white hover:bg-[var(--color-bg-hover)]'
@@ -102,6 +103,7 @@ export default memo(function Navigation() {
                     {isActive && (
                       <motion.div
                         layoutId="nav-active-indicator"
+                        aria-hidden="true"
                         className="absolute inset-0 bg-[var(--color-bg-hover)] rounded-sm border-l-2 border-[var(--color-green)]"
                         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                       />
@@ -152,8 +154,8 @@ function UserSection({ characterName }: { characterName: string }) {
       )}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-white truncate">{fullName || characterName}</p>
-        <div className="flex items-center gap-1" title={syncError || undefined}>
-          <div className={`w-1.5 h-1.5 rounded-full ${cfg.color} ${cfg.pulse ? 'animate-pulse' : ''}`} />
+        <div className="flex items-center gap-1" title={syncError || undefined} role="status" aria-label={`Sync status: ${cfg.label}`}>
+          <div className={`w-1.5 h-1.5 rounded-full ${cfg.color} ${cfg.pulse ? 'animate-pulse' : ''}`} aria-hidden="true" />
           <p className="text-[10px] text-[var(--color-text-secondary)]">{cfg.label}</p>
         </div>
       </div>

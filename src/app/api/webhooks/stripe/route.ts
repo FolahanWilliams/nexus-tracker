@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { logger } from '@/lib/logger';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 // Disable Next.js body parsing so Stripe can verify the raw body
 export const runtime = 'nodejs';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
-  const sig = req.headers.get('stripe-signature')!;
+  const sig = req.headers.get('stripe-signature');
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!sig || !webhookSecret) {
+    logger.error('Missing stripe-signature header or STRIPE_WEBHOOK_SECRET', 'stripe');
+    return NextResponse.json({ error: 'Webhook configuration error' }, { status: 400 });
+  }
 
   let event;
 
@@ -23,7 +22,7 @@ export async function POST(req: NextRequest) {
     event = getStripeServer().webhooks.constructEvent(
       body,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET!
+      webhookSecret
     );
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown error';

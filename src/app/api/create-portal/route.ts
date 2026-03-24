@@ -1,18 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getStripeServer } from '@/lib/stripe';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseAdmin } from '@/lib/supabase-admin';
 import { withAuth } from '@/lib/with-auth';
 import { logger } from '@/lib/logger';
 
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
-
 export const POST = withAuth(async (_request, user) => {
   try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      logger.error('NEXT_PUBLIC_APP_URL is not configured', 'stripe');
+      return NextResponse.json(
+        { error: 'Server configuration error: missing app URL' },
+        { status: 500 }
+      );
+    }
+
     const userId = user.id;
 
     // Get the user's stripe customer id
@@ -29,7 +31,7 @@ export const POST = withAuth(async (_request, user) => {
     // Create a Stripe customer portal session
     const session = await getStripeServer().billingPortal.sessions.create({
       customer: profile.stripe_customer_id,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://questflo.vercel.app'}/overview`,
+      return_url: `${appUrl}/overview`,
     });
 
     return NextResponse.json({ url: session.url });

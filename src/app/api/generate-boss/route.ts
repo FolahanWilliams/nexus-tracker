@@ -3,6 +3,7 @@ import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
+import { clampNumber } from '@/lib/sanitize';
 
 export const POST = withAuth(async (request) => {
     try {
@@ -67,6 +68,14 @@ Output ONLY a valid JSON object with:
         const result = await model.generateContent(systemPrompt);
         const text = result.response.text();
         const data = extractJSON(text) as Record<string, unknown>;
+
+        // Clamp AI-generated numeric values to safe ranges
+        data.hp = clampNumber(data.hp, 100, 5000, 500);
+        data.xpReward = clampNumber(data.xpReward, 50, 500, 150);
+        data.goldReward = clampNumber(data.goldReward, 25, 250, 75);
+
+        const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
+        if (typeof data.difficulty !== 'string' || !validDifficulties.includes(data.difficulty)) data.difficulty = 'Medium';
 
         return NextResponse.json({
             ...data,
