@@ -1,5 +1,6 @@
 'use client';
 
+import { memo } from 'react';
 import { create } from 'zustand';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, AlertCircle, Info, X, Undo2 } from 'lucide-react';
@@ -32,7 +33,7 @@ export const useToastStore = create<ToastStore>((set) => ({
   },
 }));
 
-export default function ToastContainer() {
+export default memo(function ToastContainer() {
   const { toasts, removeToast } = useToastStore();
 
   const toastStyles = {
@@ -85,4 +86,4 @@ export default function ToastContainer() {
       </AnimatePresence>
     </div>
   );
-}
+});

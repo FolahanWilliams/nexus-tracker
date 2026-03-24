@@ -28,10 +28,13 @@ export default function SubscriptionGate({ children }: { children: React.ReactNo
           setStatus('inactive');
           router.replace('/pricing');
         }
-      } catch {
-        // If profiles table doesn't have the column yet or query fails,
-        // allow access to avoid blocking existing users
-        setStatus('active');
+      } catch (error) {
+        // Log the failure so it's visible in monitoring, but don't silently
+        // grant access — treat unknown subscription state as inactive so
+        // users aren't accidentally given free access on API errors.
+        console.error('Subscription check failed:', error);
+        setStatus('inactive');
+        router.replace('/pricing');
       }
     };
 

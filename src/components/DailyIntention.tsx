@@ -4,16 +4,17 @@ import { useGameStore } from '@/store/useGameStore';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Sun, BookOpen, Zap } from 'lucide-react';
+import { validateIntention } from '@/lib/validation';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
 
 const ENERGY_LABELS = ['Exhausted', 'Low', 'Okay', 'Good', 'Legendary'];
-const ENERGY_COLORS = [
-  'var(--color-red)',
-  'var(--color-orange)',
-  'var(--color-yellow)',
-  'var(--color-green)',
-  'var(--color-purple)',
+const ENERGY_BG_CLASSES = [
+  'bg-[var(--color-red)]',
+  'bg-[var(--color-orange)]',
+  'bg-[var(--color-yellow)]',
+  'bg-[var(--color-green)]',
+  'bg-[var(--color-purple)]',
 ];
 
 const PRODUCTIVITY_LABELS = ['', 'Barely', 'Very Low', 'Low', 'Below Avg', 'Average', 'Above Avg', 'Good', 'Great', 'Excellent', 'Peak'];
@@ -56,8 +57,13 @@ export default function DailyIntention() {
   }, [hour, lastIntentionDate, dailyCalendarEntries, today]);
 
   const handleMorningSubmit = () => {
-    if (!intention.trim()) return;
-    setDailyIntention(intention, energyRating);
+    let sanitized: string;
+    try {
+      sanitized = validateIntention(intention);
+    } catch {
+      return;
+    }
+    setDailyIntention(sanitized, energyRating);
     triggerXPFloat('+10 XP', '#4ade80');
     addToast(`Intention set! +10 XP. Go make it happen! 🎯`, 'success');
     setShowMorning(false);
@@ -82,7 +88,7 @@ export default function DailyIntention() {
       <AnimatePresence>
         {showMorning && (
           <motion.div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[var(--z-modal)] flex items-center justify-center p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -137,10 +143,9 @@ export default function DailyIntention() {
                         key={i}
                         onClick={() => setEnergyRating(i + 1)}
                         className={`flex-1 py-2 rounded-lg text-xs font-bold border transition-all ${energyRating === i + 1
-                          ? 'border-transparent text-white'
+                          ? `border-transparent text-white ${ENERGY_BG_CLASSES[i]}`
                           : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
                           }`}
-                        style={energyRating === i + 1 ? { backgroundColor: ENERGY_COLORS[i] } : {}}
                       >
                         {label}
                       </button>
@@ -167,7 +172,7 @@ export default function DailyIntention() {
       <AnimatePresence>
         {showEvening && (
           <motion.div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[var(--z-modal)] flex items-center justify-center p-4"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

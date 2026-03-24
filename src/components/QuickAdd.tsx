@@ -7,14 +7,17 @@ import { useAuth } from '@/components/AuthProvider';
 import { triggerXPFloat } from '@/components/XPFloat';
 import { Plus, X, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { validateTaskTitle } from '@/lib/validation';
 
 type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Epic';
 type Category = 'Study' | 'Health' | 'Work' | 'Creative' | 'Social' | 'Personal' | 'Other';
 
 const DIFFICULTIES: Difficulty[] = ['Easy', 'Medium', 'Hard', 'Epic'];
-const DIFF_COLORS: Record<Difficulty, string> = {
-  Easy: 'var(--color-green)', Medium: 'var(--color-blue)',
-  Hard: 'var(--color-orange)', Epic: 'var(--color-purple)',
+const DIFF_ACTIVE_CLASSES: Record<Difficulty, string> = {
+  Easy: 'bg-[var(--color-green)] text-white border-[var(--color-green)]',
+  Medium: 'bg-[var(--color-blue)] text-white border-[var(--color-blue)]',
+  Hard: 'bg-[var(--color-orange)] text-white border-[var(--color-orange)]',
+  Epic: 'bg-[var(--color-purple)] text-white border-[var(--color-purple)]',
 };
 const DIFF_XP: Record<Difficulty, number> = { Easy: 50, Medium: 100, Hard: 200, Epic: 500 };
 const CATEGORIES: Category[] = ['Study', 'Health', 'Work', 'Creative', 'Social', 'Personal', 'Other'];
@@ -33,10 +36,16 @@ export default function QuickAdd() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) return;
-    addTask(title.trim(), difficulty, undefined, category);
+    let sanitized: string;
+    try {
+      sanitized = validateTaskTitle(title);
+    } catch {
+      addToast('Invalid quest title', 'error');
+      return;
+    }
+    addTask(sanitized, difficulty, undefined, category);
     triggerXPFloat(`+${DIFF_XP[difficulty]} XP`, '#4ade80');
-    addToast(`Quest added! "${title.trim()}"`, 'success');
+    addToast(`Quest added! "${sanitized}"`, 'success');
     setTitle('');
     setDifficulty('Medium');
     setCategory('Personal');
@@ -103,10 +112,10 @@ export default function QuickAdd() {
                         key={d}
                         type="button"
                         onClick={() => setDifficulty(d)}
-                        className="flex-1 py-1.5 rounded text-xs font-bold border transition-all"
-                        style={difficulty === d
-                          ? { backgroundColor: DIFF_COLORS[d], color: 'white', borderColor: DIFF_COLORS[d] }
-                          : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}
+                        className={`flex-1 py-1.5 rounded text-xs font-bold border transition-all ${difficulty === d
+                          ? DIFF_ACTIVE_CLASSES[d]
+                          : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
+                        }`}
                       >
                         {d}
                       </button>
@@ -124,10 +133,10 @@ export default function QuickAdd() {
                         key={c}
                         type="button"
                         onClick={() => setCategory(c)}
-                        className="px-3 py-1 rounded-full text-xs font-semibold border transition-all"
-                        style={category === c
-                          ? { backgroundColor: 'var(--color-purple)', color: 'white', borderColor: 'var(--color-purple)' }
-                          : { borderColor: 'var(--color-border)', color: 'var(--color-text-muted)' }}
+                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${category === c
+                          ? 'bg-[var(--color-purple)] text-white border-[var(--color-purple)]'
+                          : 'border-[var(--color-border)] text-[var(--color-text-muted)]'
+                        }`}
                       >
                         {c}
                       </button>

@@ -1,6 +1,7 @@
 
 'use client';
 
+import { memo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
@@ -61,12 +62,12 @@ const navGroups = [
   },
 ];
 
-export default function Navigation() {
+export default memo(function Navigation() {
   const pathname = usePathname();
   const { level, title, characterName } = useGameStore();
 
   return (
-    <nav className="fixed left-0 top-0 bottom-0 w-64 bg-[var(--color-bg-card)] border-r border-[var(--color-border)] z-50 hidden lg:flex flex-col">
+    <nav className="fixed left-0 top-0 bottom-0 w-64 bg-[var(--color-bg-card)] border-r border-[var(--color-border)] z-50 hidden lg:flex flex-col" aria-label="Main navigation">
       {/* Brand */}
       <div className="p-4 border-b border-[var(--color-border)] flex items-center gap-3">
         <div className="w-8 h-8 rounded bg-[var(--color-blue)] flex items-center justify-center">
@@ -129,7 +130,7 @@ export default function Navigation() {
       </div>
     </nav>
   );
-}
+});
 
 function UserSection({ characterName }: { characterName: string }) {
   const { user, signOut } = useAuth();

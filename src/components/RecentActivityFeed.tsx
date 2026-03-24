@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { useGameStore, ActivityEntry } from '@/store/useGameStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity } from 'lucide-react';
@@ -29,7 +29,7 @@ const TYPE_COLORS: Record<ActivityEntry['type'], string> = {
     purchase: 'var(--color-yellow)',
 };
 
-export default function RecentActivityFeed() {
+export default memo(function RecentActivityFeed() {
     const activityLog = useGameStore(s => s.activityLog);
 
     // Show up to 8 most recent entries
@@ -118,4 +118,4 @@ export default function RecentActivityFeed() {
             </div>
         </div>
     );
-}
+});
