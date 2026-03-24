@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSONObject } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
 import { sanitizePromptInput, clampNumber } from '@/lib/sanitize';
+import { generateAndExtractJSON, validateDifficulty, validateCategory } from '@/lib/ai-route-helpers';
 
 export const POST = withAuth(async (request) => {
     try {
@@ -15,12 +15,7 @@ export const POST = withAuth(async (request) => {
         }
 
         const mock = hasApiKeyOrMock({
-            parentTask: {
-                title: goal,
-                difficulty: 'Hard',
-                category: 'Work',
-                xpReward: 50,
-            },
+            parentTask: { title: goal, difficulty: 'Hard', category: 'Work', xpReward: 50 },
             subtasks: [
                 { title: `Research: ${goal}`, difficulty: 'Easy', category: 'Work', xpReward: 10, order: 1, estimatedMinutes: 30 },
                 { title: `Plan approach for ${goal}`, difficulty: 'Medium', category: 'Work', xpReward: 25, order: 2, estimatedMinutes: 45 },
@@ -32,13 +27,6 @@ export const POST = withAuth(async (request) => {
         });
         if (mock) return mock;
 
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-3-flash-preview',
-            generationConfig: { responseMimeType: 'application/json' },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
-            tools: [{ googleSearch: {} } as any],
-        });
-
         const playerSection = context ? `
 Player Context:
 - Level: ${context.level || 1}
@@ -49,71 +37,44 @@ Player Context:
 Calibrate sub-task difficulty and count to match this player's capacity.` : '';
 
         const systemPrompt = `You are the Task Breakdown Engine for QuestFlow RPG.
-Your job is to decompose a vague or complex goal into specific, actionable sub-tasks.
+Decompose a vague or complex goal into specific, actionable sub-tasks.
 
-You have access to Google Search. Use it to:
-- Research the goal topic for current best practices and tools
-- Make sub-tasks reference real, specific actions (not generic filler)
-- Ensure estimates are realistic based on current knowledge
-
+You have access to Google Search. Use it to research the goal topic for current best practices and tools.
 ${playerSection}
 
 Rules:
-- Break the goal into 3-7 concrete sub-tasks
-- Each sub-task must be a single, clear action (not another vague goal)
-- Order sub-tasks logically (dependencies first)
-- Assign realistic difficulty and time estimates
-- Include a brief strategy sentence explaining the recommended approach
-- If the goal is already simple/specific, return just 1-2 sub-tasks
+- Break the goal into 3-7 concrete sub-tasks (single clear actions, not vague goals)
+- Order logically (dependencies first), assign realistic difficulty and time estimates
+- Include a brief strategy sentence
+- If the goal is already simple, return 1-2 sub-tasks
 
 Output ONLY valid JSON:
 {
-  "parentTask": {
-    "title": "Clean, concise version of the overall goal",
-    "difficulty": "Easy|Medium|Hard|Epic",
-    "category": "Study|Health|Creative|Work|Social|Personal|Other",
-    "xpReward": number
-  },
-  "subtasks": [
-    {
-      "title": "Specific actionable task",
-      "difficulty": "Easy|Medium|Hard|Epic",
-      "category": "Study|Health|Creative|Work|Social|Personal|Other",
-      "xpReward": number,
-      "order": number,
-      "estimatedMinutes": number
-    }
-  ],
-  "strategy": "1-2 sentence approach recommendation",
+  "parentTask": { "title": string, "difficulty": "Easy|Medium|Hard|Epic", "category": "Study|Health|Creative|Work|Social|Personal|Other", "xpReward": number },
+  "subtasks": [{ "title": string, "difficulty": string, "category": string, "xpReward": number, "order": number, "estimatedMinutes": number }],
+  "strategy": string,
   "estimatedTotalMinutes": number
 }`;
 
-        const result = await model.generateContent(`${systemPrompt}\n\nGoal to break down: "${goal}"`);
-        const text = result.response.text();
-        const data = extractJSONObject(text);
-
-        // Validate and clamp
-        const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
-        const validCategories = ['Study', 'Health', 'Creative', 'Work', 'Social', 'Personal', 'Other'];
+        const data = await generateAndExtractJSON(`${systemPrompt}\n\nGoal to break down: "${goal}"`, true);
 
         if (data.parentTask && typeof data.parentTask === 'object') {
             const parent = data.parentTask as Record<string, unknown>;
-            if (!validDifficulties.includes(parent.difficulty as string)) parent.difficulty = 'Medium';
-            if (!validCategories.includes(parent.category as string)) parent.category = 'Other';
+            parent.difficulty = validateDifficulty(parent.difficulty);
+            parent.category = validateCategory(parent.category);
             parent.xpReward = clampNumber(parent.xpReward, 5, 200, 50);
         }
 
         if (Array.isArray(data.subtasks)) {
             for (const sub of data.subtasks as Record<string, unknown>[]) {
-                if (!validDifficulties.includes(sub.difficulty as string)) sub.difficulty = 'Medium';
-                if (!validCategories.includes(sub.category as string)) sub.category = 'Other';
+                sub.difficulty = validateDifficulty(sub.difficulty);
+                sub.category = validateCategory(sub.category);
                 sub.xpReward = clampNumber(sub.xpReward, 5, 100, 25);
                 sub.estimatedMinutes = clampNumber(sub.estimatedMinutes, 5, 480, 30);
             }
         }
 
         data.estimatedTotalMinutes = clampNumber(data.estimatedTotalMinutes, 10, 2400, 120);
-
         if (typeof data.strategy !== 'string') data.strategy = '';
 
         return NextResponse.json(data);

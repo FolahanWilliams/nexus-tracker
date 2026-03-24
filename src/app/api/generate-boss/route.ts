@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSON } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';
 import { clampNumber } from '@/lib/sanitize';
+import { generateAndExtractJSON, validateDifficulty } from '@/lib/ai-route-helpers';
 
 export const POST = withAuth(async (request) => {
     try {
@@ -20,22 +20,10 @@ export const POST = withAuth(async (request) => {
         });
         if (mock) return mock;
 
-        // Google Search Grounding lets the AI reference real-world events and trends
-        // to create culturally relevant, topical boss battles.
-        const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            tools: [{
-                googleSearch: {},
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
-            } as any],
-        });
-
         const systemPrompt = `You are the Dungeon Master for QuestFlow RPG.
 Generate a Custom Boss Battle based on the player's recent struggles.
 
-You have access to Google Search. Use it to:
-- Reference current events, trending topics, or real-world challenges to make the boss feel timely and relevant
-- Create boss names and descriptions that feel connected to today's world (e.g., "The Algorithm Overlord" if they struggle with social media distractions)
+You have access to Google Search. Use it to reference current events, trending topics, or real-world challenges to make the boss feel timely and relevant.
 
 Context:
 - Player Level: ${playerContext?.level || 1}
@@ -49,39 +37,27 @@ Nexus Pulse Intelligence:
 - Current Pattern: ${pulseData.topInsight || 'N/A'}
 If burnout risk is high, make the boss more manageable (lower HP). If momentum is rising, make it an epic challenge.` : ''}
 
-Create a boss themed around these struggles (e.g., if they struggle with fitness tasks, the boss could be "The Couch Potato Leviathan").
-
-Scale HP to Player Level (Level ${playerContext?.level || 1}):
+Create a boss themed around these struggles. Scale HP to Player Level (Level ${playerContext?.level || 1}):
 - Level 1-5: 200-500 HP
 - Level 6-15: 500-1500 HP
 - Level 16+: 1500+ HP
 
 Output ONLY a valid JSON object with:
-- name: string (The Boss's name)
-- description: string (Short lore description tying into the uncompleted tasks)
-- difficulty: 'Easy' | 'Medium' | 'Hard' | 'Epic'
-- hp: number (Base HP)
-- xpReward: number (Base XP, usually 100-500)
-- goldReward: number (Base Gold, usually 50-200)
-`;
+- name: string, description: string, difficulty: 'Easy'|'Medium'|'Hard'|'Epic'
+- hp: number, xpReward: number (100-500), goldReward: number (50-200)`;
 
-        const result = await model.generateContent(systemPrompt);
-        const text = result.response.text();
-        const data = extractJSON(text) as Record<string, unknown>;
+        const data = await generateAndExtractJSON(systemPrompt);
 
-        // Clamp AI-generated numeric values to safe ranges
         data.hp = clampNumber(data.hp, 100, 5000, 500);
         data.xpReward = clampNumber(data.xpReward, 50, 500, 150);
         data.goldReward = clampNumber(data.goldReward, 25, 250, 75);
-
-        const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
-        if (typeof data.difficulty !== 'string' || !validDifficulties.includes(data.difficulty)) data.difficulty = 'Medium';
+        data.difficulty = validateDifficulty(data.difficulty);
 
         return NextResponse.json({
             ...data,
-            maxHp: data.hp, // Initialize maxHp to equal hp
+            maxHp: data.hp,
             startsAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
             completed: false,
             failed: false
         });

@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { VOCAB_MASTERY_BOSS_STEP, VOCAB_MASTERY_BOSS_BONUS_PER_STEP, VOCAB_MASTERY_BOSS_MAX_BONUS } from '@/lib/rewardCalculator';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getPulseDataForRoute } from '@/hooks/useNexusPulse';
+import { useAIFetch } from '@/hooks/useAIFetch';
 import {
   Sword,
   Zap,
@@ -62,7 +63,7 @@ export default function BossesTab() {
   const activeBosses = bossBattles.filter(b => !b.completed && !b.failed);
   const completedBosses = bossBattles.filter(b => b.completed);
   const failedBosses = bossBattles.filter(b => b.failed);
-  const [isGeneratingBoss, setIsGeneratingBoss] = useState(false);
+  const bossGen = useAIFetch<{ name?: string; description?: string; difficulty?: string; hp?: number; maxHp?: number; xpReward?: number; goldReward?: number; expiresAt?: string }>('/api/generate-boss', { logTag: 'boss' });
 
   const activeBossTemplate = selectedBoss
     ? BOSS_TEMPLATES.find(t => t.name === selectedBoss.name)
@@ -112,49 +113,30 @@ export default function BossesTab() {
   };
 
   const handleGenerateBoss = async () => {
-    setIsGeneratingBoss(true);
-    try {
-      const { tasks, habits, level } = useGameStore.getState();
-      const uncompletedTasks = tasks.filter(t => !t.completed).slice(0, 10);
-      const failedHabits = habits.filter(h => h.completedDates.length === 0 || !h.completedDates.includes(new Date().toISOString().split('T')[0]));
+    const { tasks, habits, level } = useGameStore.getState();
+    const uncompletedTasks = tasks.filter(t => !t.completed).slice(0, 10);
+    const failedHabits = habits.filter(h => h.completedDates.length === 0 || !h.completedDates.includes(new Date().toISOString().split('T')[0]));
 
-      const response = await fetch('/api/generate-boss', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uncompletedTasks,
-          failedHabits,
-          playerContext: { level },
-          pulseData: getPulseDataForRoute()
-        }),
-        signal: AbortSignal.timeout(30000),
+    const data = await bossGen.execute({
+      uncompletedTasks,
+      failedHabits,
+      playerContext: { level },
+      pulseData: getPulseDataForRoute()
+    });
+
+    if (data?.name) {
+      startBossBattle({
+        name: data.name,
+        description: data.description ?? '',
+        difficulty: (data.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic') ?? 'Medium',
+        hp: data.hp ?? 500,
+        maxHp: data.maxHp ?? data.hp ?? 500,
+        xpReward: data.xpReward ?? 150,
+        goldReward: data.goldReward ?? 75,
+        expiresAt: data.expiresAt ?? new Date(Date.now() + 86400000).toISOString()
       });
-      const data = await response.json();
-
-      if (!response.ok) {
-        addToast('Failed to summon boss. Please try again.', 'error');
-        return;
-      }
-
-      if (data.name) {
-        startBossBattle({
-          name: data.name,
-          description: data.description,
-          difficulty: data.difficulty as 'Easy' | 'Medium' | 'Hard' | 'Epic',
-          hp: data.hp,
-          maxHp: data.maxHp,
-          xpReward: data.xpReward,
-          goldReward: data.goldReward,
-          expiresAt: data.expiresAt
-        });
-        addToast(`Vanquish the ${data.name}!`, 'success');
-      }
-    } catch (err) {
-      const msg = err instanceof DOMException && err.name === 'TimeoutError'
-        ? 'Boss summoning timed out. Try again.' : 'Failed to summon boss. The arcane energies fizzled.';
-      addToast(msg, 'error');
+      addToast(`Vanquish the ${data.name}!`, 'success');
     }
-    setIsGeneratingBoss(false);
   };
 
   const handleAttack = () => {
@@ -189,11 +171,11 @@ export default function BossesTab() {
       <div className="flex items-center justify-end gap-2 mb-6">
         <button
           onClick={handleGenerateBoss}
-          disabled={isGeneratingBoss}
+          disabled={bossGen.isLoading}
           className="rpg-button btn-primary"
         >
-          <Zap size={18} className={isGeneratingBoss ? "animate-pulse" : ""} />
-          {isGeneratingBoss ? "Summoning..." : "AI Summon"}
+          <Zap size={18} className={bossGen.isLoading ? "animate-pulse" : ""} />
+          {bossGen.isLoading ? "Summoning..." : "AI Summon"}
         </button>
         <button
           onClick={() => setShowBossSelect(true)}

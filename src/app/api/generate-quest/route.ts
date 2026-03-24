@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { genAI, extractJSON } from '@/lib/gemini';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/with-auth';
 import { sanitizePromptInput, clampNumber } from '@/lib/sanitize';
+import { generateAndExtractJSON, validateDifficulty } from '@/lib/ai-route-helpers';
 
 export const POST = withAuth(async (request) => {
     try {
@@ -19,17 +19,6 @@ export const POST = withAuth(async (request) => {
         });
         if (mock) return mock;
 
-        // Google Search Grounding lets the AI research the user's goal in real-time
-        // so quests reference accurate, current information (e.g., latest docs, tutorials).
-        const model = genAI.getGenerativeModel({
-            model: "gemini-3-flash-preview",
-            tools: [{
-                googleSearch: {},
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- googleSearch not in SDK types
-            } as any],
-        });
-
-        // Build player context string if provided
         const playerContext = context ? `
 Player Profile:
 - Name: ${context.name || 'Unknown'}
@@ -39,7 +28,6 @@ Player Profile:
 - Current Streak: ${context.streak || 0} days
 Tailor the quests to suit a ${context.characterClass || 'general'} player at level ${context.level || 1}.` : '';
 
-        // Nexus Pulse context: AI-generated awareness of player patterns
         const pulseSection = context?.pulseData ? `
 Nexus Pulse Intelligence:
 - Momentum: ${context.pulseData.momentum || 'unknown'}
@@ -50,10 +38,7 @@ Use this to calibrate quest difficulty. If burnout risk is high (>0.6), lean tow
 
         const systemPrompt = `You are a Gamified Productivity AI for QuestFlow RPG. Break down the user's goal into 1-2 executable "quests" (tasks).
 
-You have access to Google Search. Use it to:
-- Research the user's goal topic for current, accurate information
-- Make quests reference real tools, resources, or techniques that exist today
-- If relevant, include a brief tip or link in the quest title or description
+You have access to Google Search. Use it to research the user's goal topic for current, accurate information and make quests reference real tools, resources, or techniques.
 
 For each quest, output a JSON object with:
 - title: Actionable, specific task name (written like a real RPG quest objective)
@@ -64,18 +49,12 @@ Scale difficulty based on effort required. Focus on quality over quantity - gene
 ${playerContext}${pulseSection}
 Output ONLY a valid JSON object with a "quests" array. No other text.`;
 
-        const result = await model.generateContent(`${systemPrompt}\n\nUser Goal: ${prompt}`);
-        const response = result.response;
-        const text = response.text();
+        const data = await generateAndExtractJSON(`${systemPrompt}\n\nUser Goal: ${prompt}`);
 
-        const data = extractJSON(text) as Record<string, unknown>;
-
-        // Clamp XP values on generated quests
         if (Array.isArray(data.quests)) {
-            const validDifficulties = ['Easy', 'Medium', 'Hard', 'Epic'];
             for (const q of data.quests as Record<string, unknown>[]) {
                 q.xp = clampNumber(q.xp, 5, 200, 25);
-                if (typeof q.difficulty !== 'string' || !validDifficulties.includes(q.difficulty)) q.difficulty = 'Medium';
+                q.difficulty = validateDifficulty(q.difficulty);
             }
         }
 
