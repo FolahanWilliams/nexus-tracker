@@ -367,6 +367,41 @@ function DashboardContent() {
 
 
 
+          {/* AI Quest Generator — surfaced prominently */}
+          <motion.div
+            className="rpg-card mb-4 !border-[var(--color-purple)]/20 relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(96, 165, 250, 0.08))' }}
+            variants={fadeUp}
+          >
+            <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-[var(--color-purple)]/10 blur-2xl" />
+            <div className="flex items-center justify-between relative">
+              <div>
+                <h3 className="font-bold flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-[var(--color-purple)]/15 flex items-center justify-center">
+                    <Sparkles className="text-[var(--color-purple)]" size={15} />
+                  </div>
+                  AI Quest Generator
+                </h3>
+                <p className="text-xs text-[var(--color-text-muted)] mt-1 ml-9">
+                  Describe a goal — AI creates personalized quests
+                </p>
+              </div>
+              <motion.button
+                onClick={handleGeneratePlan}
+                disabled={isGeneratingPlan}
+                className="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)] disabled:opacity-50 flex items-center gap-2"
+                whileHover={!isGeneratingPlan ? { scale: 1.05, boxShadow: '0 4px 20px rgba(167, 139, 250, 0.3)' } : {}}
+                whileTap={!isGeneratingPlan ? { scale: 0.95 } : {}}
+              >
+                {isGeneratingPlan ? (
+                  <><Zap size={14} className="animate-spin" /> Generating...</>
+                ) : (
+                  <><Zap size={14} /> Generate</>
+                )}
+              </motion.button>
+            </div>
+          </motion.div>
+
           {/* Weekly Strategy Planner */}
           <motion.div className="mb-4" variants={fadeUp}>
             <WeeklyPlanner />
@@ -396,39 +431,98 @@ function DashboardContent() {
             ))}
           </motion.div>
 
-          {/* Habit Streak Strip */}
-          {habits.length > 0 && (
-            <motion.div className="mb-4" variants={fadeUp}>
-              <div className="flex items-center justify-between mb-2.5">
-                <p className="text-[10px] font-bold text-[var(--color-text-muted)] tracking-[0.15em] uppercase">Today&apos;s Habits</p>
-                <Link href="/habits" className="text-[11px] font-semibold text-[var(--color-purple)] hover:text-[var(--color-purple-light)] transition-colors">View all</Link>
+          {/* Today's Habits — always shown */}
+          <motion.div className="mb-4" variants={fadeUp}>
+            <div className="flex items-center justify-between mb-2.5">
+              <p className="text-[10px] font-bold text-[var(--color-text-muted)] tracking-[0.15em] uppercase">Today&apos;s Habits</p>
+              <Link href="/habits" className="text-[11px] font-semibold text-[var(--color-purple)] hover:text-[var(--color-purple-light)] transition-colors">
+                {habits.length > 0 ? 'View all' : 'Add habits'}
+              </Link>
+            </div>
+            {habits.length > 0 ? (
+              <>
+                {/* Progress bar */}
+                <div className="flex items-center gap-2 mb-2.5">
+                  <div className="flex-1 h-2 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-[var(--color-green)] to-[var(--color-purple)] rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: habits.length > 0 ? `${(habitsCompletedToday / habits.length) * 100}%` : '0%' }}
+                      transition={{ duration: 0.8, ease: 'easeOut' }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-bold text-[var(--color-text-muted)]">{habitsCompletedToday}/{habits.length}</span>
+                </div>
+                {/* Habit chips — sorted: overdue first, then incomplete, then done */}
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {[...habits]
+                    .sort((a, b) => {
+                      const aDone = a.completedDates.includes(today) ? 1 : 0;
+                      const bDone = b.completedDates.includes(today) ? 1 : 0;
+                      if (aDone !== bDone) return aDone - bDone; // incomplete first
+                      // Among incomplete: overdue (SM-2) first
+                      const aOverdue = !aDone && (a.nextFocusDate || today) <= today ? 1 : 0;
+                      const bOverdue = !bDone && (b.nextFocusDate || today) <= today ? 1 : 0;
+                      return bOverdue - aOverdue;
+                    })
+                    .map(habit => {
+                      const doneToday = habit.completedDates.includes(today);
+                      const isOverdue = !doneToday && (habit.nextFocusDate || today) <= today;
+                      return (
+                        <motion.button
+                          key={habit.id}
+                          onClick={() => { if (!doneToday) { completeHabit(habit.id); addToast(`${habit.name} completed! +${habit.xpReward} XP`, 'success'); } }}
+                          disabled={doneToday}
+                          className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border transition-all ${
+                            doneToday
+                              ? 'border-[var(--color-green)]/40 bg-[var(--color-green)]/10'
+                              : isOverdue
+                                ? 'border-[var(--color-orange)]/40 bg-[var(--color-orange)]/10'
+                                : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/40 bg-[var(--color-bg-card)]'
+                          }`}
+                          whileHover={!doneToday ? { scale: 1.04, y: -2 } : {}}
+                          whileTap={!doneToday ? { scale: 0.96 } : {}}
+                        >
+                          <span className="text-lg">{habit.icon}</span>
+                          <span className="text-[11px] font-semibold max-w-[64px] truncate">{habit.name}</span>
+                          <span className={`text-[10px] font-bold ${
+                            doneToday ? 'text-[var(--color-green)]'
+                              : isOverdue ? 'text-[var(--color-orange)]'
+                                : 'text-[var(--color-text-muted)]'
+                          }`}>
+                            {doneToday ? '✓ Done' : isOverdue ? '⚡ Focus' : habit.streak > 0 ? `${habit.streak}d streak` : 'Tap'}
+                          </span>
+                        </motion.button>
+                      );
+                    })}
+                </div>
+                {habitsCompletedToday === habits.length && habits.length > 0 && (
+                  <motion.p
+                    className="text-center text-xs font-bold text-[var(--color-green)] mt-2"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                  >
+                    🎉 All habits done today!
+                  </motion.p>
+                )}
+              </>
+            ) : (
+              <div className="rpg-card !p-4 text-center">
+                <p className="text-sm text-[var(--color-text-secondary)] mb-3">
+                  Build daily habits to earn XP streaks
+                </p>
+                <Link href="/habits">
+                  <motion.span
+                    className="rpg-button btn-primary text-sm inline-flex"
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                  >
+                    <Repeat2 size={16} /> Add Your First Habit
+                  </motion.span>
+                </Link>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                {habits.map(habit => {
-                  const doneToday = habit.completedDates.includes(today);
-                  return (
-                    <motion.button
-                      key={habit.id}
-                      onClick={() => { if (!doneToday) { completeHabit(habit.id); addToast(`${habit.name} completed!`, 'success'); } }}
-                      disabled={doneToday}
-                      className={`flex-shrink-0 flex flex-col items-center gap-1.5 px-4 py-2.5 rounded-xl border transition-all ${doneToday
-                        ? 'border-[var(--color-green)]/40 bg-[var(--color-green)]/10'
-                        : 'border-[var(--color-border)] hover:border-[var(--color-purple)]/40 bg-[var(--color-bg-card)]'
-                        }`}
-                      whileHover={!doneToday ? { scale: 1.04, y: -2 } : {}}
-                      whileTap={!doneToday ? { scale: 0.96 } : {}}
-                    >
-                      <span className="text-lg">{habit.icon}</span>
-                      <span className="text-[11px] font-semibold max-w-[64px] truncate">{habit.name}</span>
-                      <span className={`text-[10px] font-bold ${doneToday ? 'text-[var(--color-green)]' : 'text-[var(--color-text-muted)]'}`}>
-                        {doneToday ? '✓ Done' : habit.streak > 0 ? `${habit.streak}d streak` : 'Tap'}
-                      </span>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          )}
+            )}
+          </motion.div>
 
           {/* Daily Quests + Daily Reward Row */}
           <motion.div className="grid grid-cols-2 gap-3 mb-4" variants={fadeUp}>
@@ -536,41 +630,6 @@ function DashboardContent() {
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* AI Plan Generator */}
-          <motion.div
-            className="rpg-card mb-5 !border-[var(--color-purple)]/20 relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, rgba(167, 139, 250, 0.1), rgba(96, 165, 250, 0.08))' }}
-            variants={fadeUp}
-          >
-            <div className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-[var(--color-purple)]/10 blur-2xl" />
-            <div className="flex items-center justify-between relative">
-              <div>
-                <h3 className="font-bold flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-[var(--color-purple)]/15 flex items-center justify-center">
-                    <Sparkles className="text-[var(--color-purple)]" size={15} />
-                  </div>
-                  AI Quest Generator
-                </h3>
-                <p className="text-xs text-[var(--color-text-muted)] mt-1 ml-9">
-                  Personalized quests powered by Gemini
-                </p>
-              </div>
-              <motion.button
-                onClick={handleGeneratePlan}
-                disabled={isGeneratingPlan}
-                className="px-5 py-2.5 rounded-xl font-bold text-sm text-white bg-gradient-to-r from-[var(--color-purple)] to-[var(--color-blue)] disabled:opacity-50 flex items-center gap-2"
-                whileHover={!isGeneratingPlan ? { scale: 1.05, boxShadow: '0 4px 20px rgba(167, 139, 250, 0.3)' } : {}}
-                whileTap={!isGeneratingPlan ? { scale: 0.95 } : {}}
-              >
-                {isGeneratingPlan ? (
-                  <><Zap size={14} className="animate-spin" /> Generating...</>
-                ) : (
-                  <><Zap size={14} /> Generate</>
-                )}
-              </motion.button>
-            </div>
-          </motion.div>
 
           {/* Full Menu Grid */}
           <motion.div variants={fadeUp}>
