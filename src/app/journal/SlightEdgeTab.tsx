@@ -2,11 +2,10 @@
 
 import { useGameStore, DailyCalendarEntry } from '@/store/useGameStore';
 import { useState, useMemo, useEffect } from 'react';
-import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronLeft, ChevronRight, CheckCircle2, Circle, TrendingUp,
-  BookOpen, Lightbulb, X, Save, CalendarDays, Flame, Trophy, Target,
+  BookOpen, Lightbulb, X, Save, Flame, Trophy, Target,
 } from 'lucide-react';
 import { useToastStore } from '@/components/ToastContainer';
 import { useConceptExtraction } from '@/hooks/useConceptExtraction';
