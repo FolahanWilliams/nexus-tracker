@@ -6,7 +6,7 @@ import { triggerXPFloat } from '@/components/XPFloat';
 import { ValidationError } from '@/lib/validation';
 import { logger } from '@/lib/logger';
 import { useAIFetch } from '@/hooks/useAIFetch';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Plus,
   Check,
@@ -168,6 +168,24 @@ export default function QuestsTab() {
     }
   };
 
+  // Auto-tag: debounce 800ms after user stops typing (min 10 chars)
+  const autoTagTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleAutoTagDebounced = useCallback(() => {
+    if (autoTagTimerRef.current) clearTimeout(autoTagTimerRef.current);
+    autoTagTimerRef.current = setTimeout(() => {
+      if (title.trim().length >= 10 && !aiPreview && !autoTag.isLoading) {
+        handleAutoTag();
+      }
+    }, 800);
+  }, [title, aiPreview, autoTag.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (title.trim().length >= 10 && !aiPreview) {
+      handleAutoTagDebounced();
+    }
+    return () => { if (autoTagTimerRef.current) clearTimeout(autoTagTimerRef.current); };
+  }, [title, handleAutoTagDebounced, aiPreview]);
+
   const handleNLCommand = async () => {
     if (!nlCommand.trim()) return;
     setIsCommandProcessing(true);
@@ -318,7 +336,7 @@ export default function QuestsTab() {
           transition={{ delay: 0.1 }}
         >
           <h2 className="text-lg font-bold mb-1">Create New Quest</h2>
-          <p className="text-sm text-[var(--color-text-muted)] mb-4">Describe what you want to do — AI handles the rest.</p>
+          <p className="text-sm text-[var(--color-text-muted)] mb-4">Describe what you want to do — AI auto-classifies difficulty, category &amp; XP as you type.</p>
 
           <form onSubmit={handleAddTask} className="space-y-4" noValidate>
             <div>

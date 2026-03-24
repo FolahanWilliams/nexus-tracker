@@ -3,7 +3,8 @@
 import { useGameStore } from '@/store/useGameStore';
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Volume2, VolumeX, Moon, Sun, Settings as SettingsIcon, Download, Upload, Trash2, Music, Music2, HelpCircle, ArrowRight } from 'lucide-react';
+import { ChevronLeft, Volume2, VolumeX, Moon, Sun, Settings as SettingsIcon, Download, Upload, Trash2, Music, Music2, HelpCircle, ArrowRight, RotateCcw } from 'lucide-react';
+import { resetOnboarding } from '@/components/Onboarding';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToastStore } from '@/components/ToastContainer';
 
@@ -299,6 +300,33 @@ export default function SettingsPage() {
                   className="hidden"
                 />
               </label>
+            </div>
+          </motion.div>
+
+          {/* Replay Tutorial */}
+          <motion.div
+            className="rpg-card"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.38 }}
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <RotateCcw className="text-[var(--color-purple)]" size={24} />
+                <div>
+                  <h3 className="font-bold">Replay Tutorial</h3>
+                  <p className="text-sm text-[var(--color-text-secondary)]">Re-open the onboarding walkthrough</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  resetOnboarding();
+                  addToast('Tutorial reset! Refresh to see it again.', 'success');
+                }}
+                className="rpg-button text-sm"
+              >
+                <HelpCircle size={16} /> Reset Tutorial
+              </button>
             </div>
           </motion.div>
 
