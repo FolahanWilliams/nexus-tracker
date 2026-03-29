@@ -18,6 +18,7 @@ import {
   Library,
   HelpCircle,
   Network,
+  Swords,
 } from 'lucide-react';
 
 const mainNavItems = [
@@ -31,6 +32,7 @@ const mainNavItems = [
 const secondaryNavItems = [
   { href: '/character', label: 'Character', icon: User },
   { href: '/forge', label: 'Forge', icon: Library },
+  { href: '/arena', label: 'Arena', icon: Swords },
   { href: '/progress', label: 'Progress', icon: Flag },
   { href: '/insights', label: 'Insights', icon: Network },
   { href: '/tutorial', label: 'Guide', icon: HelpCircle },

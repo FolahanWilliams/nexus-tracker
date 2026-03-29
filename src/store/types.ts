@@ -18,7 +18,7 @@ export type TaskDuration = 'quick' | '1-hour' | 'half-day' | 'full-day' | 'multi
 export type ItemRarity = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary';
 export type ItemType = 'weapon' | 'armor' | 'accessory' | 'consumable' | 'material';
 export type GoalTimeframe = 'week' | 'month' | 'quarter' | 'year' | 'lifetime';
-export type ActivityType = 'quest_complete' | 'habit_complete' | 'item_drop' | 'level_up' | 'achievement' | 'reflection' | 'xp_earned' | 'boss_damage' | 'goal_milestone' | 'purchase';
+export type ActivityType = 'quest_complete' | 'habit_complete' | 'item_drop' | 'level_up' | 'achievement' | 'reflection' | 'xp_earned' | 'boss_damage' | 'goal_milestone' | 'purchase' | 'arena_battle_won' | 'arena_gauntlet_complete' | 'arena_mystery_solved';
 export type VocabDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 export type VocabStatus = 'new' | 'learning' | 'reviewing' | 'mastered';
 
@@ -607,7 +607,7 @@ export interface UiSlice {
 
 export type KnowledgeNodeType = 'word' | 'concept' | 'skill';
 export type KnowledgeEdgeType = 'co_occurrence' | 'semantic' | 'vocab_concept' | 'prerequisite';
-export type KnowledgeNodeSource = 'wordforge' | 'slight_edge' | 'reflection' | 'mindforge' | 'quest';
+export type KnowledgeNodeSource = 'wordforge' | 'slight_edge' | 'reflection' | 'mindforge' | 'quest' | 'arena';
 
 export interface KnowledgeNode {
     id: string;
@@ -673,6 +673,129 @@ export interface KnowledgeGraphSlice {
     upsertDailyGrowthNode: (node: DailyGrowthNode) => void;
 }
 
+// ─── Arena (Word Game) ─────────────────────────────────────────
+
+export type ArenaGameMode = 'battle' | 'gauntlet' | 'mystery';
+export type ArenaDifficulty = 'easy' | 'medium' | 'hard' | 'legendary';
+export type DetectiveRank = 'Novice' | 'Sleuth' | 'Inspector' | 'Detective' | 'Mastermind';
+export type GauntletPuzzleType = 'anagram' | 'word_chain' | 'crossword_clue' | 'cryptogram';
+
+export interface ArenaEnemy {
+    id: string;
+    name: string;
+    description: string;
+    difficulty: ArenaDifficulty;
+    hp: number;
+    maxHp: number;
+    attackDamage: number;
+    specialAbility: 'removes_vowel' | 'steals_letter' | 'time_pressure' | 'double_attack' | null;
+    imageHint: string;
+}
+
+export interface ArenaBattleState {
+    enemy: ArenaEnemy | null;
+    playerHp: number;
+    playerMaxHp: number;
+    letterPool: string[];
+    currentTurn: number;
+    maxTurns: number;
+    wordsUsed: string[];
+    vocabStrikes: number;
+    totalDamageDealt: number;
+    status: 'idle' | 'active' | 'victory' | 'defeat';
+}
+
+export interface GauntletPuzzle {
+    id: string;
+    type: GauntletPuzzleType;
+    prompt: string;
+    hint?: string;
+    answer: string;
+    difficulty: ArenaDifficulty;
+    bonusSeconds: number;
+}
+
+export interface ArenaGauntletState {
+    puzzles: GauntletPuzzle[];
+    currentPuzzleIndex: number;
+    score: number;
+    combo: number;
+    maxCombo: number;
+    timeRemainingMs: number;
+    correctCount: number;
+    incorrectCount: number;
+    vocabBonuses: number;
+    status: 'idle' | 'active' | 'finished';
+}
+
+export interface MysteryStep {
+    id: string;
+    riddle: string;
+    hint1: string;
+    hint2: string;
+    hint3: string;
+    answer: string;
+    solved: boolean;
+    hintsUsed: number;
+    clueRevealed?: string;
+}
+
+export interface ArenaMysteryState {
+    id: string | null;
+    title: string;
+    narrative: string;
+    steps: MysteryStep[];
+    currentStep: number;
+    hintsUsedTotal: number;
+    startedAt: string | null;
+    status: 'idle' | 'active' | 'solved' | 'abandoned';
+}
+
+export interface ArenaStats {
+    battlesWon: number;
+    battlesLost: number;
+    battleWinStreak: number;
+    bestBattleWinStreak: number;
+    gauntletHighScore: number;
+    gauntletTotalPlayed: number;
+    mysteriesSolved: number;
+    mysteriesAbandoned: number;
+    totalArenaXpEarned: number;
+    totalArenaGoldEarned: number;
+    detectiveRank: DetectiveRank;
+}
+
+export interface ArenaSlice {
+    arenaMode: ArenaGameMode;
+    arenaBattle: ArenaBattleState;
+    arenaGauntlet: ArenaGauntletState;
+    arenaMystery: ArenaMysteryState;
+    arenaStats: ArenaStats;
+    arenaLoading: boolean;
+
+    setArenaMode: (mode: ArenaGameMode) => void;
+    startBattle: (enemy: ArenaEnemy, letterPool: string[]) => void;
+    submitBattleWord: (word: string, damage: number, isVocabStrike: boolean) => void;
+    enemyAttack: () => void;
+    endBattle: (victory: boolean) => void;
+    refreshLetterPool: (newPool: string[]) => void;
+
+    startGauntlet: (puzzles: GauntletPuzzle[]) => void;
+    answerGauntletPuzzle: (correct: boolean, isVocabWord: boolean) => void;
+    tickGauntletTimer: (elapsedMs: number) => void;
+    addGauntletTime: (ms: number) => void;
+    endGauntlet: () => void;
+
+    startMystery: (id: string, title: string, narrative: string, steps: MysteryStep[]) => void;
+    solveMysteryStep: (stepIndex: number) => void;
+    useMysteryHint: (stepIndex: number) => void;
+    endMystery: (solved: boolean) => void;
+    abandonMystery: () => void;
+
+    setArenaLoading: (loading: boolean) => void;
+    resetArenaSession: () => void;
+}
+
 // ─── Combined state ──────────────────────────────────────────────
 
-export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice & KnowledgeGraphSlice;
+export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice & KnowledgeGraphSlice & ArenaSlice;
