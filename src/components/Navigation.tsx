@@ -21,6 +21,7 @@ import {
   LogOut,
   HelpCircle,
   Network,
+  Swords,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -49,6 +50,7 @@ const navGroups = [
     items: [
       { href: '/character', label: 'Character', icon: User },
       { href: '/forge', label: 'Forge', icon: Library },
+      { href: '/arena', label: 'Arena', icon: Swords },
       { href: '/progress', label: 'Progress', icon: Flag },
     ],
   },

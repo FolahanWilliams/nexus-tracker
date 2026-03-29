@@ -27,6 +27,9 @@ const TYPE_COLORS: Record<ActivityEntry['type'], string> = {
     boss_damage: 'var(--color-red)',
     goal_milestone: 'var(--color-orange)',
     purchase: 'var(--color-yellow)',
+    arena_battle_won: 'var(--color-purple)',
+    arena_gauntlet_complete: 'var(--color-yellow)',
+    arena_mystery_solved: 'var(--color-green)',
 };
 
 export default memo(function RecentActivityFeed() {

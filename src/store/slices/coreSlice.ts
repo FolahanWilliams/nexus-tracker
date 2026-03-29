@@ -38,6 +38,14 @@ const ACHIEVEMENTS = [
     { id: 'WORDSMITH', name: 'Wordsmith', description: 'Master 10 vocabulary words', icon: '📖', condition: (s: GameState) => s.vocabWords.filter(w => w.status === 'mastered').length >= 10 },
     { id: 'LEXICON_LORD', name: 'Lexicon Lord', description: 'Master 50 vocabulary words', icon: '📚', condition: (s: GameState) => s.vocabWords.filter(w => w.status === 'mastered').length >= 50 },
     { id: 'VOCAB_STREAK_7', name: 'Word Warrior', description: 'Maintain a 7-day vocab review streak', icon: '🔤', condition: (s: GameState) => s.vocabStreak >= 7 },
+    // Arena achievements
+    { id: 'ARENA_FIRST_BLOOD', name: 'Arena First Blood', description: 'Win your first Word Battle', icon: '⚔️', condition: (s: GameState) => s.arenaStats.battlesWon >= 1 },
+    { id: 'ARENA_STREAK_5', name: 'Streak Hunter', description: 'Achieve a 5 battle win streak', icon: '🔥', condition: (s: GameState) => s.arenaStats.bestBattleWinStreak >= 5 },
+    { id: 'ARENA_VOCAB_MASTER', name: 'Vocab Striker', description: 'Land 10 vocab strikes in a single battle', icon: '⚡', condition: (s: GameState) => s.arenaBattle.vocabStrikes >= 10 },
+    { id: 'ARENA_COMBO_KING', name: 'Combo King', description: 'Achieve a 5x combo in the Gauntlet', icon: '🔗', condition: (s: GameState) => s.arenaGauntlet.maxCombo >= 5 },
+    { id: 'ARENA_SHERLOCK', name: 'Sherlock', description: 'Solve a mystery without using any hints', icon: '🔍', condition: (s: GameState) => s.arenaMystery.status === 'solved' && s.arenaMystery.hintsUsedTotal === 0 },
+    { id: 'ARENA_GAUNTLET_500', name: 'Gauntlet Champion', description: 'Score 500+ in a single gauntlet', icon: '🏅', condition: (s: GameState) => s.arenaGauntlet.score >= 500 },
+    { id: 'ARENA_DETECTIVE', name: 'Master Detective', description: 'Reach the Detective rank', icon: '🕵️', condition: (s: GameState) => s.arenaStats.detectiveRank === 'Detective' || s.arenaStats.detectiveRank === 'Mastermind' },
 ];
 
 export const createCoreSlice: StateCreator<GameState, [], [], CoreSlice> = (set, get) => ({

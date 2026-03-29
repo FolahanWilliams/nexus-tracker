@@ -64,6 +64,17 @@ export type {
     Specialization,
     PassiveAbility,
     PrestigeState,
+    ArenaGameMode,
+    ArenaDifficulty,
+    ArenaEnemy,
+    ArenaBattleState,
+    GauntletPuzzle,
+    GauntletPuzzleType,
+    ArenaGauntletState,
+    MysteryStep,
+    ArenaMysteryState,
+    ArenaStats,
+    DetectiveRank,
 } from './types';
 
 // Re-export constants that were previously exported from this file
@@ -85,6 +96,7 @@ import { createVocabSlice } from './slices/vocabSlice';
 import { createHootSlice } from './slices/hootSlice';
 import { createUiSlice } from './slices/uiSlice';
 import { createKnowledgeGraphSlice } from './slices/knowledgeGraphSlice';
+import { createArenaSlice } from './slices/arenaSlice';
 
 // ─── Compose store ───────────────────────────────────────────────
 
@@ -100,6 +112,7 @@ export const useGameStore = create<GameState>()(
             ...createHootSlice(...a),
             ...createUiSlice(...a),
             ...createKnowledgeGraphSlice(...a),
+            ...createArenaSlice(...a),
         }),
         {
             name: 'ai-productivity-storage',
