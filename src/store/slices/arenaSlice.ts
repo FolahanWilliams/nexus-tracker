@@ -1,6 +1,8 @@
 import type { StateCreator } from 'zustand';
 import type { GameState, ArenaSlice, ArenaEnemy, GauntletPuzzle, MysteryStep } from '../types';
-import { PLAYER_MAX_HP, GAUNTLET_INITIAL_TIME_MS, GAUNTLET_COMBO_MULTIPLIERS, GAUNTLET_BASE_POINTS, getDetectiveRank } from '@/lib/arenaConstants';
+import { PLAYER_MAX_HP, GAUNTLET_INITIAL_TIME_MS, GAUNTLET_COMBO_MULTIPLIERS, GAUNTLET_BASE_POINTS, getDetectiveRank, LETTER_SCORES, TIME_PRESSURE_DURATION_MS } from '@/lib/arenaConstants';
+
+const VOWELS = new Set(['A', 'E', 'I', 'O', 'U']);
 
 const DEFAULT_BATTLE = {
     enemy: null,
@@ -12,6 +14,8 @@ const DEFAULT_BATTLE = {
     wordsUsed: [],
     vocabStrikes: 0,
     totalDamageDealt: 0,
+    turnTimerDeadlineMs: null as number | null,
+    lastAbilityMessage: null as string | null,
     status: 'idle' as const,
 };
 
@@ -77,6 +81,8 @@ export const createArenaSlice: StateCreator<GameState, [], [], ArenaSlice> = (se
                 wordsUsed: [],
                 vocabStrikes: 0,
                 totalDamageDealt: 0,
+                turnTimerDeadlineMs: null,
+                lastAbilityMessage: null,
                 status: 'active',
             },
         }),
@@ -92,6 +98,9 @@ export const createArenaSlice: StateCreator<GameState, [], [], ArenaSlice> = (se
             battle.wordsUsed = [...battle.wordsUsed, word];
             battle.totalDamageDealt += damage;
             if (isVocabStrike) battle.vocabStrikes += 1;
+            // Clear timer on successful word (resets time pressure)
+            battle.turnTimerDeadlineMs = null;
+            battle.lastAbilityMessage = null;
 
             if (enemy.hp <= 0) {
                 battle.status = 'victory';
@@ -106,12 +115,59 @@ export const createArenaSlice: StateCreator<GameState, [], [], ArenaSlice> = (se
             if (!battle.enemy || battle.status !== 'active') return state;
 
             let damage = battle.enemy.attackDamage;
-            if (battle.enemy.specialAbility === 'double_attack') {
+            let abilityMessage: string | null = null;
+
+            // -- Special abilities --
+            const ability = battle.enemy.specialAbility;
+
+            if (ability === 'double_attack') {
                 damage = Math.floor(damage * 1.5);
+                abilityMessage = 'Double Attack! The enemy strikes with devastating force!';
             }
 
             battle.playerHp = Math.max(0, battle.playerHp - damage);
             battle.currentTurn += 1;
+
+            // Apply pool-modifying abilities
+            const pool = [...battle.letterPool];
+
+            if (ability === 'removes_vowel') {
+                const vowelIndices = pool.reduce<number[]>((acc, l, i) => {
+                    if (VOWELS.has(l.toUpperCase())) acc.push(i);
+                    return acc;
+                }, []);
+                if (vowelIndices.length > 0) {
+                    const removeIdx = vowelIndices[Math.floor(Math.random() * vowelIndices.length)];
+                    const removed = pool[removeIdx];
+                    pool.splice(removeIdx, 1);
+                    abilityMessage = `The enemy devoured the letter ${removed} from your pool!`;
+                }
+            }
+
+            if (ability === 'steals_letter') {
+                if (pool.length > 0) {
+                    let bestIdx = 0;
+                    let bestScore = 0;
+                    for (let i = 0; i < pool.length; i++) {
+                        const score = LETTER_SCORES[pool[i].toUpperCase()] ?? 1;
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestIdx = i;
+                        }
+                    }
+                    const stolen = pool[bestIdx];
+                    pool.splice(bestIdx, 1);
+                    abilityMessage = `The enemy stole your ${stolen} (${bestScore} pts)!`;
+                }
+            }
+
+            if (ability === 'time_pressure') {
+                battle.turnTimerDeadlineMs = Date.now() + TIME_PRESSURE_DURATION_MS;
+                abilityMessage = 'Time Pressure! You have 15 seconds to form a word!';
+            }
+
+            battle.letterPool = pool;
+            battle.lastAbilityMessage = abilityMessage;
 
             if (battle.playerHp <= 0) {
                 battle.status = 'defeat';
@@ -192,7 +248,6 @@ export const createArenaSlice: StateCreator<GameState, [], [], ArenaSlice> = (se
 
             g.currentPuzzleIndex += 1;
 
-            // Check if we've run out of puzzles
             if (g.currentPuzzleIndex >= g.puzzles.length) {
                 g.status = 'finished';
             }

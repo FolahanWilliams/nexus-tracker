@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Swords, RefreshCw, Sparkles, Heart, Shield, Trophy } from 'lucide-react';
+import { Swords, RefreshCw, Sparkles, Heart, Shield, Trophy, Timer } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import { calculateReward, buildRewardContext } from '@/lib/rewardCalculator';
 import { calculateWordDamage, VOCAB_STRIKE_MULTIPLIER, BATTLE_CONFIG, ARENA_LOOT_CHANCE } from '@/lib/arenaConstants';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { useArenaKnowledgeSync } from '@/hooks/useArenaKnowledgeSync';
 import type { ArenaDifficulty } from '@/store/types';
 import LetterTile from './LetterTile';
 import EnemyCard from './EnemyCard';
@@ -29,6 +31,10 @@ export default function BattleArena() {
     const addItem = useGameStore((s) => s.addItem);
     const logActivity = useGameStore((s) => s.logActivity);
     const reviewVocabWord = useGameStore((s) => s.reviewVocabWord);
+    const checkAchievements = useGameStore((s) => s.checkAchievements);
+
+    const { playHit, playBoss, playVictory, playError, playCoin } = useSoundEffects();
+    const { syncBattleResults } = useArenaKnowledgeSync();
 
     const [selectedLetters, setSelectedLetters] = useState<number[]>([]);
     const [currentWord, setCurrentWord] = useState('');
@@ -38,6 +44,92 @@ export default function BattleArena() {
     const [showReward, setShowReward] = useState(false);
     const [reward, setReward] = useState({ xp: 0, gold: 0, bonus: '', item: '' });
     const [validating, setValidating] = useState(false);
+    const [turnTimerMs, setTurnTimerMs] = useState<number | null>(null);
+
+    // ── Turn timer for time_pressure ability ──
+    useEffect(() => {
+        if (!battle.turnTimerDeadlineMs || battle.status !== 'active') {
+            setTurnTimerMs(null);
+            return;
+        }
+
+        const tick = () => {
+            const remaining = battle.turnTimerDeadlineMs! - Date.now();
+            if (remaining <= 0) {
+                setTurnTimerMs(0);
+                // Auto-forfeit: enemy attacks again
+                enemyAttack();
+                setFeedback({ text: 'Time ran out! The enemy attacks again!', type: 'error' });
+            } else {
+                setTurnTimerMs(remaining);
+            }
+        };
+
+        tick();
+        const interval = setInterval(tick, 100);
+        return () => clearInterval(interval);
+    }, [battle.turnTimerDeadlineMs, battle.status, enemyAttack]);
+
+    // ── Display ability message after enemy attack ──
+    useEffect(() => {
+        if (battle.lastAbilityMessage) {
+            setFeedback({ text: battle.lastAbilityMessage, type: 'info' });
+        }
+    }, [battle.lastAbilityMessage]);
+
+    // ── Keyboard shortcuts ──
+    useEffect(() => {
+        if (battle.status !== 'active') return;
+
+        const handler = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+            // Number keys 1-9, 0 → toggle letter at index 0-9
+            if (e.key >= '1' && e.key <= '9') {
+                const idx = parseInt(e.key) - 1;
+                if (idx < battle.letterPool.length) {
+                    e.preventDefault();
+                    toggleLetterByIndex(idx);
+                }
+                return;
+            }
+            if (e.key === '0') {
+                if (9 < battle.letterPool.length) {
+                    e.preventDefault();
+                    toggleLetterByIndex(9);
+                }
+                return;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSubmitWord();
+                return;
+            }
+            if (e.key === 'Escape' || e.key === 'Backspace') {
+                e.preventDefault();
+                setSelectedLetters([]);
+                setCurrentWord('');
+            }
+        };
+
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, [battle.status, battle.letterPool.length]);
+
+    const toggleLetterByIndex = (index: number) => {
+        setSelectedLetters((prev) => {
+            const pool = useGameStore.getState().arenaBattle.letterPool;
+            let newSelected: number[];
+            if (prev.includes(index)) {
+                newSelected = prev.filter((i) => i !== index);
+            } else {
+                newSelected = [...prev, index];
+            }
+            setCurrentWord(newSelected.map((i) => pool[i]).join(''));
+            return newSelected;
+        });
+    };
 
     const handleStartBattle = useCallback(async () => {
         setArenaLoading(true);
@@ -77,37 +169,31 @@ export default function BattleArena() {
     }, [difficulty, stats.battleWinStreak, startBattle, setArenaLoading]);
 
     const toggleLetter = (index: number) => {
-        if (selectedLetters.includes(index)) {
-            const newSelected = selectedLetters.filter((i) => i !== index);
-            setSelectedLetters(newSelected);
-            setCurrentWord(newSelected.map((i) => battle.letterPool[i]).join(''));
-        } else {
-            const newSelected = [...selectedLetters, index];
-            setSelectedLetters(newSelected);
-            setCurrentWord(newSelected.map((i) => battle.letterPool[i]).join(''));
-        }
+        toggleLetterByIndex(index);
     };
 
     const handleSubmitWord = useCallback(async () => {
-        if (currentWord.length < 2 || validating) return;
+        const word = useGameStore.getState().arenaBattle.letterPool.length > 0 ? currentWord : currentWord;
+        if (word.length < 2 || validating) return;
         setValidating(true);
 
         try {
+            const pool = useGameStore.getState().arenaBattle.letterPool;
             const res = await fetch('/api/arena/battle', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'validate_word',
-                    word: currentWord,
-                    letters: battle.letterPool,
+                    word,
+                    letters: pool,
                 }),
             });
             const data = await res.json();
 
             if (data.valid) {
-                let damage = calculateWordDamage(currentWord);
+                let damage = calculateWordDamage(word);
                 const vocabMatch = vocabWords.find(
-                    (w) => w.word.toUpperCase() === currentWord.toUpperCase(),
+                    (w) => w.word.toUpperCase() === word.toUpperCase(),
                 );
                 const isVocabStrike = !!vocabMatch;
                 if (isVocabStrike) {
@@ -115,12 +201,13 @@ export default function BattleArena() {
                     reviewVocabWord(vocabMatch.id, 4);
                 }
 
-                submitBattleWord(currentWord, damage, isVocabStrike);
+                submitBattleWord(word, damage, isVocabStrike);
+                playHit();
                 setDamageFloat({ damage, vocab: isVocabStrike });
                 setTimeout(() => setDamageFloat(null), 1500);
 
                 setFeedback({
-                    text: `"${currentWord}" — ${damage} damage!${isVocabStrike ? ' VOCAB STRIKE!' : ''}`,
+                    text: `"${word}" — ${damage} damage!${isVocabStrike ? ' VOCAB STRIKE!' : ''}`,
                     type: 'success',
                 });
 
@@ -128,6 +215,7 @@ export default function BattleArena() {
                 const state = useGameStore.getState();
                 if (state.arenaBattle.enemy && state.arenaBattle.enemy.hp > 0 && state.arenaBattle.status === 'active') {
                     setTimeout(() => {
+                        playBoss();
                         enemyAttack();
                         // Refresh letters for next turn
                         fetch('/api/arena/battle', {
@@ -142,7 +230,7 @@ export default function BattleArena() {
                     }, 800);
                 }
 
-                // Check for victory after submitting
+                // Check for victory/defeat
                 setTimeout(() => {
                     const s = useGameStore.getState();
                     if (s.arenaBattle.status === 'victory') {
@@ -152,6 +240,7 @@ export default function BattleArena() {
                     }
                 }, 1200);
             } else {
+                playError();
                 setFeedback({ text: data.reason || 'Not a valid word.', type: 'error' });
             }
         } catch {
@@ -161,18 +250,28 @@ export default function BattleArena() {
             setCurrentWord('');
             setValidating(false);
         }
-    }, [currentWord, battle.letterPool, vocabWords, difficulty, submitBattleWord, enemyAttack, refreshLetterPool, reviewVocabWord, validating]);
+    }, [currentWord, vocabWords, difficulty, submitBattleWord, enemyAttack, refreshLetterPool, reviewVocabWord, validating, playHit, playBoss, playError]);
 
     const handleBattleEnd = useCallback((victory: boolean) => {
         const state = useGameStore.getState();
         const config = BATTLE_CONFIG[difficulty];
         const ctx = buildRewardContext(state);
 
+        // Check achievements BEFORE endBattle resets session state
+        checkAchievements();
+
+        // Sync to knowledge graph before state reset (victory only)
+        if (victory && state.arenaBattle.enemy) {
+            syncBattleResults(state.arenaBattle.wordsUsed, state.arenaBattle.enemy.name);
+        }
+
         let xpEarned = 0;
         let goldEarned = 0;
         let itemName = '';
 
         if (victory) {
+            playVictory();
+
             const xpBreakdown = calculateReward(config.baseXp, 'xp', ctx);
             const goldBreakdown = calculateReward(config.baseGold, 'gold', ctx);
             xpEarned = xpBreakdown.final;
@@ -194,24 +293,29 @@ export default function BattleArena() {
                     quantity: 1,
                 };
                 addItem(item);
+                playCoin();
                 itemName = item.name;
             }
 
             logActivity('arena_battle_won', '⚔️', `Won a ${difficulty} Word Battle`, `Dealt ${state.arenaBattle.totalDamageDealt} total damage`);
+        } else {
+            playError();
         }
 
         setReward({ xp: xpEarned, gold: goldEarned, bonus: victory ? `${state.arenaBattle.vocabStrikes} Vocab Strikes` : '', item: itemName });
         setShowReward(true);
         endBattle(victory);
-    }, [difficulty, addXP, addGold, addItem, logActivity, endBattle]);
+
+        // Check achievements AFTER endBattle for stats-based ones
+        checkAchievements();
+    }, [difficulty, addXP, addGold, addItem, logActivity, endBattle, checkAchievements, syncBattleResults, playVictory, playError, playCoin]);
 
     // Check for defeat after enemy attack
-    const checkBattleStatus = useCallback(() => {
-        const s = useGameStore.getState();
-        if (s.arenaBattle.status === 'defeat') {
+    useEffect(() => {
+        if (battle.status === 'defeat') {
             handleBattleEnd(false);
         }
-    }, [handleBattleEnd]);
+    }, [battle.status]);
 
     // Idle state — show difficulty selector
     if (battle.status === 'idle') {
@@ -257,6 +361,10 @@ export default function BattleArena() {
                         {arenaLoading ? 'Summoning Enemy...' : 'Start Battle'}
                     </button>
                 </div>
+
+                <p className="text-center text-xs text-[var(--color-text-muted)]">
+                    Keys 1-9/0 to select letters, Enter to attack, Esc to clear
+                </p>
             </div>
         );
     }
@@ -266,6 +374,23 @@ export default function BattleArena() {
         <div className="space-y-4">
             {/* Enemy */}
             {battle.enemy && <EnemyCard enemy={battle.enemy} />}
+
+            {/* Turn timer bar (time_pressure) */}
+            {turnTimerMs !== null && turnTimerMs > 0 && (
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-xs text-cyan-400 font-semibold">
+                        <Timer size={12} className="animate-pulse" />
+                        Time Pressure: {(turnTimerMs / 1000).toFixed(1)}s
+                    </div>
+                    <div className="w-full h-2 bg-[var(--color-bg-dark)] rounded-full overflow-hidden">
+                        <motion.div
+                            className="h-full rounded-full bg-cyan-400"
+                            animate={{ width: `${(turnTimerMs / 15000) * 100}%` }}
+                            transition={{ duration: 0.1 }}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Damage float */}
             <AnimatePresence>
@@ -318,6 +443,7 @@ export default function BattleArena() {
                         key={`${i}-${letter}`}
                         letter={letter}
                         selected={selectedLetters.includes(i)}
+                        shortcutKey={i < 9 ? String(i + 1) : i === 9 ? '0' : undefined}
                         onClick={() => toggleLetter(i)}
                     />
                 ))}

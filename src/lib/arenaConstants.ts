@@ -118,3 +118,7 @@ export const ARENA_LOOT_CHANCE: Record<ArenaDifficulty, number> = {
     hard: 0.40,
     legendary: 0.60,
 };
+
+// ─── Time pressure ability ──────────────────────────────────────
+
+export const TIME_PRESSURE_DURATION_MS = 15_000;

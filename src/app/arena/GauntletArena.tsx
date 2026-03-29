@@ -6,6 +6,8 @@ import { Zap, Clock, Flame, CheckCircle, XCircle } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import { calculateReward, buildRewardContext } from '@/lib/rewardCalculator';
 import { GAUNTLET_XP_PER_POINT, GAUNTLET_GOLD_PER_POINT, GAUNTLET_COMBO_MULTIPLIERS } from '@/lib/arenaConstants';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { useArenaKnowledgeSync } from '@/hooks/useArenaKnowledgeSync';
 import type { ArenaDifficulty } from '@/store/types';
 import ArenaRewardModal from './ArenaRewardModal';
 
@@ -32,6 +34,10 @@ export default function GauntletArena() {
     const addGold = useGameStore((s) => s.addGold);
     const logActivity = useGameStore((s) => s.logActivity);
     const vocabWords = useGameStore((s) => s.vocabWords);
+    const checkAchievements = useGameStore((s) => s.checkAchievements);
+
+    const { playSuccess, playError, playCoin, playVictory } = useSoundEffects();
+    const { syncGauntletResults } = useArenaKnowledgeSync();
 
     const [difficulty, setDifficulty] = useState<ArenaDifficulty>('medium');
     const [answer, setAnswer] = useState('');
@@ -41,6 +47,7 @@ export default function GauntletArena() {
     const [reward, setReward] = useState({ xp: 0, gold: 0 });
     const [validating, setValidating] = useState(false);
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const correctAnswersRef = useRef<string[]>([]);
 
     // Timer tick
     useEffect(() => {
@@ -58,6 +65,14 @@ export default function GauntletArena() {
         if (gauntlet.status === 'finished' && gauntlet.score > 0) {
             if (timerRef.current) clearInterval(timerRef.current);
 
+            // Check achievements BEFORE endGauntlet resets session state
+            checkAchievements();
+
+            // Sync to knowledge graph
+            if (correctAnswersRef.current.length > 0) {
+                syncGauntletResults(correctAnswersRef.current);
+            }
+
             const state = useGameStore.getState();
             const ctx = buildRewardContext(state);
             const baseXp = Math.floor(gauntlet.score * GAUNTLET_XP_PER_POINT);
@@ -69,6 +84,8 @@ export default function GauntletArena() {
             addGold(goldBreakdown.final);
             logActivity('arena_gauntlet_complete', '⚡', `Completed a ${difficulty} Gauntlet`, `Score: ${gauntlet.score} | Combo: ${gauntlet.maxCombo}x`);
 
+            playVictory();
+
             setReward({ xp: xpBreakdown.final, gold: goldBreakdown.final });
             setShowReward(true);
         }
@@ -76,6 +93,7 @@ export default function GauntletArena() {
 
     const handleStart = useCallback(async () => {
         setArenaLoading(true);
+        correctAnswersRef.current = [];
         try {
             const vocabList = vocabWords.slice(0, 15).map((w) => w.word);
             const res = await fetch('/api/arena/gauntlet', {
@@ -125,10 +143,22 @@ export default function GauntletArena() {
             );
 
             answerGauntletPuzzle(data.correct, isVocabWord);
+
+            if (data.correct) {
+                playSuccess();
+                correctAnswersRef.current.push(answer);
+                // Play coin sound at combo milestones
+                const newCombo = gauntlet.combo + 1;
+                if (newCombo === 3 || newCombo === 5) playCoin();
+            } else {
+                playError();
+            }
+
             setLastResult(data.correct ? 'correct' : 'wrong');
             setTimeout(() => setLastResult(null), 800);
         } catch {
             answerGauntletPuzzle(false, false);
+            playError();
             setLastResult('wrong');
             setTimeout(() => setLastResult(null), 800);
         } finally {
@@ -136,11 +166,13 @@ export default function GauntletArena() {
             setShowHint(false);
             setValidating(false);
         }
-    }, [answer, gauntlet.puzzles, gauntlet.currentPuzzleIndex, vocabWords, answerGauntletPuzzle, validating]);
+    }, [answer, gauntlet.puzzles, gauntlet.currentPuzzleIndex, gauntlet.combo, vocabWords, answerGauntletPuzzle, validating, playSuccess, playError, playCoin]);
 
     const handleRewardClose = () => {
         setShowReward(false);
         endGauntlet();
+        // Check achievements AFTER endGauntlet for stats-based ones
+        checkAchievements();
     };
 
     // Idle
@@ -291,7 +323,10 @@ export default function GauntletArena() {
                     type="text"
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSubmit();
+                        if (e.key === 'Escape') setAnswer('');
+                    }}
                     placeholder="Type your answer..."
                     autoFocus
                     className="flex-1 px-4 py-2.5 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-amber-400"

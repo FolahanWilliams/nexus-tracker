@@ -15,10 +15,11 @@ interface LetterTileProps {
     letter: string;
     selected?: boolean;
     disabled?: boolean;
+    shortcutKey?: string;
     onClick?: () => void;
 }
 
-export default function LetterTile({ letter, selected, disabled, onClick }: LetterTileProps) {
+export default function LetterTile({ letter, selected, disabled, shortcutKey, onClick }: LetterTileProps) {
     const rarity = getLetterRarity(letter);
     const score = LETTER_SCORES[letter.toUpperCase()] ?? 1;
 
@@ -34,6 +35,9 @@ export default function LetterTile({ letter, selected, disabled, onClick }: Lett
                 ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:brightness-125'}
             `}
         >
+            {shortcutKey && (
+                <span className="absolute top-0.5 left-1 text-[9px] opacity-40 font-mono">{shortcutKey}</span>
+            )}
             {letter.toUpperCase()}
             <span className="absolute bottom-0.5 right-1 text-[10px] opacity-60">{score}</span>
         </motion.button>

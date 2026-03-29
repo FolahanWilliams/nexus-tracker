@@ -2,12 +2,15 @@
 
 import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, HelpCircle, CheckCircle, Coins, Eye, BookOpen } from 'lucide-react';
+import { Search, HelpCircle, CheckCircle, Coins, Eye, BookOpen, LayoutGrid } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 import { calculateReward, buildRewardContext } from '@/lib/rewardCalculator';
 import { MYSTERY_BASE_XP, MYSTERY_BASE_GOLD, MYSTERY_HINT_COSTS, MYSTERY_HINT_REWARD_PENALTY } from '@/lib/arenaConstants';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { useArenaKnowledgeSync } from '@/hooks/useArenaKnowledgeSync';
 import type { ArenaDifficulty } from '@/store/types';
 import ArenaRewardModal from './ArenaRewardModal';
+import EvidenceBoard from './EvidenceBoard';
 
 export default function MysteryArena() {
     const mystery = useGameStore((s) => s.arenaMystery);
@@ -25,6 +28,10 @@ export default function MysteryArena() {
     const addGold = useGameStore((s) => s.addGold);
     const logActivity = useGameStore((s) => s.logActivity);
     const spendGold = useGameStore((s) => s.addGold); // negative amount
+    const checkAchievements = useGameStore((s) => s.checkAchievements);
+
+    const { playSuccess, playQuest, playVictory } = useSoundEffects();
+    const { syncMysteryResults } = useArenaKnowledgeSync();
 
     const [difficulty, setDifficulty] = useState<ArenaDifficulty>('medium');
     const [answer, setAnswer] = useState('');
@@ -32,6 +39,7 @@ export default function MysteryArena() {
     const [showReward, setShowReward] = useState(false);
     const [reward, setReward] = useState({ xp: 0, gold: 0 });
     const [validating, setValidating] = useState(false);
+    const [viewMode, setViewMode] = useState<'standard' | 'board'>('standard');
 
     const handleGenerate = useCallback(async () => {
         setArenaLoading(true);
@@ -52,6 +60,7 @@ export default function MysteryArena() {
                 startMystery(data.id, data.title, data.narrative, data.steps);
                 setAnswer('');
                 setFeedback(null);
+                setViewMode('standard');
             }
         } catch {
             // API returns mock fallback
@@ -80,6 +89,7 @@ export default function MysteryArena() {
             const data = await res.json();
 
             if (data.correct) {
+                playSuccess();
                 solveMysteryStep(mystery.currentStep);
                 setFeedback({ text: data.feedback || 'Correct!', correct: true });
 
@@ -99,7 +109,7 @@ export default function MysteryArena() {
             setAnswer('');
             setValidating(false);
         }
-    }, [answer, mystery.steps, mystery.currentStep, solveMysteryStep, validating]);
+    }, [answer, mystery.steps, mystery.currentStep, solveMysteryStep, validating, playSuccess]);
 
     const handleUseHint = useCallback(() => {
         const step = mystery.steps[mystery.currentStep];
@@ -109,11 +119,22 @@ export default function MysteryArena() {
         if (cost > 0 && gold < cost) return;
 
         if (cost > 0) spendGold(-cost);
+        playQuest();
         useMysteryHint(mystery.currentStep);
-    }, [mystery.steps, mystery.currentStep, gold, spendGold, useMysteryHint]);
+    }, [mystery.steps, mystery.currentStep, gold, spendGold, useMysteryHint, playQuest]);
 
     const handleMysteryComplete = useCallback(() => {
         const state = useGameStore.getState();
+
+        // Check achievements BEFORE endMystery resets session state
+        checkAchievements();
+
+        // Sync to knowledge graph before state reset
+        syncMysteryResults(
+            state.arenaMystery.title,
+            state.arenaMystery.steps.filter((s) => s.solved),
+        );
+
         const ctx = buildRewardContext(state);
         const hintPenalty = 1 - state.arenaMystery.hintsUsedTotal * MYSTERY_HINT_REWARD_PENALTY;
         const baseXp = Math.floor(MYSTERY_BASE_XP[difficulty] * Math.max(0.5, hintPenalty));
@@ -126,13 +147,17 @@ export default function MysteryArena() {
         addGold(goldBreakdown.final);
         logActivity('arena_mystery_solved', '🔍', `Solved "${state.arenaMystery.title}"`, `${state.arenaMystery.hintsUsedTotal} hints used`);
 
+        playVictory();
+
         setReward({ xp: xpBreakdown.final, gold: goldBreakdown.final });
         setShowReward(true);
-    }, [difficulty, addXP, addGold, logActivity]);
+    }, [difficulty, addXP, addGold, logActivity, checkAchievements, syncMysteryResults, playVictory]);
 
     const handleRewardClose = () => {
         setShowReward(false);
         endMystery(true);
+        // Check achievements AFTER endMystery for stats-based ones
+        checkAchievements();
     };
 
     const handleAbandon = () => {
@@ -210,75 +235,98 @@ export default function MysteryArena() {
     // Active investigation
     return (
         <div className="space-y-4">
-            {/* Title + narrative */}
-            <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-4">
-                <h2 className="text-lg font-bold mb-1">{mystery.title}</h2>
-                <p className="text-sm text-[var(--color-text-secondary)] italic">{mystery.narrative}</p>
+            {/* View toggle + progress */}
+            <div className="flex items-center justify-between">
+                <div className="flex gap-2 flex-1">
+                    {mystery.steps.map((step, i) => (
+                        <div
+                            key={step.id}
+                            className={`flex-1 h-2 rounded-full ${
+                                step.solved ? 'bg-emerald-400' :
+                                i === mystery.currentStep ? 'bg-emerald-400/40' :
+                                'bg-[var(--color-bg-dark)]'
+                            }`}
+                        />
+                    ))}
+                </div>
+                <button
+                    onClick={() => setViewMode(viewMode === 'standard' ? 'board' : 'standard')}
+                    className={`ml-3 p-1.5 rounded-md transition-colors ${
+                        viewMode === 'board' ? 'bg-emerald-500/20 text-emerald-400' : 'text-[var(--color-text-muted)] hover:text-emerald-400'
+                    }`}
+                    title="Toggle Evidence Board"
+                >
+                    <LayoutGrid size={16} />
+                </button>
             </div>
 
-            {/* Progress */}
-            <div className="flex gap-2">
-                {mystery.steps.map((step, i) => (
-                    <div
-                        key={step.id}
-                        className={`flex-1 h-2 rounded-full ${
-                            step.solved ? 'bg-emerald-400' :
-                            i === mystery.currentStep ? 'bg-emerald-400/40' :
-                            'bg-[var(--color-bg-dark)]'
-                        }`}
-                    />
-                ))}
-            </div>
+            {/* Evidence Board view OR Standard view */}
+            {viewMode === 'board' ? (
+                <EvidenceBoard
+                    title={mystery.title}
+                    narrative={mystery.narrative}
+                    steps={mystery.steps}
+                    currentStep={mystery.currentStep}
+                />
+            ) : (
+                <>
+                    {/* Title + narrative */}
+                    <div className="bg-[var(--color-bg-card)] border border-[var(--color-border)] rounded-xl p-4">
+                        <h2 className="text-lg font-bold mb-1">{mystery.title}</h2>
+                        <p className="text-sm text-[var(--color-text-secondary)] italic">{mystery.narrative}</p>
+                    </div>
 
-            {/* Clues from previous steps */}
-            {mystery.steps.filter((s) => s.solved && s.clueRevealed).map((s, i) => (
-                <div key={s.id} className="flex items-start gap-2 text-sm text-emerald-400/80 bg-emerald-900/10 rounded-lg p-2">
-                    <CheckCircle size={14} className="mt-0.5 shrink-0" />
-                    <span>Clue {i + 1}: {s.clueRevealed}</span>
-                </div>
-            ))}
+                    {/* Clues from previous steps */}
+                    {mystery.steps.filter((s) => s.solved && s.clueRevealed).map((s, i) => (
+                        <div key={s.id} className="flex items-start gap-2 text-sm text-emerald-400/80 bg-emerald-900/10 rounded-lg p-2">
+                            <CheckCircle size={14} className="mt-0.5 shrink-0" />
+                            <span>Clue {i + 1}: {s.clueRevealed}</span>
+                        </div>
+                    ))}
 
-            {/* Current riddle */}
-            <div className="bg-[var(--color-bg-card)] border border-emerald-500/30 rounded-xl p-5">
-                <div className="flex items-center gap-2 mb-3">
-                    <HelpCircle size={16} className="text-emerald-400" />
-                    <span className="text-xs font-semibold uppercase text-[var(--color-text-muted)]">
-                        Riddle {mystery.currentStep + 1} of {mystery.steps.length}
-                    </span>
-                </div>
-                <p className="text-lg mb-4">{currentStep.riddle}</p>
+                    {/* Current riddle */}
+                    <div className="bg-[var(--color-bg-card)] border border-emerald-500/30 rounded-xl p-5">
+                        <div className="flex items-center gap-2 mb-3">
+                            <HelpCircle size={16} className="text-emerald-400" />
+                            <span className="text-xs font-semibold uppercase text-[var(--color-text-muted)]">
+                                Riddle {mystery.currentStep + 1} of {mystery.steps.length}
+                            </span>
+                        </div>
+                        <p className="text-lg mb-4">{currentStep.riddle}</p>
 
-                {/* Hints */}
-                {currentStep.hintsUsed > 0 && (
-                    <div className="space-y-1 mb-3">
-                        {currentStep.hintsUsed >= 1 && (
-                            <p className="text-sm text-amber-400 italic"><Eye size={12} className="inline mr-1" /> {currentStep.hint1}</p>
+                        {/* Hints */}
+                        {currentStep.hintsUsed > 0 && (
+                            <div className="space-y-1 mb-3">
+                                {currentStep.hintsUsed >= 1 && (
+                                    <p className="text-sm text-amber-400 italic"><Eye size={12} className="inline mr-1" /> {currentStep.hint1}</p>
+                                )}
+                                {currentStep.hintsUsed >= 2 && (
+                                    <p className="text-sm text-amber-400 italic"><Eye size={12} className="inline mr-1" /> {currentStep.hint2}</p>
+                                )}
+                                {currentStep.hintsUsed >= 3 && (
+                                    <p className="text-sm text-amber-400 italic"><Eye size={12} className="inline mr-1" /> {currentStep.hint3}</p>
+                                )}
+                            </div>
                         )}
-                        {currentStep.hintsUsed >= 2 && (
-                            <p className="text-sm text-amber-400 italic"><Eye size={12} className="inline mr-1" /> {currentStep.hint2}</p>
-                        )}
-                        {currentStep.hintsUsed >= 3 && (
-                            <p className="text-sm text-amber-400 italic"><Eye size={12} className="inline mr-1" /> {currentStep.hint3}</p>
+
+                        {currentStep.hintsUsed < 3 && (
+                            <button
+                                onClick={handleUseHint}
+                                disabled={MYSTERY_HINT_COSTS[currentStep.hintsUsed] > 0 && gold < MYSTERY_HINT_COSTS[currentStep.hintsUsed]}
+                                className="text-xs text-amber-400 hover:text-amber-300 disabled:text-[var(--color-text-muted)] disabled:cursor-not-allowed flex items-center gap-1"
+                            >
+                                <Eye size={12} />
+                                Use Hint
+                                {MYSTERY_HINT_COSTS[currentStep.hintsUsed] > 0 && (
+                                    <span className="flex items-center gap-0.5">
+                                        (<Coins size={10} /> {MYSTERY_HINT_COSTS[currentStep.hintsUsed]} gold)
+                                    </span>
+                                )}
+                            </button>
                         )}
                     </div>
-                )}
-
-                {currentStep.hintsUsed < 3 && (
-                    <button
-                        onClick={handleUseHint}
-                        disabled={MYSTERY_HINT_COSTS[currentStep.hintsUsed] > 0 && gold < MYSTERY_HINT_COSTS[currentStep.hintsUsed]}
-                        className="text-xs text-amber-400 hover:text-amber-300 disabled:text-[var(--color-text-muted)] disabled:cursor-not-allowed flex items-center gap-1"
-                    >
-                        <Eye size={12} />
-                        Use Hint
-                        {MYSTERY_HINT_COSTS[currentStep.hintsUsed] > 0 && (
-                            <span className="flex items-center gap-0.5">
-                                (<Coins size={10} /> {MYSTERY_HINT_COSTS[currentStep.hintsUsed]} gold)
-                            </span>
-                        )}
-                    </button>
-                )}
-            </div>
+                </>
+            )}
 
             {/* Feedback */}
             <AnimatePresence>
@@ -302,7 +350,10 @@ export default function MysteryArena() {
                     type="text"
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSubmitAnswer()}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSubmitAnswer();
+                        if (e.key === 'Escape') setAnswer('');
+                    }}
                     placeholder="Type your answer..."
                     autoFocus
                     className="flex-1 px-4 py-2.5 bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-lg text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:border-emerald-400"

@@ -702,6 +702,8 @@ export interface ArenaBattleState {
     wordsUsed: string[];
     vocabStrikes: number;
     totalDamageDealt: number;
+    turnTimerDeadlineMs: number | null;
+    lastAbilityMessage: string | null;
     status: 'idle' | 'active' | 'victory' | 'defeat';
 }
 
