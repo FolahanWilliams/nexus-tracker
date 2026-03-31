@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Save } from 'lucide-react';
+import { Save, Loader2, Sparkles } from 'lucide-react';
 import { useGameStore } from '@/store/useGameStore';
 
 interface Props {
@@ -26,9 +26,39 @@ export default function TransferDrillForm({ onComplete }: Props) {
     const [analogy2, setAnalogy2] = useState('');
     const [analogy3, setAnalogy3] = useState('');
     const [universalPrinciple, setUniversalPrinciple] = useState('');
+    const [aiScore, setAiScore] = useState<number | null>(null);
+    const [aiFeedback, setAiFeedback] = useState('');
+    const [analogyScores, setAnalogyScores] = useState<number[] | null>(null);
+    const [principleScore, setPrincipleScore] = useState<number | null>(null);
+    const [loading, setLoading] = useState(false);
 
     const selectedCard = modelCards.find((c) => c.id === modelCardId);
     const canSubmit = modelCardId && analogy1.trim() && analogy2.trim() && analogy3.trim() && universalPrinciple.trim();
+
+    const handleEvaluate = async () => {
+        if (!canSubmit || !selectedCard) return;
+        setLoading(true);
+        try {
+            const res = await fetch('/api/hits', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'evaluate_transfer',
+                    modelName: selectedCard.name,
+                    modelDefinition: selectedCard.definition,
+                    domains: [domain1.trim() || 'Domain 1', domain2.trim() || 'Domain 2', domain3.trim() || 'Domain 3'],
+                    analogies: [analogy1.trim(), analogy2.trim(), analogy3.trim()],
+                    universalPrinciple: universalPrinciple.trim(),
+                }),
+            });
+            const data = await res.json();
+            if (data.score != null) setAiScore(data.score);
+            if (data.feedback) setAiFeedback(data.feedback);
+            if (data.analogyScores) setAnalogyScores(data.analogyScores);
+            if (data.principleScore != null) setPrincipleScore(data.principleScore);
+        } catch { /* silent */ }
+        setLoading(false);
+    };
 
     const handleSubmit = () => {
         if (!canSubmit) return;
@@ -37,9 +67,13 @@ export default function TransferDrillForm({ onComplete }: Props) {
             domains: [domain1.trim() || 'Domain 1', domain2.trim() || 'Domain 2', domain3.trim() || 'Domain 3'],
             analogies: [analogy1.trim(), analogy2.trim(), analogy3.trim()],
             universalPrinciple: universalPrinciple.trim(),
+            aiScore: aiScore ?? undefined,
+            aiFeedback: aiFeedback || undefined,
         });
         onComplete?.();
     };
+
+    const inputCls = "bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-purple)]";
 
     return (
         <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
@@ -54,7 +88,7 @@ export default function TransferDrillForm({ onComplete }: Props) {
                     <select
                         value={modelCardId}
                         onChange={(e) => setModelCardId(e.target.value)}
-                        className="w-full bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-purple)]"
+                        className={`w-full ${inputCls}`}
                     >
                         {modelCards.slice(0, 20).map((c) => (
                             <option key={c.id} value={c.id}>{c.name}</option>
@@ -80,19 +114,28 @@ export default function TransferDrillForm({ onComplete }: Props) {
                 { domain: domain2, setDomain: setDomain2, analogy: analogy2, setAnalogy: setAnalogy2, num: 2 },
                 { domain: domain3, setDomain: setDomain3, analogy: analogy3, setAnalogy: setAnalogy3, num: 3 },
             ].map(({ domain, setDomain, analogy, setAnalogy, num }) => (
-                <div key={num} className="grid grid-cols-[120px_1fr] gap-2">
-                    <input
-                        value={domain}
-                        onChange={(e) => setDomain(e.target.value)}
-                        placeholder={`Domain ${num}`}
-                        className="bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-purple)]"
-                    />
-                    <input
-                        value={analogy}
-                        onChange={(e) => setAnalogy(e.target.value)}
-                        placeholder={`How does the model apply in this domain?`}
-                        className="bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-purple)]"
-                    />
+                <div key={num} className="space-y-1">
+                    <div className="grid grid-cols-[120px_1fr] gap-2">
+                        <input
+                            value={domain}
+                            onChange={(e) => setDomain(e.target.value)}
+                            placeholder={`Domain ${num}`}
+                            className={inputCls}
+                        />
+                        <input
+                            value={analogy}
+                            onChange={(e) => setAnalogy(e.target.value)}
+                            placeholder={`How does the model apply in this domain?`}
+                            className={inputCls}
+                        />
+                    </div>
+                    {analogyScores && analogyScores[num - 1] != null && (
+                        <div className="pl-[128px]">
+                            <span className={`text-[10px] font-bold ${analogyScores[num - 1] >= 70 ? 'text-[var(--color-green)]' : analogyScores[num - 1] >= 40 ? 'text-[var(--color-yellow)]' : 'text-red-400'}`}>
+                                Analogy Score: {analogyScores[num - 1]}/100
+                            </span>
+                        </div>
+                    )}
                 </div>
             ))}
 
@@ -103,18 +146,42 @@ export default function TransferDrillForm({ onComplete }: Props) {
                     onChange={(e) => setUniversalPrinciple(e.target.value)}
                     placeholder="The universal principle that connects all three..."
                     rows={3}
-                    className="w-full bg-[var(--color-bg-dark)] border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm text-[var(--color-text-primary)] placeholder:text-[var(--color-text-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--color-purple)]"
+                    className={`w-full ${inputCls}`}
                 />
+                {principleScore != null && (
+                    <span className={`text-[10px] font-bold mt-1 block ${principleScore >= 70 ? 'text-[var(--color-green)]' : principleScore >= 40 ? 'text-[var(--color-yellow)]' : 'text-red-400'}`}>
+                        Principle Score: {principleScore}/100
+                    </span>
+                )}
             </label>
 
-            <button
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-lg bg-[var(--color-green)] text-white hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-                <Save size={16} />
-                Save Transfer Drill
-            </button>
+            {aiScore !== null && (
+                <div className="p-3 rounded-lg bg-[var(--color-bg-dark)] border border-[var(--color-border)]">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-[var(--color-purple)]">AI Transfer Score: {aiScore}/100</span>
+                    </div>
+                    {aiFeedback && <p className="text-xs text-[var(--color-text-muted)]">{aiFeedback}</p>}
+                </div>
+            )}
+
+            <div className="flex gap-2">
+                <button
+                    onClick={handleEvaluate}
+                    disabled={!canSubmit || loading}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-[var(--color-purple)]/20 text-[var(--color-purple)] hover:bg-[var(--color-purple)]/30 transition-colors disabled:opacity-40"
+                >
+                    {loading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    AI Evaluate
+                </button>
+                <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold rounded-lg bg-[var(--color-green)] text-white hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    <Save size={16} />
+                    Save Transfer Drill
+                </button>
+            </div>
         </motion.div>
     );
 }

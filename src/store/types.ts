@@ -832,6 +832,7 @@ export interface TransferDrill {
     universalPrinciple: string;
     createdAt: string;
     aiScore?: number;
+    aiFeedback?: string;
 }
 
 export interface HitsOutput {
@@ -872,6 +873,7 @@ export interface RecallTest {
     recalledExample: string;
     recalledActionRule: string;
     score: number;
+    aiFeedback?: string;
     createdAt: string;
 }
 
