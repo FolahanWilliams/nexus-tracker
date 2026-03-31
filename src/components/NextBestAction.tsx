@@ -31,7 +31,7 @@ export default function NextBestAction() {
         vocabWords, vocabDailyDate, vocabStreak,
     } = useGameStore();
 
-    const { setOpen: setHootOpen } = useHootStore();
+    const { setOpen: setHootOpen, setQueuedMessage } = useHootStore();
 
     const [today] = useState(() => new Date().toISOString().split('T')[0]);
     const [hour] = useState(() => new Date().getHours());
@@ -284,7 +284,10 @@ export default function NextBestAction() {
 
                     if (action.hootMessage) {
                         return (
-                            <div key={action.id} onClick={() => setHootOpen(true)}>
+                            <div key={action.id} onClick={() => {
+                                setQueuedMessage(action.hootMessage!);
+                                setHootOpen(true);
+                            }}>
                                 {inner}
                             </div>
                         );

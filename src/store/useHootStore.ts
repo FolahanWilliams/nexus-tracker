@@ -43,6 +43,7 @@ interface HootState {
     messages: HootMessage[];
     isOpen: boolean;
     planningContext: PlanningContext | null;
+    queuedMessage: string | null;
 
     // Actions
     addMessage: (msg: Omit<HootMessage, 'id' | 'timestamp'>) => void;
@@ -51,6 +52,7 @@ interface HootState {
     setOpen: (open: boolean) => void;
     setPlanningContext: (plan: PlanningContext | null) => void;
     advancePlanStep: () => void;
+    setQueuedMessage: (msg: string | null) => void;
 }
 
 // ── Session-scoped persistence ───────────────────────────────────────────
@@ -88,6 +90,7 @@ export const useHootStore = create<HootState>()((set, get) => ({
     messages: initial.messages,
     isOpen: false,
     planningContext: initial.planningContext,
+    queuedMessage: null,
 
     addMessage: (msg) => {
         const newMsg: HootMessage = {
@@ -120,6 +123,8 @@ export const useHootStore = create<HootState>()((set, get) => ({
     },
 
     setOpen: (open) => set({ isOpen: open }),
+
+    setQueuedMessage: (msg) => set({ queuedMessage: msg }),
 
     setPlanningContext: (plan) => {
         set({ planningContext: plan });
