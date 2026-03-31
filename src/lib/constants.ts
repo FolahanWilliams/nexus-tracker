@@ -163,6 +163,82 @@ export const DAILY_QUEST_TEMPLATES = [
     { title: 'Complete a quest chain step', difficulty: 'Medium' as const, xp: 35 },
 ];
 
+// ─── HITS (Horizontal Intelligence Training) ───────────────────
+
+import type { KnowledgePillar, CognitiveFailureMode } from '@/store/types';
+
+export const HITS_BLOCK_XP = { A: 40, B: 25, C: 50, D: 20, E: 30 } as const;
+export const HITS_BLOCK_GOLD = { A: 8, B: 5, C: 10, D: 4, E: 6 } as const;
+export const HITS_FULL_SESSION_BONUS = { xp: 50, gold: 10 } as const;
+export const HITS_WEEKLY_SYNTHESIS_XP = 100;
+export const HITS_WEEKLY_SYNTHESIS_GOLD = 20;
+export const HITS_MONTHLY_CHALLENGE_XP = 200;
+export const HITS_MONTHLY_CHALLENGE_GOLD = 50;
+export const HITS_BIWEEKLY_ESSAY_XP = 150;
+export const HITS_BIWEEKLY_ESSAY_GOLD = 30;
+
+export const HITS_PILLAR_SCHEDULE: Record<number, KnowledgePillar> = {
+    1: 'psychology',
+    2: 'strategy',
+    3: 'systems',
+    4: 'probability',
+    5: 'communication',
+    6: 'tech',
+    0: 'synthesis',
+};
+
+export const HITS_PILLAR_LABELS: Record<KnowledgePillar, string> = {
+    psychology: 'Psychology & Behavioral Science',
+    strategy: 'Strategy & Business',
+    systems: 'Systems Thinking',
+    probability: 'Probability & Decision Theory',
+    communication: 'Communication & Sales',
+    tech: 'Tech & AI',
+    synthesis: 'Synthesis & Review',
+};
+
+export const HITS_PILLAR_COLORS: Record<KnowledgePillar, string> = {
+    psychology: '#f472b6',
+    strategy: '#fb923c',
+    systems: '#34d399',
+    probability: '#60a5fa',
+    communication: '#a78bfa',
+    tech: '#22d3ee',
+    synthesis: '#fbbf24',
+};
+
+export const HITS_COGNITIVE_FAILURES: Record<CognitiveFailureMode, string> = {
+    rushed: 'I rushed and didn\'t understand',
+    overconsumed: 'I overconsumed and didn\'t output',
+    avoided_hard_thinking: 'I avoided hard thinking',
+    stayed_abstract: 'I stayed abstract and didn\'t apply',
+    no_test: 'I didn\'t test my understanding',
+    confused_familiarity: 'I confused familiarity with mastery',
+};
+
+export const HITS_REFLECTION_QUESTIONS = [
+    'What did I misunderstand at first?',
+    'Where did I feel resistance or confusion?',
+    'What was easy today? Why?',
+    'What pattern do I notice in how I learn?',
+    'What is the one thing I would teach someone else?',
+    'What did I do that was inefficient?',
+    'What should I change tomorrow?',
+] as const;
+
+export const HITS_SCOREBOARD_TARGETS = {
+    modelCards: 7,
+    speakingReps: 1,
+    essays: 1,
+    synthesis: 1,
+    founderDocs: 1,
+    deepWorkSprints: 2,
+} as const;
+
+export const HITS_MODEL_CARDS_MAX = 500;
+export const HITS_OUTPUTS_MAX = 200;
+export const HITS_REFLECTIONS_MAX = 365;
+
 // ─── Bounded Arrays ─────────────────────────────────────────────
 
 /** Maximum entries kept in the activity log. */

@@ -30,6 +30,9 @@ const TYPE_COLORS: Record<ActivityEntry['type'], string> = {
     arena_battle_won: 'var(--color-purple)',
     arena_gauntlet_complete: 'var(--color-yellow)',
     arena_mystery_solved: 'var(--color-green)',
+    hits_block_complete: 'var(--color-purple)',
+    hits_weekly_complete: 'var(--color-blue)',
+    hits_monthly_complete: 'var(--color-yellow)',
 };
 
 export default memo(function RecentActivityFeed() {
