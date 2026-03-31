@@ -77,6 +77,14 @@ export default function ReviewTab() {
   const [sentenceGrading, setSentenceGrading] = useState(false);
   const [sentenceGrade, setSentenceGrade] = useState<SentenceGradeResult | null>(null);
 
+  // Reset stale review mode — if mode is active but no data loaded, reset to idle
+  useEffect(() => {
+    if (mode !== 'idle' && mode !== 'done' && studyBatch.length === 0 && questions.length === 0) {
+      setMode('idle');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const today = new Date().toISOString().split('T')[0];
   const dueWords = useMemo(
     () => vocabWords.filter(w => w.nextReviewDate <= today),

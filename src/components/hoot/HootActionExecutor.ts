@@ -530,6 +530,35 @@ export async function executeHootActions(
                     results.push(lines.join('\n'));
                     break;
                 }
+                case 'suggest_hits_content': {
+                    const topic = params.topic as string;
+                    const contentType = (params.contentType as string) || 'any';
+                    const pillar = state.hitsDailySession?.pillar || '';
+                    const recentModels = state.hitsModelCards.slice(-5).map(c => c.name).join(', ');
+
+                    let query = `best ${contentType !== 'any' ? contentType + 's' : 'articles and resources'} about "${topic}" mental models`;
+                    if (pillar) query += ` ${pillar}`;
+                    if (recentModels) query += ` related to ${recentModels}`;
+                    query += ' learning thinking frameworks';
+
+                    try {
+                        const searchRes = await fetch('/api/hoot-search', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query }),
+                        });
+                        const searchData = await searchRes.json();
+                        if (searchData.result) {
+                            results.push(`📚 HITS Content Suggestions for "${topic}":\n${searchData.result}`);
+                        } else {
+                            results.push(`⚠️ Couldn't find content for "${topic}". Try a different topic or keyword.`);
+                        }
+                    } catch (err) {
+                        logger.error('HITS content search error', 'Hoot', err);
+                        results.push(`⚠️ Content search encountered an error.`);
+                    }
+                    break;
+                }
                 default:
                     results.push(`⚠️ Unknown action: ${action}`);
             }

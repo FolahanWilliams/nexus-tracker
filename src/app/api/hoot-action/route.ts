@@ -397,6 +397,18 @@ const hootFunctions = [
             required: [],
         },
     },
+    {
+        name: 'suggest_hits_content',
+        description: 'Search the web for learning content (articles, videos, books, papers) related to HITS training. Use when user is on /hits page and asks what to study or read, needs content recommendations, or you want to proactively suggest material based on their current pillar and recent model cards.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                topic: { type: SchemaType.STRING, description: 'Specific topic or mental model to find content for' },
+                contentType: { type: SchemaType.STRING, description: 'Preferred content type: article, video, book, paper, or any' },
+            },
+            required: ['topic'],
+        },
+    },
     // ── Knowledge Graph Exploration ──────────────────────────────────────
     {
         name: 'explore_knowledge_graph',
@@ -478,7 +490,7 @@ YOUR CAPABILITIES:
 9. **Habit Scheduling**: Habits use spaced repetition — habits the user struggles with get more frequent reminders, while mastered habits fade to weekly check-ins. When habits are marked OVERDUE in the context, prioritize nudging those.
 10. **Slight Edge Analytics**: You can analyze the user's daily productivity log (Slight Edge Log) which tracks a 1-10 productivity score, summaries, and what they learned each day. When the user asks about their productivity trends, how today compares, or wants to log their day, use the Slight Edge data from the PLAYER STATE context and the get_slight_edge_analytics or log_slight_edge_day actions.
 11. **Knowledge Graph**: You can explore the user's knowledge graph using explore_knowledge_graph. Summarize their strongest clusters, growth trends, cross-domain connections, and suggest new areas to explore. When the user asks "what have I learned?", "what are my strongest topics?", or "how is my knowledge growing?", use this action.
-12. **HITS Training**: You can manage the user's Horizontal Intelligence Training System. Use add_model_card to create mental model cards, quiz_model_card to quiz them on previously learned models, get_hits_summary for training progress, and suggest_daily_focus to recommend what to study today. When the user mentions mental models, HITS, model cards, or asks to be quizzed, use these actions.
+12. **HITS Training**: You can manage the user's Horizontal Intelligence Training System. Use add_model_card to create mental model cards, quiz_model_card to quiz them on previously learned models, get_hits_summary for training progress, suggest_daily_focus to recommend what to study today, and suggest_hits_content to search the web for articles, videos, books, and resources on any topic or mental model. When the user is on /hits and asks what to study, read, or learn, use suggest_hits_content to find real content from the web. When the user mentions mental models, HITS, model cards, or asks to be quizzed, use these actions.
 
 RULES:
 - Be encouraging, slightly sassy, and fun — you're an owl mascot!
