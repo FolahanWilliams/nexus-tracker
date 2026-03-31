@@ -5,7 +5,7 @@ import { withAuth } from '@/lib/with-auth';
 import { sanitizePromptInput } from '@/lib/sanitize';
 
 interface HitsRequest {
-    type: 'suggest_model' | 'evaluate_output' | 'score_recall' | 'generate_challenge_topic' | 'evaluate_transfer' | 'detect_connections' | 'generate_founder_insight';
+    type: 'suggest_model' | 'evaluate_output' | 'score_recall' | 'generate_challenge_topic' | 'evaluate_transfer' | 'detect_connections' | 'generate_founder_insight' | 'detect_conflicts';
     pillar?: string;
     outputType?: string;
     content?: string;
@@ -22,6 +22,9 @@ interface HitsRequest {
     // generate_founder_insight
     modelCard?: { name: string; definition: string; coreMechanism: string; actionRule: string; examples: Record<string, string> };
     startupContext?: string;
+    // detect_conflicts
+    newCard?: { name: string; definition: string; coreMechanism: string };
+    existingCards?: { id: string; name: string; definition: string; coreMechanism: string }[];
 }
 
 export const POST = withAuth(async (request) => {
@@ -302,6 +305,78 @@ Return JSON:
   "risk": "The primary risk or blind spot of following this model here (1-2 sentences)",
   "experiment": "A concrete experiment to test this decision (2-3 sentences with measurable outcome)",
   "secondOrderEffects": "What happens after the first-order effect plays out (2-3 sentences)"
+}`
+            );
+            const text = result.response.text();
+            return NextResponse.json(extractJSON(text));
+        }
+
+        // ── DETECT CONFLICTS & AUTO-MERGE ──
+        if (body.type === 'detect_conflicts') {
+            const mockConflict = {
+                hasConflict: true,
+                conflictType: 'overlapping',
+                conflictingCardId: 'mock-id',
+                conflictingCardName: 'Existing Model',
+                explanation: 'These models describe similar concepts from different angles.',
+                mergedCard: {
+                    name: 'Merged Model',
+                    definition: 'A unified definition combining both perspectives.',
+                    coreMechanism: 'The combined mechanism incorporating both models.',
+                    limitations: 'Updated limitations considering both viewpoints.',
+                    actionRule: 'A synthesized action rule.',
+                    keyQuestion: 'What unified question does this answer?',
+                },
+            };
+            const mock = hasApiKeyOrMock(mockConflict);
+            if (mock) return mock;
+
+            const newCard = body.newCard;
+            const existingCards = body.existingCards || [];
+            if (!newCard || existingCards.length === 0) {
+                return NextResponse.json({ hasConflict: false });
+            }
+
+            const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+            const cardSummaries = existingCards.map((c, i) =>
+                `[${i}] ID:${c.id} | "${c.name}" — ${c.definition}. Mechanism: ${c.coreMechanism}`
+            ).join('\n');
+
+            const result = await model.generateContent(
+                `You are an expert in mental models and epistemology. A user is creating a new mental model card. Check if it conflicts with, duplicates, or significantly overlaps any existing model cards.
+
+NEW MODEL CARD:
+Name: ${newCard.name}
+Definition: ${newCard.definition}
+Core Mechanism: ${newCard.coreMechanism}
+
+EXISTING MODEL CARDS:
+${cardSummaries}
+
+Analyze whether the new card:
+1. DUPLICATES an existing card (same model, different wording)
+2. CONTRADICTS an existing card (opposing claims about how things work)
+3. OVERLAPS significantly with an existing card (covers similar ground but with different focus)
+
+If there IS a conflict/overlap/duplicate, generate a MERGED card that synthesizes both perspectives into a stronger, more complete model card.
+
+If there is NO meaningful conflict, return hasConflict: false.
+
+Return JSON:
+{
+  "hasConflict": boolean,
+  "conflictType": "duplicate" | "contradicts" | "overlapping" | null,
+  "conflictingCardId": "<id of the conflicting existing card>" | null,
+  "conflictingCardName": "<name of conflicting card>" | null,
+  "explanation": "1-2 sentences explaining the conflict/overlap" | null,
+  "mergedCard": {
+    "name": "Merged/synthesized model name",
+    "definition": "Unified definition",
+    "coreMechanism": "Combined mechanism",
+    "limitations": "Updated limitations",
+    "actionRule": "Synthesized action rule",
+    "keyQuestion": "Unified key question"
+  } | null
 }`
             );
             const text = result.response.text();
