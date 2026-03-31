@@ -132,6 +132,7 @@ export default function HootFAB() {
         messages, addMessage, updateLastHootMessage, clearMessages,
         isOpen, setOpen,
         planningContext, setPlanningContext, advancePlanStep,
+        queuedMessage, setQueuedMessage,
     } = useHootStore();
 
     const [input, setInput] = useState('');
@@ -245,6 +246,16 @@ export default function HootFAB() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [reflectionNotes.length]);
 
+    // ── Consume queued messages from external components (e.g. NextBestAction) ──
+    useEffect(() => {
+        if (isOpen && queuedMessage) {
+            const msg = queuedMessage;
+            setQueuedMessage(null);
+            sendMessage(msg);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, queuedMessage]);
+
     // -- Guardian Mode: Pulse-Powered Trigger Engine --
     useEffect(() => {
         if (isOpen || isFocusTimerRunning) return;
@@ -290,7 +301,7 @@ export default function HootFAB() {
             if (pulseData && checkTrigger('burnout_warning', () => (pulseData?.burnoutRisk ?? 0) > 0.6, {
                 text: "Nexus Pulse detects high burnout risk. Consider lighter tasks or a break today.",
                 actionLabel: "Lighter tasks",
-                actions: [{ action: 'navigate', params: { path: '/quests' } }],
+                actions: [{ action: 'navigate', params: { page: '/quests' } }],
                 priority: 'high',
                 type: 'quest'
             })) return;
@@ -300,7 +311,7 @@ export default function HootFAB() {
             if (hasHardQuest && pulseData?.momentum === 'rising' && checkTrigger('momentum_push', () => true, {
                 text: "Your momentum is rising — perfect time to tackle a Hard quest!",
                 actionLabel: "Let's go",
-                actions: [{ action: 'navigate', params: { path: '/quests' } }],
+                actions: [{ action: 'navigate', params: { page: '/quests' } }],
                 priority: 'medium',
                 type: 'quest'
             })) return;
@@ -331,7 +342,7 @@ export default function HootFAB() {
             if (dueVocab >= 10 && checkTrigger('vocab_pileup', () => true, {
                 text: `${dueVocab} vocab words are due for review. A quick 5-minute session can keep your memory fresh!`,
                 actionLabel: "Review now",
-                actions: [{ action: 'navigate', params: { path: '/forge' } }],
+                actions: [{ action: 'navigate', params: { page: '/forge' } }],
                 priority: 'medium',
                 type: 'quest'
             })) return;
