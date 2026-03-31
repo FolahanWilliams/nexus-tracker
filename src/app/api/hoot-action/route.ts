@@ -107,7 +107,7 @@ const hootFunctions = [
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /focus, /journal, /character, /forge, /progress, /insights, /settings' },
+                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /focus, /journal, /character, /forge, /hits, /progress, /insights, /settings' },
                 reason: { type: SchemaType.STRING, description: 'Brief reason for suggesting this page' },
             },
             required: ['page'],
@@ -344,6 +344,59 @@ const hootFunctions = [
             required: ['goal'],
         },
     },
+    // ── HITS Training ─────────────────────────────────────────────────────
+    {
+        name: 'add_model_card',
+        description: 'Create a new HITS mental model card. Use when the user asks to add a model, learn a mental model, or wants to create a model card for their HITS training.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                name: { type: SchemaType.STRING, description: 'Name of the mental model (e.g., "Incentives", "Second-Order Thinking")' },
+                definition: { type: SchemaType.STRING, description: 'One-sentence definition of the model' },
+                coreMechanism: { type: SchemaType.STRING, description: 'How the model works' },
+                exampleHistory: { type: SchemaType.STRING, description: 'Historical example of the model' },
+                exampleBusiness: { type: SchemaType.STRING, description: 'Business example' },
+                exampleStartups: { type: SchemaType.STRING, description: 'Startup example' },
+                examplePersonal: { type: SchemaType.STRING, description: 'Personal life example' },
+                limitations: { type: SchemaType.STRING, description: 'When the model fails or breaks down' },
+                actionRule: { type: SchemaType.STRING, description: 'What to do with this knowledge' },
+                keyQuestion: { type: SchemaType.STRING, description: 'The question this model helps answer' },
+                pillar: { type: SchemaType.STRING, description: 'Knowledge pillar: psychology, strategy, systems, probability, communication, tech, or synthesis' },
+            },
+            required: ['name', 'definition', 'coreMechanism'],
+        },
+    },
+    {
+        name: 'quiz_model_card',
+        description: 'Quiz the user on a previously learned mental model card from their HITS library. Use when the user asks to be quizzed, wants to test their recall, or asks "quiz me" or "test my knowledge".',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                modelName: { type: SchemaType.STRING, description: 'Optional: specific model name to quiz on (fuzzy match OK). If not provided, picks a random model.' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'get_hits_summary',
+        description: 'Get a summary of the user\'s HITS training progress. Use when the user asks about their HITS progress, training stats, model card count, streak, or learning progress.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                period: { type: SchemaType.STRING, description: 'Summary period: "today", "week" (default), or "all"' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'suggest_daily_focus',
+        description: 'Suggest what the user should focus on for today\'s HITS training session. Use when the user asks what to study, what today\'s pillar is, or needs help getting started with HITS.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {},
+            required: [],
+        },
+    },
     // ── Knowledge Graph Exploration ──────────────────────────────────────
     {
         name: 'explore_knowledge_graph',
@@ -369,6 +422,7 @@ const PAGE_CONTEXT: Record<string, string> = {
     '/forge': 'Forge — vocabulary builder and cognitive challenges (tabbed)',
     '/progress': 'Progress — long-term goals, stats, achievements, and timeline (tabbed)',
     '/insights': 'Insights — knowledge graph and growth web visualizations (tabbed)',
+    '/hits': 'HITS Training — Horizontal Intelligence Training System with daily model cards, transfer drills, output writing, metacognition, and recall tests',
     '/settings': 'Settings — app preferences and data management',
 };
 
@@ -424,6 +478,7 @@ YOUR CAPABILITIES:
 9. **Habit Scheduling**: Habits use spaced repetition — habits the user struggles with get more frequent reminders, while mastered habits fade to weekly check-ins. When habits are marked OVERDUE in the context, prioritize nudging those.
 10. **Slight Edge Analytics**: You can analyze the user's daily productivity log (Slight Edge Log) which tracks a 1-10 productivity score, summaries, and what they learned each day. When the user asks about their productivity trends, how today compares, or wants to log their day, use the Slight Edge data from the PLAYER STATE context and the get_slight_edge_analytics or log_slight_edge_day actions.
 11. **Knowledge Graph**: You can explore the user's knowledge graph using explore_knowledge_graph. Summarize their strongest clusters, growth trends, cross-domain connections, and suggest new areas to explore. When the user asks "what have I learned?", "what are my strongest topics?", or "how is my knowledge growing?", use this action.
+12. **HITS Training**: You can manage the user's Horizontal Intelligence Training System. Use add_model_card to create mental model cards, quiz_model_card to quiz them on previously learned models, get_hits_summary for training progress, and suggest_daily_focus to recommend what to study today. When the user mentions mental models, HITS, model cards, or asks to be quizzed, use these actions.
 
 RULES:
 - Be encouraging, slightly sassy, and fun — you're an owl mascot!

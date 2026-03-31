@@ -75,6 +75,19 @@ export type {
     ArenaMysteryState,
     ArenaStats,
     DetectiveRank,
+    KnowledgePillar,
+    HitsOutputType,
+    CognitiveFailureMode,
+    ModelCard,
+    TransferDrill,
+    HitsOutput,
+    MetacognitionReflection,
+    RecallTest,
+    WeeklySynthesis,
+    HitsMonthlyChallenge,
+    BiweeklySynthesisEssay,
+    HitsScoreboard,
+    HitsDailySession,
 } from './types';
 
 // Re-export constants that were previously exported from this file
@@ -97,6 +110,7 @@ import { createHootSlice } from './slices/hootSlice';
 import { createUiSlice } from './slices/uiSlice';
 import { createKnowledgeGraphSlice } from './slices/knowledgeGraphSlice';
 import { createArenaSlice } from './slices/arenaSlice';
+import { createHitsSlice } from './slices/hitsSlice';
 
 // ─── Compose store ───────────────────────────────────────────────
 
@@ -113,6 +127,7 @@ export const useGameStore = create<GameState>()(
             ...createUiSlice(...a),
             ...createKnowledgeGraphSlice(...a),
             ...createArenaSlice(...a),
+            ...createHitsSlice(...a),
         }),
         {
             name: 'ai-productivity-storage',

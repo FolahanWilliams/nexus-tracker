@@ -18,6 +18,9 @@ export interface PrunableState {
     knowledgeEdges: { id: string }[];
     dailyCalendarEntries: { date: string }[];
     dailyGrowthNodes: { logDate: string }[];
+    hitsModelCards: { createdAt: string }[];
+    hitsOutputs: { createdAt: string }[];
+    hitsReflections: { createdAt: string }[];
 }
 
 const LIMITS = {
@@ -26,6 +29,9 @@ const LIMITS = {
     knowledgeEdges: 5000,
     dailyCalendarEntries: 365,
     dailyGrowthNodes: 365,
+    hitsModelCards: 500,
+    hitsOutputs: 200,
+    hitsReflections: 365,
 };
 
 export function pruneStorageState<T extends PrunableState>(state: T): T {
@@ -67,6 +73,30 @@ export function pruneStorageState<T extends PrunableState>(state: T): T {
         result.dailyGrowthNodes = result.dailyGrowthNodes
             .sort((a, b) => b.logDate.localeCompare(a.logDate))
             .slice(0, LIMITS.dailyGrowthNodes);
+        pruned = true;
+    }
+
+    // HITS model cards: keep newest N
+    if (result.hitsModelCards?.length > LIMITS.hitsModelCards) {
+        result.hitsModelCards = result.hitsModelCards
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, LIMITS.hitsModelCards);
+        pruned = true;
+    }
+
+    // HITS outputs: keep newest N
+    if (result.hitsOutputs?.length > LIMITS.hitsOutputs) {
+        result.hitsOutputs = result.hitsOutputs
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, LIMITS.hitsOutputs);
+        pruned = true;
+    }
+
+    // HITS reflections: keep newest N
+    if (result.hitsReflections?.length > LIMITS.hitsReflections) {
+        result.hitsReflections = result.hitsReflections
+            .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+            .slice(0, LIMITS.hitsReflections);
         pruned = true;
     }
 

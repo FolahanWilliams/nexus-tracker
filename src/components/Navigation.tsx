@@ -22,6 +22,7 @@ import {
   HelpCircle,
   Network,
   Swords,
+  Brain,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -51,6 +52,7 @@ const navGroups = [
       { href: '/character', label: 'Character', icon: User },
       { href: '/forge', label: 'Forge', icon: Library },
       { href: '/arena', label: 'Arena', icon: Swords },
+      { href: '/hits', label: 'HITS Training', icon: Brain },
       { href: '/progress', label: 'Progress', icon: Flag },
     ],
   },

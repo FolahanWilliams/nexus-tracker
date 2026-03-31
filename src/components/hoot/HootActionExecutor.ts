@@ -426,6 +426,110 @@ export async function executeHootActions(
                     }
                     break;
                 }
+                // ── HITS Training Actions ──────────────────────────────────
+                case 'add_model_card': {
+                    const name = params.name as string;
+                    if (!name) { results.push(`⚠️ No model name provided`); break; }
+                    const pillar = (params.pillar as string) || 'synthesis';
+                    const validPillars = ['psychology', 'strategy', 'systems', 'probability', 'communication', 'tech', 'synthesis'];
+                    state.addModelCard({
+                        name,
+                        definition: (params.definition as string) || '',
+                        coreMechanism: (params.coreMechanism as string) || '',
+                        examples: {
+                            history: (params.exampleHistory as string) || '',
+                            business: (params.exampleBusiness as string) || '',
+                            startups: (params.exampleStartups as string) || '',
+                            personal: (params.examplePersonal as string) || '',
+                        },
+                        limitations: (params.limitations as string) || '',
+                        actionRule: (params.actionRule as string) || '',
+                        keyQuestion: (params.keyQuestion as string) || '',
+                        pillar: (validPillars.includes(pillar) ? pillar : 'synthesis') as 'psychology' | 'strategy' | 'systems' | 'probability' | 'communication' | 'tech' | 'synthesis',
+                    });
+                    results.push(`✅ Created HITS model card: "${name}" (${pillar})`);
+                    addToast(`🦉 Created model card: ${name}`, 'success');
+                    break;
+                }
+                case 'quiz_model_card': {
+                    const cards = state.hitsModelCards;
+                    if (cards.length === 0) {
+                        results.push(`⚠️ No model cards yet! Create some first with your HITS daily training.`);
+                        break;
+                    }
+                    const modelName = params.modelName as string | undefined;
+                    let card;
+                    if (modelName) {
+                        card = cards.find(c => fuzzyMatch(c.name, modelName.toLowerCase()));
+                        if (!card) {
+                            results.push(`⚠️ Couldn't find a model card matching "${modelName}"`);
+                            break;
+                        }
+                    } else {
+                        // Pick a random card, preferring ones with low recall scores
+                        const lowRecall = cards.filter(c => (c.recallScore ?? 0) < 70);
+                        const pool = lowRecall.length > 0 ? lowRecall : cards;
+                        card = pool[Math.floor(Math.random() * pool.length)];
+                    }
+                    results.push(`🧠 QUIZ TIME — Model: "${card.name}" (${card.pillar})\nCan you recall:\n1. Definition?\n2. Core mechanism?\n3. One real-world example?\n4. The action rule?\n5. Key question it answers?\n\n(Last recall score: ${card.recallScore ?? 'never tested'})`);
+                    break;
+                }
+                case 'get_hits_summary': {
+                    const sb = state.hitsScoreboard;
+                    const session = state.hitsDailySession;
+                    const cards = state.hitsModelCards;
+                    const lines: string[] = [
+                        `🧠 HITS TRAINING SUMMARY`,
+                        `Streak: ${sb.currentStreak} days (best: ${sb.longestStreak})`,
+                        `Total Model Cards: ${sb.totalModelCards}`,
+                        `This Week: ${sb.modelCardsThisWeek} cards, ${sb.essaysThisWeek} essays, ${sb.founderDocsThisWeek} founder docs`,
+                    ];
+                    if (session) {
+                        const blocks = ['A', 'B', 'C', 'D', 'E'] as const;
+                        const done = blocks.filter(b => session[`block${b}Complete` as keyof typeof session]).length;
+                        lines.push(`Today (${session.pillar}): ${done}/5 blocks complete`);
+                    }
+                    if (cards.length > 0) {
+                        const avgRecall = cards.filter(c => c.recallScore != null);
+                        if (avgRecall.length > 0) {
+                            const avg = Math.round(avgRecall.reduce((s, c) => s + (c.recallScore ?? 0), 0) / avgRecall.length);
+                            lines.push(`Avg recall score: ${avg}%`);
+                        }
+                        const recent = cards.slice(0, 3).map(c => c.name).join(', ');
+                        lines.push(`Recent models: ${recent}`);
+                    }
+                    results.push(lines.join('\n'));
+                    break;
+                }
+                case 'suggest_daily_focus': {
+                    const PILLAR_SCHEDULE: Record<number, string> = { 1: 'psychology', 2: 'strategy', 3: 'systems', 4: 'probability', 5: 'communication', 6: 'tech', 0: 'synthesis' };
+                    const todayPillar = PILLAR_SCHEDULE[new Date().getDay()] || 'synthesis';
+                    const session = state.hitsDailySession;
+                    const cards = state.hitsModelCards;
+                    const lowRecall = cards.filter(c => (c.recallScore ?? 0) < 50).slice(0, 3);
+
+                    const lines: string[] = [
+                        `📋 TODAY'S HITS FOCUS`,
+                        `Pillar: ${todayPillar.toUpperCase()}`,
+                    ];
+                    if (session) {
+                        const blocks = ['A', 'B', 'C', 'D', 'E'] as const;
+                        const incomplete = blocks.filter(b => !session[`block${b}Complete` as keyof typeof session]);
+                        if (incomplete.length === 0) {
+                            lines.push(`✅ All blocks complete! Amazing work today.`);
+                        } else {
+                            const blockNames: Record<string, string> = { A: 'Model Card', B: 'Transfer Drill', C: 'Output', D: 'Reflection', E: 'Recall Test' };
+                            lines.push(`Remaining blocks: ${incomplete.map(b => `${b} (${blockNames[b]})`).join(', ')}`);
+                        }
+                    } else {
+                        lines.push(`Start your session by heading to /hits!`);
+                    }
+                    if (lowRecall.length > 0) {
+                        lines.push(`⚠️ Models needing review: ${lowRecall.map(c => c.name).join(', ')}`);
+                    }
+                    results.push(lines.join('\n'));
+                    break;
+                }
                 default:
                     results.push(`⚠️ Unknown action: ${action}`);
             }

@@ -18,7 +18,7 @@ export type TaskDuration = 'quick' | '1-hour' | 'half-day' | 'full-day' | 'multi
 export type ItemRarity = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary';
 export type ItemType = 'weapon' | 'armor' | 'accessory' | 'consumable' | 'material';
 export type GoalTimeframe = 'week' | 'month' | 'quarter' | 'year' | 'lifetime';
-export type ActivityType = 'quest_complete' | 'habit_complete' | 'item_drop' | 'level_up' | 'achievement' | 'reflection' | 'xp_earned' | 'boss_damage' | 'goal_milestone' | 'purchase' | 'arena_battle_won' | 'arena_gauntlet_complete' | 'arena_mystery_solved';
+export type ActivityType = 'quest_complete' | 'habit_complete' | 'item_drop' | 'level_up' | 'achievement' | 'reflection' | 'xp_earned' | 'boss_damage' | 'goal_milestone' | 'purchase' | 'arena_battle_won' | 'arena_gauntlet_complete' | 'arena_mystery_solved' | 'hits_block_complete' | 'hits_weekly_complete' | 'hits_monthly_complete';
 export type VocabDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 export type VocabStatus = 'new' | 'learning' | 'reviewing' | 'mastered';
 
@@ -607,7 +607,7 @@ export interface UiSlice {
 
 export type KnowledgeNodeType = 'word' | 'concept' | 'skill';
 export type KnowledgeEdgeType = 'co_occurrence' | 'semantic' | 'vocab_concept' | 'prerequisite';
-export type KnowledgeNodeSource = 'wordforge' | 'slight_edge' | 'reflection' | 'mindforge' | 'quest' | 'arena';
+export type KnowledgeNodeSource = 'wordforge' | 'slight_edge' | 'reflection' | 'mindforge' | 'quest' | 'arena' | 'hits';
 
 export interface KnowledgeNode {
     id: string;
@@ -798,6 +798,176 @@ export interface ArenaSlice {
     resetArenaSession: () => void;
 }
 
+// ─── HITS (Horizontal Intelligence Training System) ────────────
+
+export type KnowledgePillar = 'psychology' | 'strategy' | 'systems' | 'probability' | 'communication' | 'tech' | 'synthesis';
+export type HitsOutputType = 'mini_essay' | 'founder_memo' | 'persuasion_pitch';
+export type CognitiveFailureMode = 'rushed' | 'overconsumed' | 'avoided_hard_thinking' | 'stayed_abstract' | 'no_test' | 'confused_familiarity';
+
+export interface ModelCard {
+    id: string;
+    name: string;
+    definition: string;
+    coreMechanism: string;
+    examples: {
+        history: string;
+        business: string;
+        startups: string;
+        personal: string;
+    };
+    limitations: string;
+    actionRule: string;
+    keyQuestion: string;
+    pillar: KnowledgePillar;
+    createdAt: string;
+    recallScore?: number;
+    lastRecalledAt?: string;
+}
+
+export interface TransferDrill {
+    id: string;
+    modelCardId: string;
+    analogies: [string, string, string];
+    domains: [string, string, string];
+    universalPrinciple: string;
+    createdAt: string;
+    aiScore?: number;
+    aiFeedback?: string;
+}
+
+export interface HitsOutput {
+    id: string;
+    type: HitsOutputType;
+    content: string;
+    founderMemo?: {
+        problem: string;
+        insight: string;
+        decision: string;
+        risk: string;
+        nextStep: string;
+    };
+    persuasionPitch?: {
+        sentences: string[];
+    };
+    modelCardId?: string;
+    createdAt: string;
+    aiScore?: number;
+    aiFeedback?: string;
+}
+
+export interface MetacognitionReflection {
+    id: string;
+    date: string;
+    responses: string[];
+    cognitiveFailureMode: CognitiveFailureMode;
+    preventionPlan: string;
+    createdAt: string;
+}
+
+export interface RecallTest {
+    id: string;
+    modelCardId: string;
+    recalledName: string;
+    recalledDefinition: string;
+    recalledMechanism: string;
+    recalledExample: string;
+    recalledActionRule: string;
+    score: number;
+    aiFeedback?: string;
+    createdAt: string;
+}
+
+export interface WeeklySynthesis {
+    id: string;
+    weekOf: string;
+    topModels: [string, string, string];
+    repeatingTheme: string;
+    mindChangingModel: string;
+    recurringMistake: string;
+    newRule: string;
+    experiment: string;
+    speakingDrillTopic?: string;
+    speakingDrillNotes?: string;
+    deepWorkSprintTopic?: string;
+    deepWorkSprintMinutes?: number;
+    createdAt: string;
+}
+
+export interface HitsMonthlyChallenge {
+    id: string;
+    month: string;
+    topic: string;
+    analyses: {
+        incentives: string;
+        compounding: string;
+        feedbackLoops: string;
+        secondOrderEffects: string;
+    };
+    completed: boolean;
+    createdAt: string;
+}
+
+export interface BiweeklySynthesisEssay {
+    id: string;
+    periodStart: string;
+    content: string;
+    createdAt: string;
+}
+
+export interface HitsScoreboard {
+    modelCardsThisWeek: number;
+    speakingRepsThisWeek: number;
+    essaysThisWeek: number;
+    synthesisThisWeek: number;
+    founderDocsThisWeek: number;
+    deepWorkSprintsThisWeek: number;
+    weekStartDate: string;
+    totalModelCards: number;
+    totalEssays: number;
+    totalSpeakingReps: number;
+    currentStreak: number;
+    longestStreak: number;
+    lastActiveDate: string | null;
+}
+
+export interface HitsDailySession {
+    date: string;
+    pillar: KnowledgePillar;
+    blockAComplete: boolean;
+    blockBComplete: boolean;
+    blockCComplete: boolean;
+    blockDComplete: boolean;
+    blockEComplete: boolean;
+}
+
+export interface HitsSlice {
+    hitsModelCards: ModelCard[];
+    hitsTransferDrills: TransferDrill[];
+    hitsOutputs: HitsOutput[];
+    hitsReflections: MetacognitionReflection[];
+    hitsRecallTests: RecallTest[];
+    hitsWeeklySyntheses: WeeklySynthesis[];
+    hitsMonthlyChallenges: HitsMonthlyChallenge[];
+    hitsBiweeklyEssays: BiweeklySynthesisEssay[];
+    hitsScoreboard: HitsScoreboard;
+    hitsDailySession: HitsDailySession | null;
+
+    addModelCard: (card: Omit<ModelCard, 'id' | 'createdAt'>) => void;
+    deleteModelCard: (id: string) => void;
+    addTransferDrill: (drill: Omit<TransferDrill, 'id' | 'createdAt'>) => void;
+    addHitsOutput: (output: Omit<HitsOutput, 'id' | 'createdAt'>) => void;
+    addReflection: (reflection: Omit<MetacognitionReflection, 'id' | 'createdAt'>) => void;
+    addRecallTest: (test: Omit<RecallTest, 'id' | 'createdAt'>) => void;
+    addWeeklySynthesis: (synthesis: Omit<WeeklySynthesis, 'id' | 'createdAt'>) => void;
+    updateWeeklySynthesis: (id: string, updates: Partial<WeeklySynthesis>) => void;
+    addMonthlyChallenge: (challenge: Omit<HitsMonthlyChallenge, 'id' | 'createdAt' | 'completed'>) => void;
+    completeMonthlyChallenge: (id: string) => void;
+    addBiweeklyEssay: (essay: Omit<BiweeklySynthesisEssay, 'id' | 'createdAt'>) => void;
+    initDailySession: () => void;
+    markBlockComplete: (block: 'A' | 'B' | 'C' | 'D' | 'E') => void;
+    refreshScoreboard: () => void;
+}
+
 // ─── Combined state ──────────────────────────────────────────────
 
-export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice & KnowledgeGraphSlice & ArenaSlice;
+export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice & KnowledgeGraphSlice & ArenaSlice & HitsSlice;
