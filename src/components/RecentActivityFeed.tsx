@@ -33,6 +33,8 @@ const TYPE_COLORS: Record<ActivityEntry['type'], string> = {
     hits_block_complete: 'var(--color-purple)',
     hits_weekly_complete: 'var(--color-blue)',
     hits_monthly_complete: 'var(--color-yellow)',
+    sat_block_complete: 'var(--color-blue)',
+    sat_full_session: 'var(--color-blue)',
 };
 
 export default memo(function RecentActivityFeed() {

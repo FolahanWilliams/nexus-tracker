@@ -23,6 +23,7 @@ import {
   Network,
   Swords,
   Brain,
+  GraduationCap,
 } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useSyncStore, SyncStatus } from '@/lib/syncStatus';
@@ -53,6 +54,7 @@ const navGroups = [
       { href: '/forge', label: 'Forge', icon: Library },
       { href: '/arena', label: 'Arena', icon: Swords },
       { href: '/hits', label: 'HITS Training', icon: Brain },
+      { href: '/sat', label: 'SAT Prep', icon: GraduationCap },
       { href: '/progress', label: 'Progress', icon: Flag },
     ],
   },
