@@ -18,7 +18,7 @@ export type TaskDuration = 'quick' | '1-hour' | 'half-day' | 'full-day' | 'multi
 export type ItemRarity = 'Common' | 'Uncommon' | 'Rare' | 'Epic' | 'Legendary';
 export type ItemType = 'weapon' | 'armor' | 'accessory' | 'consumable' | 'material';
 export type GoalTimeframe = 'week' | 'month' | 'quarter' | 'year' | 'lifetime';
-export type ActivityType = 'quest_complete' | 'habit_complete' | 'item_drop' | 'level_up' | 'achievement' | 'reflection' | 'xp_earned' | 'boss_damage' | 'goal_milestone' | 'purchase' | 'arena_battle_won' | 'arena_gauntlet_complete' | 'arena_mystery_solved' | 'hits_block_complete' | 'hits_weekly_complete' | 'hits_monthly_complete';
+export type ActivityType = 'quest_complete' | 'habit_complete' | 'item_drop' | 'level_up' | 'achievement' | 'reflection' | 'xp_earned' | 'boss_damage' | 'goal_milestone' | 'purchase' | 'arena_battle_won' | 'arena_gauntlet_complete' | 'arena_mystery_solved' | 'hits_block_complete' | 'hits_weekly_complete' | 'hits_monthly_complete' | 'sat_block_complete' | 'sat_full_session';
 export type VocabDifficulty = 'beginner' | 'intermediate' | 'advanced' | 'expert';
 export type VocabStatus = 'new' | 'learning' | 'reviewing' | 'mastered';
 
@@ -968,6 +968,103 @@ export interface HitsSlice {
     refreshScoreboard: () => void;
 }
 
+// ─── SAT Learning Mode ─────────────────────────────────────────
+
+export type SATSection = 'reading-writing' | 'math';
+export type SATMathType = 'algebra' | 'advanced-math' | 'problem-solving' | 'geometry';
+export type SATDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface SATPassage {
+    id: string;
+    passage: string;
+    questions: SATPassageQuestion[];
+    topic: string;
+    difficulty: SATDifficulty;
+    userAnswers?: number[];
+    score?: number;
+    createdAt: string;
+}
+
+export interface SATPassageQuestion {
+    question: string;
+    options: string[];
+    correctIndex: number;
+    explanation: string;
+}
+
+export interface SATWritingQ {
+    id: string;
+    sentence: string;
+    options: string[];
+    correctIndex: number;
+    rule: string;
+    explanation: string;
+    userAnswer?: number;
+    createdAt: string;
+}
+
+export interface SATMathProblem {
+    id: string;
+    question: string;
+    type: SATMathType;
+    difficulty: SATDifficulty;
+    options: string[];
+    correctAnswer: string;
+    explanation: string;
+    steps: string[];
+    userAnswer?: string;
+    createdAt: string;
+}
+
+export interface SATTestResult {
+    id: string;
+    date: string;
+    section: SATSection | 'full';
+    score: number;
+    totalQuestions: number;
+    correctAnswers: number;
+    timeSpentSeconds: number;
+    weakAreas: string[];
+    createdAt: string;
+}
+
+export interface SATScoreboard {
+    totalSessions: number;
+    currentStreak: number;
+    longestStreak: number;
+    lastActiveDate: string | null;
+    vocabMastered: number;
+    avgRWScore: number;
+    avgMathScore: number;
+    projectedTotal: number;
+    totalTests: number;
+}
+
+export interface SATDailySession {
+    date: string;
+    blockAComplete: boolean; // Vocab
+    blockBComplete: boolean; // Reading
+    blockCComplete: boolean; // Writing
+    blockDComplete: boolean; // Math
+}
+
+export interface SATSlice {
+    satDailySession: SATDailySession | null;
+    satPassages: SATPassage[];
+    satWritingQuestions: SATWritingQ[];
+    satMathProblems: SATMathProblem[];
+    satTestResults: SATTestResult[];
+    satScoreboard: SATScoreboard;
+
+    initSATDailySession: () => void;
+    markSATBlockComplete: (block: 'A' | 'B' | 'C' | 'D') => void;
+    addSATPassage: (passage: Omit<SATPassage, 'id' | 'createdAt'>) => void;
+    addSATWritingQ: (q: Omit<SATWritingQ, 'id' | 'createdAt'>) => void;
+    addSATMathProblem: (p: Omit<SATMathProblem, 'id' | 'createdAt'>) => void;
+    recordSATTestResult: (result: Omit<SATTestResult, 'id' | 'createdAt'>) => void;
+    refreshSATScoreboard: () => void;
+}
+
 // ─── Combined state ──────────────────────────────────────────────
 
-export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice & KnowledgeGraphSlice & ArenaSlice & HitsSlice;
+export type GameState = CoreSlice & TaskSlice & RpgSlice & HabitSlice & GoalSlice & VocabSlice & HootSlice & UiSlice & KnowledgeGraphSlice & ArenaSlice & HitsSlice & SATSlice;

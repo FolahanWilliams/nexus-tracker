@@ -107,7 +107,7 @@ const hootFunctions = [
         parameters: {
             type: SchemaType.OBJECT,
             properties: {
-                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /focus, /journal, /character, /forge, /hits, /progress, /insights, /settings' },
+                page: { type: SchemaType.STRING, description: 'Page path: /, /quests, /habits, /focus, /journal, /character, /forge, /hits, /sat, /progress, /insights, /settings' },
                 reason: { type: SchemaType.STRING, description: 'Brief reason for suggesting this page' },
             },
             required: ['page'],
@@ -435,6 +435,7 @@ const PAGE_CONTEXT: Record<string, string> = {
     '/progress': 'Progress — long-term goals, stats, achievements, and timeline (tabbed)',
     '/insights': 'Insights — knowledge graph and growth web visualizations (tabbed)',
     '/hits': 'HITS Training — Horizontal Intelligence Training System with daily model cards, transfer drills, output writing, metacognition, and recall tests',
+    '/sat': 'SAT Prep — Digital SAT learning mode with daily vocabulary drills, reading comprehension, writing & grammar, math practice, and timed practice tests',
     '/settings': 'Settings — app preferences and data management',
 };
 

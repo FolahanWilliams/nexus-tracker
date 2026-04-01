@@ -88,6 +88,16 @@ export type {
     BiweeklySynthesisEssay,
     HitsScoreboard,
     HitsDailySession,
+    SATSection,
+    SATMathType,
+    SATDifficulty,
+    SATPassage,
+    SATPassageQuestion,
+    SATWritingQ,
+    SATMathProblem,
+    SATTestResult,
+    SATScoreboard,
+    SATDailySession,
 } from './types';
 
 // Re-export constants that were previously exported from this file
@@ -111,6 +121,7 @@ import { createUiSlice } from './slices/uiSlice';
 import { createKnowledgeGraphSlice } from './slices/knowledgeGraphSlice';
 import { createArenaSlice } from './slices/arenaSlice';
 import { createHitsSlice } from './slices/hitsSlice';
+import { createSatSlice } from './slices/satSlice';
 
 // ─── Compose store ───────────────────────────────────────────────
 
@@ -128,6 +139,7 @@ export const useGameStore = create<GameState>()(
             ...createKnowledgeGraphSlice(...a),
             ...createArenaSlice(...a),
             ...createHitsSlice(...a),
+            ...createSatSlice(...a),
         }),
         {
             name: 'ai-productivity-storage',
