@@ -1,12 +1,19 @@
 'use client';
 
 import { useGameStore } from '@/store/useGameStore';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sun, BookOpen, Zap } from 'lucide-react';
+import { X, Sun, BookOpen, Zap, Sparkles, Mail } from 'lucide-react';
 import { validateIntention } from '@/lib/validation';
 import { useToastStore } from '@/components/ToastContainer';
 import { triggerXPFloat } from '@/components/XPFloat';
+
+function toLocalDateStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 const ENERGY_LABELS = ['Exhausted', 'Low', 'Okay', 'Good', 'Legendary'];
 const ENERGY_BG_CLASSES = [
@@ -26,6 +33,9 @@ export default function DailyIntention() {
     setDailyIntention,
     addOrUpdateCalendarEntry,
     dailyCalendarEntries,
+    identityLine,
+    setMicroAction,
+    setOutreachBlock,
   } = useGameStore();
   const { addToast } = useToastStore();
 
@@ -38,6 +48,17 @@ export default function DailyIntention() {
   const [slightEdgeSummary, setSlightEdgeSummary] = useState('');
   const [slightEdgeLearned, setSlightEdgeLearned] = useState('');
   const [productivityScore, setProductivityScore] = useState(5);
+
+  // Micro-action extraction state
+  const [microText, setMicroText] = useState('');
+  const [microLoading, setMicroLoading] = useState(false);
+  const [microLocked, setMicroLocked] = useState(false);
+
+  // Outreach block state (staged after micro-action is set, energy ≥ 4)
+  const [blockTime, setBlockTime] = useState('09:30');
+  const [blockDuration, setBlockDuration] = useState(45);
+  const [stagingTemplate, setStagingTemplate] = useState(false);
+  const [stagedTemplate, setStagedTemplate] = useState<string | null>(null);
 
   const today = new Date().toISOString().split('T')[0];
   const hour = new Date().getHours();
@@ -56,6 +77,52 @@ export default function DailyIntention() {
     }
   }, [hour, lastIntentionDate, dailyCalendarEntries, today]);
 
+  const extractMicroAction = useCallback(async () => {
+    if (!intention.trim()) return;
+    setMicroLoading(true);
+    try {
+      const res = await fetch('/api/akrasia-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract_micro_action', intention }),
+      });
+      const data = await res.json();
+      const text = data?.microAction?.text || data?.text;
+      if (text) {
+        setMicroText(text);
+        setMicroLocked(true);
+      } else {
+        addToast('Coach is offline — write your own 2-min action.', 'info');
+      }
+    } catch {
+      addToast('Coach is offline — write your own 2-min action.', 'info');
+    } finally {
+      setMicroLoading(false);
+    }
+  }, [intention, addToast]);
+
+  const stageTemplate = useCallback(async () => {
+    if (!microText.trim()) return;
+    setStagingTemplate(true);
+    try {
+      const res = await fetch('/api/akrasia-coach', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'stage_template',
+          target: microText,
+          context: intention,
+        }),
+      });
+      const data = await res.json();
+      if (data?.template) setStagedTemplate(data.template);
+    } catch {
+      // silent — stage is optional
+    } finally {
+      setStagingTemplate(false);
+    }
+  }, [microText, intention]);
+
   const handleMorningSubmit = () => {
     let sanitized: string;
     try {
@@ -64,9 +131,36 @@ export default function DailyIntention() {
       return;
     }
     setDailyIntention(sanitized, energyRating);
+
+    // Persist micro-action if one was extracted
+    const today = toLocalDateStr(new Date());
+    if (microText.trim()) {
+      setMicroAction(today, {
+        text: microText.trim().slice(0, 500),
+        estimatedMinutes: 2,
+        status: 'pending',
+        generatedFrom: sanitized,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    // Schedule outreach block if energy is high enough and template is staged
+    if (energyRating >= 4 && microText.trim()) {
+      setOutreachBlock(today, {
+        startTime: blockTime,
+        durationMinutes: blockDuration,
+        stagedTemplate: stagedTemplate ?? undefined,
+        completed: false,
+      });
+    }
+
     triggerXPFloat('+10 XP', '#4ade80');
     addToast(`Intention set! +10 XP. Go make it happen! 🎯`, 'success');
     setShowMorning(false);
+    // Reset local state
+    setMicroText('');
+    setMicroLocked(false);
+    setStagedTemplate(null);
   };
 
   const handleEveningSubmit = () => {
@@ -118,7 +212,14 @@ export default function DailyIntention() {
                   <Sun className="inline text-[var(--color-yellow)]" size={40} />
                 </motion.div>
                 <h2 className="text-xl font-bold">Morning Check-In</h2>
-                <p className="text-sm text-[var(--color-text-muted)] mt-1">What&apos;s your #1 focus today?</p>
+                {identityLine ? (
+                  <p className="text-xs text-[var(--color-purple)] italic mt-2 px-4 leading-relaxed">
+                    Cast your vote today as:<br />
+                    <span className="text-[var(--color-text-primary)] font-semibold not-italic">&ldquo;{identityLine}&rdquo;</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-[var(--color-text-muted)] mt-1">What&apos;s your #1 focus today?</p>
+                )}
               </div>
 
               <div className="space-y-5">
@@ -152,6 +253,96 @@ export default function DailyIntention() {
                     ))}
                   </div>
                 </div>
+
+                {/* Two-Minute Extract */}
+                <div className="p-3 rounded-xl bg-[var(--color-bg-dark)] border border-[var(--color-border)] space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-[var(--color-purple)]" />
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-text-muted)]">
+                      Stupidly-small next action (≤ 2 min)
+                    </p>
+                  </div>
+                  {!microLocked ? (
+                    <button
+                      type="button"
+                      onClick={extractMicroAction}
+                      disabled={!intention.trim() || microLoading}
+                      className="w-full rpg-button text-xs py-2 disabled:opacity-40"
+                    >
+                      {microLoading ? 'Coach is thinking…' : '✨ Make this stupidly small'}
+                    </button>
+                  ) : (
+                    <>
+                      <textarea
+                        value={microText}
+                        onChange={e => setMicroText(e.target.value)}
+                        className="input-field text-xs min-h-[50px] resize-none"
+                        maxLength={500}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={extractMicroAction}
+                          disabled={microLoading}
+                          className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] underline"
+                        >
+                          regenerate
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setMicroLocked(false); setMicroText(''); }}
+                          className="text-[10px] text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] underline ml-auto"
+                        >
+                          clear
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Energy-locked outreach block (only if energy ≥ 4 + micro set) */}
+                {energyRating >= 4 && microText.trim() && (
+                  <div className="p-3 rounded-xl bg-[var(--color-blue)]/10 border border-[var(--color-blue)]/40 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <Mail size={12} className="text-[var(--color-blue)]" />
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-blue)]">
+                        Energy-locked outreach block
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="time"
+                        value={blockTime}
+                        onChange={e => setBlockTime(e.target.value)}
+                        className="input-field text-xs"
+                      />
+                      <select
+                        value={blockDuration}
+                        onChange={e => setBlockDuration(Number(e.target.value))}
+                        className="input-field text-xs"
+                      >
+                        <option value={25}>25 min</option>
+                        <option value={45}>45 min</option>
+                        <option value={60}>60 min</option>
+                        <option value={90}>90 min</option>
+                      </select>
+                    </div>
+                    {!stagedTemplate ? (
+                      <button
+                        type="button"
+                        onClick={stageTemplate}
+                        disabled={stagingTemplate}
+                        className="w-full text-[10px] text-[var(--color-blue)] hover:text-[var(--color-blue-light,var(--color-blue))] underline disabled:opacity-50"
+                      >
+                        {stagingTemplate ? 'Drafting template…' : '✨ Pre-draft a template'}
+                      </button>
+                    ) : (
+                      <div className="p-2 rounded bg-[var(--color-bg-dark)] text-[10px] text-[var(--color-text-secondary)] whitespace-pre-wrap max-h-24 overflow-y-auto">
+                        {stagedTemplate}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <motion.button
                   onClick={handleMorningSubmit}

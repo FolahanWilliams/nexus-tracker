@@ -266,14 +266,76 @@ export interface GoalMilestone {
     completedAt?: string;
 }
 
+export interface MicroAction {
+    text: string;                // e.g. "Open Gmail, paste YC outreach template row 1, hit send"
+    estimatedMinutes: number;    // forced ≤ 2
+    status: 'pending' | 'done' | 'skipped' | 'bailed';
+    bailReason?: string;
+    generatedFrom: string;       // the vague intention that spawned it
+    createdAt: string;
+}
+
+export type BailEmotion = 'anxious' | 'bored' | 'tired' | 'avoidant' | 'overwhelmed' | 'other';
+
+export interface BailEvent {
+    id: string;
+    timestamp: string;           // ISO — preserves hour of day
+    chose: string;               // "TikTok"
+    instead: string;             // "outreach email"
+    emotion: BailEmotion;
+    trigger: string;             // "phone on desk, saw notification"
+    durationMinutes?: number;
+}
+
+export interface OutreachBlock {
+    startTime: string;           // "HH:MM" local
+    durationMinutes: number;
+    stagedTemplate?: string;
+    completed: boolean;
+    completedAt?: string;
+}
+
+export interface GapAnalysis {
+    wantedEntities: string[];    // knowledge node ids
+    didEntities: string[];
+    missed: string[];            // wanted but not did
+    honored: string[];           // in both
+    gapScore: number;            // 0-1
+    analyzedAt: string;
+}
+
 export interface DailyCalendarEntry {
     date: string; // YYYY-MM-DD
     completed: boolean; // Did they show up and do their goals?
-    summary: string; // Short summary of what they did
+    summary: string; // Short summary of what they did (legacy / also used as `did`)
     learned: string; // What they learned today
     productivityScore: number; // 1-10 self-rated productivity score
     createdAt: string;
     updatedAt: string;
+
+    // ── Akrasia extensions ──
+    wanted?: string;                 // What you said you'd do today
+    did?: string;                    // What you actually did (duplicates summary for clarity)
+    gapAnalysis?: GapAnalysis;
+    microAction?: MicroAction;
+    bails?: BailEvent[];
+    outreachBlock?: OutreachBlock;
+}
+
+export interface IfThenPlan {
+    id: string;
+    trigger: string;     // "When I unlock my phone before 10am"
+    response: string;    // "I open QuestFlow journal first"
+    createdAt: string;
+    timesFired: number;
+    timesBroken: number;
+    active: boolean;
+}
+
+export interface IdentityVote {
+    date: string;        // YYYY-MM-DD
+    vote: 'for' | 'against';
+    reason?: string;     // auto-generated explanation
 }
 
 export interface ActivityEntry {
@@ -440,6 +502,11 @@ export interface GoalSlice {
     focusTimerSessionCount: number; // sessions completed in current pomodoro cycle
     dailyCalendarEntries: DailyCalendarEntry[];
 
+    // ── Akrasia state ──
+    identityLine: string | null;
+    identityVotes: IdentityVote[];
+    ifThenPlans: IfThenPlan[];
+
     addGoal: (title: string, description: string, category: TaskCategory, timeframe: GoalTimeframe, targetDate: string, milestones: string[], xpReward: number) => void;
     completeGoalMilestone: (goalId: string, milestoneId: string) => void;
     completeGoal: (goalId: string) => void;
@@ -459,6 +526,21 @@ export interface GoalSlice {
     setFocusTimerMode: (mode: 'focus' | 'short-break' | 'long-break', durationSeconds: number) => void;
     setFocusTimerSessionCount: (count: number) => void;
     addOrUpdateCalendarEntry: (date: string, completed: boolean, summary: string, learned: string, productivityScore?: number) => void;
+
+    // ── Akrasia actions ──
+    setIdentityLine: (line: string | null) => void;
+    recordIdentityVote: (date: string, vote: 'for' | 'against', reason?: string) => void;
+    setMicroAction: (date: string, micro: MicroAction | null) => void;
+    updateMicroActionStatus: (date: string, status: MicroAction['status'], bailReason?: string) => void;
+    addBail: (date: string, bail: Omit<BailEvent, 'id' | 'timestamp'>) => void;
+    updateDailyWantedDid: (date: string, wanted: string, did: string, gapAnalysis?: GapAnalysis) => void;
+    setOutreachBlock: (date: string, block: OutreachBlock | null) => void;
+    completeOutreachBlock: (date: string) => void;
+    addIfThenPlan: (trigger: string, response: string) => void;
+    fireIfThenPlan: (id: string) => void;
+    breakIfThenPlan: (id: string) => void;
+    toggleIfThenPlan: (id: string) => void;
+    deleteIfThenPlan: (id: string) => void;
 }
 
 export interface VocabSlice {
@@ -605,9 +687,43 @@ export interface UiSlice {
 
 // ─── Knowledge Graph ────────────────────────────────────────────
 
-export type KnowledgeNodeType = 'word' | 'concept' | 'skill';
-export type KnowledgeEdgeType = 'co_occurrence' | 'semantic' | 'vocab_concept' | 'prerequisite';
-export type KnowledgeNodeSource = 'wordforge' | 'slight_edge' | 'reflection' | 'mindforge' | 'quest' | 'arena' | 'hits';
+export type KnowledgeNodeType =
+    | 'word'
+    | 'concept'
+    | 'skill'
+    // ── Akrasia / Personal Coach additions ──
+    | 'person'
+    | 'organization'
+    | 'accelerator'
+    | 'book'
+    | 'target';
+
+export type KnowledgeEdgeType =
+    | 'co_occurrence'
+    | 'semantic'
+    | 'vocab_concept'
+    | 'prerequisite'
+    // ── Akrasia / Personal Coach additions ──
+    | 'wanted_to_contact'
+    | 'contacted'
+    | 'wanted_to_read'
+    | 'read'
+    | 'mentioned'
+    | 'avoided';
+
+export type KnowledgeNodeSource =
+    | 'wordforge'
+    | 'slight_edge'
+    | 'reflection'
+    | 'mindforge'
+    | 'quest'
+    | 'arena'
+    | 'hits'
+    // ── Akrasia / Personal Coach additions ──
+    | 'gap_capture'
+    | 'bail_log'
+    | 'micro_action'
+    | 'coach';
 
 export interface KnowledgeNode {
     id: string;
