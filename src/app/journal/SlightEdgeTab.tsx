@@ -241,7 +241,7 @@ export default function SlightEdgeTab() {
       ? 'Micro-action done, no bails'
       : bailCount > 0 ? `${bailCount} bail${bailCount > 1 ? 's' : ''}` : 'Micro-action not completed';
     const existing = identityVotes.find(v => v.date === todayStrForVote);
-    if (!existing || existing.vote !== vote) {
+    if (!existing || existing.vote !== vote || existing.reason !== reason) {
       recordIdentityVote(todayStrForVote, vote, reason);
     }
   }, [identityLine, dailyCalendarEntries, identityVotes, recordIdentityVote, todayStrForVote]);
@@ -1444,7 +1444,7 @@ export default function SlightEdgeTab() {
                 </button>
                 <motion.button
                   onClick={saveEntry}
-                  disabled={!formCompleted && !formSummary.trim() && !formLearned.trim()}
+                  disabled={!formCompleted && !formSummary.trim() && !formLearned.trim() && !formWanted.trim() && !formDid.trim()}
                   className="flex-1 rpg-button btn-success text-sm py-2.5 flex items-center justify-center gap-2"
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.97 }}

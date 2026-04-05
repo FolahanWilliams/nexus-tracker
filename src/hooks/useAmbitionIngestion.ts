@@ -78,7 +78,10 @@ export function useAmbitionIngestion() {
                 const now = new Date().toISOString();
                 const currentNodes = useGameStore.getState().knowledgeNodes;
                 const newNodes: KnowledgeNode[] = [];
-                const labelToNodeId = new Map<string, string>();
+                // Key by `${type}|${label}` so two entities with the same label
+                // but different types (e.g. "amazon" org vs target) don't collide.
+                const entityToNodeId = new Map<string, string>();
+                const keyFor = (type: string, label: string) => `${type}|${label.toLowerCase().trim()}`;
 
                 for (const ent of data.entities) {
                     const type = ent.type as KnowledgeNodeType;
@@ -88,7 +91,7 @@ export function useAmbitionIngestion() {
 
                     const existing = currentNodes.find((n) => n.label === label && n.nodeType === type);
                     const nodeId = existing?.id || `${type}-${label}`;
-                    labelToNodeId.set(label, nodeId);
+                    entityToNodeId.set(keyFor(type, label), nodeId);
 
                     newNodes.push({
                         id: nodeId,
@@ -128,13 +131,13 @@ export function useAmbitionIngestion() {
                 // Ambition Map naturally clusters daily pushes together.
 
                 const edges: KnowledgeEdge[] = [];
-                const entities = data.entities.filter((e) => labelToNodeId.has(e.label.toLowerCase()));
+                const entities = data.entities.filter((e) => entityToNodeId.has(keyFor(e.type, e.label)));
                 for (let i = 0; i < entities.length; i++) {
                     const a = entities[i];
-                    const aId = labelToNodeId.get(a.label.toLowerCase())!;
+                    const aId = entityToNodeId.get(keyFor(a.type, a.label))!;
                     for (let j = i + 1; j < entities.length; j++) {
                         const b = entities[j];
-                        const bId = labelToNodeId.get(b.label.toLowerCase())!;
+                        const bId = entityToNodeId.get(keyFor(b.type, b.label))!;
                         if (aId === bId) continue;
                         edges.push({
                             id: `edge-${aId}-${bId}-co_occurrence`,
@@ -186,11 +189,20 @@ export function useAmbitionIngestion() {
                     addKnowledgeEdges(edges);
                 }
 
+                // For missed/honored, the API returns bare labels — search all
+                // typed variants and fall back to the label string.
+                const idForBareLabel = (label: string): string => {
+                    const l = label.toLowerCase().trim();
+                    for (const [k, v] of entityToNodeId.entries()) {
+                        if (k.endsWith(`|${l}`)) return v;
+                    }
+                    return label;
+                };
                 const gap: GapAnalysis = {
-                    wantedEntities: entities.filter((e) => e.inWanted).map((e) => labelToNodeId.get(e.label.toLowerCase())!).filter(Boolean),
-                    didEntities: entities.filter((e) => e.inDid).map((e) => labelToNodeId.get(e.label.toLowerCase())!).filter(Boolean),
-                    missed: (data.missed ?? []).map((l) => labelToNodeId.get(l.toLowerCase()) ?? l),
-                    honored: (data.honored ?? []).map((l) => labelToNodeId.get(l.toLowerCase()) ?? l),
+                    wantedEntities: entities.filter((e) => e.inWanted).map((e) => entityToNodeId.get(keyFor(e.type, e.label))!).filter(Boolean),
+                    didEntities: entities.filter((e) => e.inDid).map((e) => entityToNodeId.get(keyFor(e.type, e.label))!).filter(Boolean),
+                    missed: (data.missed ?? []).map(idForBareLabel),
+                    honored: (data.honored ?? []).map(idForBareLabel),
                     gapScore: typeof data.gapScore === 'number' ? Math.max(0, Math.min(1, data.gapScore)) : 0,
                     analyzedAt: now,
                 };
