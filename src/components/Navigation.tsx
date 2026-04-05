@@ -13,10 +13,9 @@ import {
   User,
   Activity,
   Settings,
-  Repeat2,
   Timer,
   Flag,
-  BookOpen,
+  Sunrise,
   Library,
   LogOut,
   HelpCircle,
@@ -41,10 +40,9 @@ const navGroups = [
     label: 'DAILY',
     items: [
       { href: '/', label: 'Overview', icon: LayoutDashboard },
+      { href: '/today', label: 'Today', icon: Sunrise },
       { href: '/quests', label: 'Quests', icon: Target },
-      { href: '/habits', label: 'Habits', icon: Repeat2 },
       { href: '/focus', label: 'Focus Timer', icon: Timer },
-      { href: '/journal', label: 'Daily Journal', icon: BookOpen },
     ],
   },
   {

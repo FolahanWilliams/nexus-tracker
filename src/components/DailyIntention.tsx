@@ -26,13 +26,19 @@ const ENERGY_BG_CLASSES = [
 
 const PRODUCTIVITY_LABELS = ['', 'Barely', 'Very Low', 'Low', 'Below Avg', 'Average', 'Above Avg', 'Good', 'Great', 'Excellent', 'Peak'];
 
-export default function DailyIntention() {
+interface DailyIntentionProps {
+  /** Force-open the morning modal immediately (e.g. when opened explicitly
+   *  from the Today page button). Bypasses the hour/intention guards. */
+  forceMorning?: boolean;
+  /** Force-open the evening modal immediately. */
+  forceEvening?: boolean;
+}
+
+export default function DailyIntention({ forceMorning = false, forceEvening = false }: DailyIntentionProps = {}) {
   const {
-    lastIntentionDate,
     todayIntention,
     setDailyIntention,
     addOrUpdateCalendarEntry,
-    dailyCalendarEntries,
     identityLine,
     setMicroAction,
     setOutreachBlock,
@@ -60,22 +66,16 @@ export default function DailyIntention() {
   const [stagingTemplate, setStagingTemplate] = useState(false);
   const [stagedTemplate, setStagedTemplate] = useState<string | null>(null);
 
-  const today = new Date().toISOString().split('T')[0];
-  const hour = new Date().getHours();
-
   useEffect(() => {
-    // Show morning modal if:  it's before noon, intention not set today
-    if (hour >= 6 && hour < 13 && lastIntentionDate !== today) {
-      const timer = setTimeout(() => setShowMorning(true), 2000);
-      return () => clearTimeout(timer);
+    if (forceMorning) {
+      setShowMorning(true);
+      return;
     }
-    // Show evening modal if: it's after 7pm, Slight Edge log not done today
-    const alreadyLogged = dailyCalendarEntries.some(e => e.date === today);
-    if (hour >= 19 && !alreadyLogged) {
-      const timer = setTimeout(() => setShowEvening(true), 2000);
-      return () => clearTimeout(timer);
+    if (forceEvening) {
+      setShowEvening(true);
+      return;
     }
-  }, [hour, lastIntentionDate, dailyCalendarEntries, today]);
+  }, [forceMorning, forceEvening]);
 
   const extractMicroAction = useCallback(async () => {
     if (!intention.trim()) return;

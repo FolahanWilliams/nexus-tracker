@@ -2,7 +2,8 @@ import { useGameStore } from '@/store/useGameStore';
 import { useToastStore } from '@/components/ToastContainer';
 import { HootAction } from '@/store/useHootStore';
 import { logger } from '@/lib/logger';
-import type { CharacterClass } from '@/store/types';
+import type { CharacterClass, BailEmotion } from '@/store/types';
+import { ingestWantedDid } from '@/lib/ambitionIngestion';
 
 type GameState = ReturnType<typeof useGameStore.getState>;
 
@@ -557,6 +558,91 @@ export async function executeHootActions(
                         logger.error('HITS content search error', 'Hoot', err);
                         results.push(`⚠️ Content search encountered an error.`);
                     }
+                    break;
+                }
+                // ── Daily Dump / Akrasia Tools ─────────────────────────
+                case 'update_daily_wanted_did': {
+                    const today = (params.date as string) || new Date().toISOString().split('T')[0];
+                    const wanted = (params.wanted as string) || '';
+                    const did = (params.did as string) || '';
+                    if (!wanted.trim() && !did.trim()) {
+                        results.push('⚠️ No wanted or did text provided');
+                        break;
+                    }
+                    // Fire-and-forget ambition ingestion (writes wanted/did + gap
+                    // analysis + upserts knowledge graph nodes).
+                    ingestWantedDid(today, wanted, did).catch((err) => {
+                        logger.error('Ambition ingestion failed', 'Hoot', err);
+                    });
+                    // Also write immediately so the receipt is truthful even
+                    // before the async LLM diff returns.
+                    state.updateDailyWantedDid(today, wanted, did);
+                    results.push(`✅ Saved wanted/did for ${today}`);
+                    addToast(`🦉 Captured your wanted/did`, 'success');
+                    break;
+                }
+                case 'add_bail': {
+                    const today = (params.date as string) || new Date().toISOString().split('T')[0];
+                    const chose = (params.chose as string) || '';
+                    const instead = (params.instead as string) || '';
+                    const emotionRaw = ((params.emotion as string) || 'other').toLowerCase() as BailEmotion;
+                    const validEmotions: BailEmotion[] = ['anxious', 'bored', 'tired', 'avoidant', 'overwhelmed', 'other'];
+                    const emotion: BailEmotion = validEmotions.includes(emotionRaw) ? emotionRaw : 'other';
+                    if (!chose || !instead) {
+                        results.push('⚠️ Bail needs both chose and instead');
+                        break;
+                    }
+                    state.addBail(today, {
+                        chose,
+                        instead,
+                        emotion,
+                        trigger: (params.trigger as string) || '',
+                        durationMinutes: (params.durationMinutes as number) || undefined,
+                    });
+                    results.push(`✅ Logged bail: ${chose} instead of ${instead} (${emotion})`);
+                    addToast(`🦉 Bail captured`, 'info');
+                    break;
+                }
+                case 'set_micro_action': {
+                    const today = (params.date as string) || new Date().toISOString().split('T')[0];
+                    const text = (params.text as string) || '';
+                    if (!text.trim()) { results.push('⚠️ No micro-action text'); break; }
+                    state.setMicroAction(today, {
+                        text: text.trim().slice(0, 500),
+                        estimatedMinutes: Math.min(2, (params.estimatedMinutes as number) || 2),
+                        status: 'pending',
+                        generatedFrom: (params.generatedFrom as string) || text,
+                        createdAt: new Date().toISOString(),
+                    });
+                    results.push(`✅ Micro-action set: "${text}"`);
+                    addToast(`🦉 Micro-action locked in`, 'success');
+                    break;
+                }
+                case 'add_ifthen_plan': {
+                    const trigger = (params.trigger as string) || '';
+                    const response = (params.response as string) || '';
+                    if (!trigger || !response) {
+                        results.push('⚠️ If-then needs both trigger and response');
+                        break;
+                    }
+                    state.addIfThenPlan(trigger, response);
+                    results.push(`✅ If-then plan added: If ${trigger}, then ${response}`);
+                    addToast(`🦉 Armor plan added`, 'success');
+                    break;
+                }
+                case 'set_identity_line': {
+                    const line = (params.line as string) || '';
+                    if (!line.trim()) { results.push('⚠️ No identity line provided'); break; }
+                    state.setIdentityLine(line.trim());
+                    results.push(`✅ Identity set: "${line.trim()}"`);
+                    addToast(`🦉 Identity locked in`, 'success');
+                    break;
+                }
+                case 'complete_outreach_block': {
+                    const today = (params.date as string) || new Date().toISOString().split('T')[0];
+                    state.completeOutreachBlock(today);
+                    results.push(`✅ Outreach block completed`);
+                    addToast(`🦉 Outreach block done`, 'success');
                     break;
                 }
                 default:

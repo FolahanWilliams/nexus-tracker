@@ -409,6 +409,84 @@ const hootFunctions = [
             required: ['topic'],
         },
     },
+    // ── Daily Dump / Akrasia Tools ────────────────────────────────────────
+    {
+        name: 'update_daily_wanted_did',
+        description: 'Set or update the "wanted" (what the user planned) and "did" (what they actually did) text for a given day. Use when the user describes their day and mentions both what they intended and what they accomplished. Triggers ambition-graph ingestion.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                date: { type: SchemaType.STRING, description: 'Date in YYYY-MM-DD format. Omit or leave blank for today.' },
+                wanted: { type: SchemaType.STRING, description: 'What the user wanted/planned to do (free text).' },
+                did: { type: SchemaType.STRING, description: 'What the user actually did (free text).' },
+            },
+            required: [],
+        },
+    },
+    {
+        name: 'add_bail',
+        description: 'Log a moment of defection — the user chose a distraction over an intended action. Use when the user mentions they bailed, got distracted, procrastinated, or did X instead of Y.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                date: { type: SchemaType.STRING, description: 'Date in YYYY-MM-DD format. Omit for today.' },
+                chose: { type: SchemaType.STRING, description: 'What they did instead (e.g. "TikTok", "Netflix").' },
+                instead: { type: SchemaType.STRING, description: 'What they should have done (e.g. "outreach email").' },
+                emotion: { type: SchemaType.STRING, description: 'One of: anxious, bored, tired, avoidant, overwhelmed.' },
+                trigger: { type: SchemaType.STRING, description: 'Optional trigger context (e.g. "phone on desk").' },
+                durationMinutes: { type: SchemaType.NUMBER, description: 'Optional duration of the bail.' },
+            },
+            required: ['chose', 'instead', 'emotion'],
+        },
+    },
+    {
+        name: 'set_micro_action',
+        description: 'Set a stupidly-small ≤2-minute next action for the user for today. Use when the user names a small, physical next step or when breaking down an intention.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                date: { type: SchemaType.STRING, description: 'Date in YYYY-MM-DD format. Omit for today.' },
+                text: { type: SchemaType.STRING, description: 'The micro-action text.' },
+                estimatedMinutes: { type: SchemaType.NUMBER, description: 'Estimate in minutes, clamped to ≤ 2.' },
+                generatedFrom: { type: SchemaType.STRING, description: 'Optional parent intention this was derived from.' },
+            },
+            required: ['text'],
+        },
+    },
+    {
+        name: 'add_ifthen_plan',
+        description: 'Create an implementation-intention "if/then" plan. Use when the user pre-commits a response to a known trigger (e.g. "when I unlock my phone before 10am, I open QuestFlow first").',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                trigger: { type: SchemaType.STRING, description: 'The triggering situation.' },
+                response: { type: SchemaType.STRING, description: 'The pre-committed response behavior.' },
+            },
+            required: ['trigger', 'response'],
+        },
+    },
+    {
+        name: 'set_identity_line',
+        description: 'Set the user\'s identity statement — the kind of person they claim to be (e.g. "I\'m a founder who ships daily"). Used for the daily identity-vote tally.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                line: { type: SchemaType.STRING, description: 'The identity statement.' },
+            },
+            required: ['line'],
+        },
+    },
+    {
+        name: 'complete_outreach_block',
+        description: 'Mark today\'s energy-locked outreach block as completed.',
+        parameters: {
+            type: SchemaType.OBJECT,
+            properties: {
+                date: { type: SchemaType.STRING, description: 'Date in YYYY-MM-DD format. Omit for today.' },
+            },
+            required: [],
+        },
+    },
     // ── Knowledge Graph Exploration ──────────────────────────────────────
     {
         name: 'explore_knowledge_graph',
@@ -441,7 +519,7 @@ const PAGE_CONTEXT: Record<string, string> = {
 
 export const POST = withAuth(async (request) => {
     try {
-        const { message, currentPage, context, grounding, planningContext, conversationHistory } = await request.json();
+        const { message, currentPage, context, grounding, planningContext, conversationHistory, contextMode } = await request.json();
 
         const mock = hasApiKeyOrMock({
             message: "I can't connect right now, but I'm still here for you! \u{1F989}",
@@ -503,7 +581,37 @@ RULES:
 - When giving coaching or study advice, cite specific techniques or research when possible
 - If you notice patterns in the user's data (declining streaks, vocab backlog, energy trends), proactively mention them
 - Always respond in character as Hoot the owl
-- When the user shares personal preferences, learning styles, or struggles, save a memory note about it`;
+- When the user shares personal preferences, learning styles, or struggles, save a memory note about it${contextMode === 'daily_dump' ? `
+
+═══════════════════════════════════════════════════════════════
+DAILY DUMP MODE — CRITICAL INSTRUCTIONS
+═══════════════════════════════════════════════════════════════
+The user's message is a free-form word-dump of their day. They are talking about
+habits they did, intentions for tomorrow, things they bailed on, books they read,
+people they emailed or wanted to email, and anything else on their mind.
+
+Your job: EXTRACT every distinct data point and emit MULTIPLE function calls in a
+single response to record all of it. DO NOT ask clarifying questions. DO NOT
+chat. Apply best-guess mapping. Skip anything ambiguous rather than asking.
+
+Tool mapping for common dump patterns:
+- "I did X, Y, Z habits" → complete_habit for each habit (use fuzzy names)
+- "I want to [email/call/reach out to] {person}" or "I did {wanted}, didn't {did}" → update_daily_wanted_did with both texts; the system will extract people/books/targets into the ambition graph
+- "I bailed on X for Y, felt {emotion}" or "I scrolled TikTok instead of writing" → add_bail
+- "My next action is..." or "the smallest thing I can do is..." → set_micro_action
+- "When X happens I will Y" → add_ifthen_plan
+- "I'm the kind of person who..." or "My identity is..." → set_identity_line
+- "I finished my outreach block" → complete_outreach_block
+- "Today I want to focus on..." → set_daily_intention
+- "I read 20 pages / finished {book}" → mention it in the did field of update_daily_wanted_did (ambition ingestion will create the book node)
+- "I emailed {person}" → mention in did field; "wanted to email {person}" → in wanted field
+- Quests/tasks mentioned → add_task or complete_task as appropriate
+- "I did a 25-min focus session" → start_focus
+
+Emit as many tool calls as needed in one turn. After all tool calls, write ONE
+short confirmation line (≤ 1 sentence) summarizing what you captured. Do not
+restate every item — the UI will show counts.
+═══════════════════════════════════════════════════════════════` : ''}`;
 
         // Build conversation history for multi-turn awareness
         const history: { role: string; parts: { text: string }[] }[] = [

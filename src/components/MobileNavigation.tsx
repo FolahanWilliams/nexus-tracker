@@ -14,23 +14,23 @@ import {
   Timer,
   Flag,
   User,
-  BookOpen,
   Library,
   HelpCircle,
   Network,
   Swords,
   Brain,
+  Sunrise,
 } from 'lucide-react';
 
 const mainNavItems = [
   { href: '/', label: 'Home', icon: Home },
+  { href: '/today', label: 'Today', icon: Sunrise },
   { href: '/quests', label: 'Quests', icon: Target },
-  { href: '/habits', label: 'Habits', icon: Repeat2 },
   { href: '/focus', label: 'Focus', icon: Timer },
-  { href: '/journal', label: 'Journal', icon: BookOpen },
 ];
 
 const secondaryNavItems = [
+  { href: '/habits', label: 'Habits', icon: Repeat2 },
   { href: '/character', label: 'Character', icon: User },
   { href: '/forge', label: 'Forge', icon: Library },
   { href: '/arena', label: 'Arena', icon: Swords },
