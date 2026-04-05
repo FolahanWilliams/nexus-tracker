@@ -11,7 +11,6 @@ import ToastContainer from '@/components/ToastContainer';
 import Onboarding from '@/components/Onboarding';
 import XPFloat from '@/components/XPFloat';
 import StreakCelebration from '@/components/StreakCelebration';
-import DailyIntention from '@/components/DailyIntention';
 import QuickAdd from '@/components/QuickAdd';
 import HootFAB from '@/components/HootFAB';
 import BackgroundTimerManager from '@/components/BackgroundTimerManager';
@@ -51,7 +50,6 @@ export default function ClientProviders({ children }: { children: React.ReactNod
                 <ToastContainer />
                 <XPFloat />
                 <StreakCelebration />
-                <DailyIntention />
                 <QuickAdd />
                 <HootFAB />
                 <BackgroundTimerManager />
