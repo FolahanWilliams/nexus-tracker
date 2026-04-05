@@ -1,5 +1,13 @@
 import type { StateCreator } from 'zustand';
-import type { GameState, GoalSlice, Goal, TimelineEvent, DailyCalendarEntry } from '../types';
+import type {
+    GameState,
+    GoalSlice,
+    Goal,
+    TimelineEvent,
+    DailyCalendarEntry,
+    BailEvent,
+    IfThenPlan,
+} from '../types';
 import { validateGoalTitle, validateGoalDescription, validateTimelineEventName, validateTimelineSubject, ValidationError } from '@/lib/validation';
 import { logger } from '@/lib/logger';
 
@@ -21,6 +29,11 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
     focusTimerMode: 'focus' as const,
     focusTimerSessionCount: 0,
     dailyCalendarEntries: [] as DailyCalendarEntry[],
+
+    // ── Akrasia state ──
+    identityLine: null as string | null,
+    identityVotes: [] as GoalSlice['identityVotes'],
+    ifThenPlans: [] as IfThenPlan[],
 
     // ── Goal Actions ──
     addGoal: (title, description, category, timeframe, targetDate, milestones, xpReward) => {
@@ -226,5 +239,222 @@ export const createGoalSlice: StateCreator<GameState, [], [], GoalSlice> = (set,
             }
             return { dailyCalendarEntries: [...state.dailyCalendarEntries, newEntry] };
         });
+    },
+
+    // ── Akrasia: Identity Line + Votes ──
+    setIdentityLine: (line) => {
+        const safe = typeof line === 'string' ? line.trim().slice(0, 280) : null;
+        set({ identityLine: safe && safe.length > 0 ? safe : null });
+        if (safe) get().logActivity('reflection', '🪞', `Identity line set: "${safe.slice(0, 60)}${safe.length > 60 ? '…' : ''}"`);
+    },
+
+    recordIdentityVote: (date, vote, reason) => {
+        set((state) => {
+            const filtered = state.identityVotes.filter((v) => v.date !== date);
+            return { identityVotes: [...filtered, { date, vote, reason: reason?.slice(0, 200) }] };
+        });
+    },
+
+    // ── Akrasia: Micro-Action ──
+    setMicroAction: (date, micro) => {
+        const now = new Date().toISOString();
+        set((state) => {
+            const existing = state.dailyCalendarEntries.find((e) => e.date === date);
+            if (existing) {
+                return {
+                    dailyCalendarEntries: state.dailyCalendarEntries.map((e) =>
+                        e.date === date ? { ...e, microAction: micro ?? undefined, updatedAt: now } : e
+                    ),
+                };
+            }
+            const newEntry: DailyCalendarEntry = {
+                date,
+                completed: false,
+                summary: '',
+                learned: '',
+                productivityScore: 5,
+                createdAt: now,
+                updatedAt: now,
+                microAction: micro ?? undefined,
+            };
+            return { dailyCalendarEntries: [...state.dailyCalendarEntries, newEntry] };
+        });
+    },
+
+    updateMicroActionStatus: (date, status, bailReason) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+            dailyCalendarEntries: state.dailyCalendarEntries.map((e) => {
+                if (e.date !== date || !e.microAction) return e;
+                return {
+                    ...e,
+                    microAction: {
+                        ...e.microAction,
+                        status,
+                        bailReason: bailReason?.slice(0, 500) ?? e.microAction.bailReason,
+                    },
+                    updatedAt: now,
+                };
+            }),
+        }));
+        if (status === 'done') {
+            get().addXP(5);
+            get().logActivity('reflection', '✅', `Micro-action done for ${date}`, '+5 XP');
+        }
+    },
+
+    // ── Akrasia: Bails ──
+    addBail: (date, bail) => {
+        const now = new Date().toISOString();
+        const newBail: BailEvent = {
+            id: crypto.randomUUID(),
+            timestamp: now,
+            chose: bail.chose.trim().slice(0, 200),
+            instead: bail.instead.trim().slice(0, 200),
+            emotion: bail.emotion,
+            trigger: bail.trigger.trim().slice(0, 500),
+            durationMinutes: bail.durationMinutes,
+        };
+        set((state) => {
+            const existing = state.dailyCalendarEntries.find((e) => e.date === date);
+            if (existing) {
+                return {
+                    dailyCalendarEntries: state.dailyCalendarEntries.map((e) =>
+                        e.date === date ? { ...e, bails: [...(e.bails ?? []), newBail], updatedAt: now } : e
+                    ),
+                };
+            }
+            const newEntry: DailyCalendarEntry = {
+                date,
+                completed: false,
+                summary: '',
+                learned: '',
+                productivityScore: 5,
+                createdAt: now,
+                updatedAt: now,
+                bails: [newBail],
+            };
+            return { dailyCalendarEntries: [...state.dailyCalendarEntries, newEntry] };
+        });
+        get().logActivity('reflection', '🚨', `Bail logged: chose "${newBail.chose}" instead of "${newBail.instead}"`);
+    },
+
+    // ── Akrasia: Gap Capture (wanted/did) ──
+    updateDailyWantedDid: (date, wanted, did, gapAnalysis) => {
+        const now = new Date().toISOString();
+        const safeWanted = wanted.trim().slice(0, 2000);
+        const safeDid = did.trim().slice(0, 2000);
+        set((state) => {
+            const existing = state.dailyCalendarEntries.find((e) => e.date === date);
+            if (existing) {
+                return {
+                    dailyCalendarEntries: state.dailyCalendarEntries.map((e) =>
+                        e.date === date ? {
+                            ...e,
+                            wanted: safeWanted,
+                            did: safeDid,
+                            summary: safeDid || e.summary,
+                            gapAnalysis: gapAnalysis ?? e.gapAnalysis,
+                            updatedAt: now,
+                        } : e
+                    ),
+                };
+            }
+            const newEntry: DailyCalendarEntry = {
+                date,
+                completed: false,
+                summary: safeDid,
+                learned: '',
+                productivityScore: 5,
+                createdAt: now,
+                updatedAt: now,
+                wanted: safeWanted,
+                did: safeDid,
+                gapAnalysis,
+            };
+            return { dailyCalendarEntries: [...state.dailyCalendarEntries, newEntry] };
+        });
+    },
+
+    // ── Akrasia: Outreach Block ──
+    setOutreachBlock: (date, block) => {
+        const now = new Date().toISOString();
+        set((state) => {
+            const existing = state.dailyCalendarEntries.find((e) => e.date === date);
+            if (existing) {
+                return {
+                    dailyCalendarEntries: state.dailyCalendarEntries.map((e) =>
+                        e.date === date ? { ...e, outreachBlock: block ?? undefined, updatedAt: now } : e
+                    ),
+                };
+            }
+            const newEntry: DailyCalendarEntry = {
+                date,
+                completed: false,
+                summary: '',
+                learned: '',
+                productivityScore: 5,
+                createdAt: now,
+                updatedAt: now,
+                outreachBlock: block ?? undefined,
+            };
+            return { dailyCalendarEntries: [...state.dailyCalendarEntries, newEntry] };
+        });
+    },
+
+    completeOutreachBlock: (date) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+            dailyCalendarEntries: state.dailyCalendarEntries.map((e) => {
+                if (e.date !== date || !e.outreachBlock) return e;
+                return {
+                    ...e,
+                    outreachBlock: { ...e.outreachBlock, completed: true, completedAt: now },
+                    updatedAt: now,
+                };
+            }),
+        }));
+        get().addXP(20);
+        get().logActivity('reflection', '🎯', `Outreach block completed for ${date}`, '+20 XP');
+    },
+
+    // ── Akrasia: If-Then Armor ──
+    addIfThenPlan: (trigger, response) => {
+        const t = trigger.trim().slice(0, 300);
+        const r = response.trim().slice(0, 300);
+        if (!t || !r) return;
+        const plan: IfThenPlan = {
+            id: crypto.randomUUID(),
+            trigger: t,
+            response: r,
+            createdAt: new Date().toISOString(),
+            timesFired: 0,
+            timesBroken: 0,
+            active: true,
+        };
+        set((state) => ({ ifThenPlans: [...state.ifThenPlans, plan] }));
+    },
+
+    fireIfThenPlan: (id) => {
+        set((state) => ({
+            ifThenPlans: state.ifThenPlans.map((p) => p.id === id ? { ...p, timesFired: p.timesFired + 1 } : p),
+        }));
+        get().addXP(2);
+    },
+
+    breakIfThenPlan: (id) => {
+        set((state) => ({
+            ifThenPlans: state.ifThenPlans.map((p) => p.id === id ? { ...p, timesBroken: p.timesBroken + 1 } : p),
+        }));
+    },
+
+    toggleIfThenPlan: (id) => {
+        set((state) => ({
+            ifThenPlans: state.ifThenPlans.map((p) => p.id === id ? { ...p, active: !p.active } : p),
+        }));
+    },
+
+    deleteIfThenPlan: (id) => {
+        set((state) => ({ ifThenPlans: state.ifThenPlans.filter((p) => p.id !== id) }));
     },
 });
