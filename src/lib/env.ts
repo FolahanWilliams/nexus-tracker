@@ -25,12 +25,17 @@ function getEnv(): EnvConfig {
 }
 
 /**
- * Whether the Vercel AI Gateway is reachable: either an explicit API key is
- * set, or we're running on Vercel / after `vercel env pull` where an OIDC
- * token authenticates automatically.
+ * Whether the Vercel AI Gateway is reachable: an explicit API key is set,
+ * a local OIDC token exists (from `vercel env pull`), or we're running on
+ * Vercel where the AI SDK obtains an OIDC token from the request context
+ * automatically (no env var is exposed there).
  */
 export function hasAIGateway(): boolean {
-    return !!(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
+    return !!(
+        process.env.AI_GATEWAY_API_KEY ||
+        process.env.VERCEL_OIDC_TOKEN ||
+        process.env.VERCEL
+    );
 }
 
 /**
