@@ -21,7 +21,9 @@ export default function MysteryArena() {
     const setArenaLoading = useGameStore((s) => s.setArenaLoading);
     const startMystery = useGameStore((s) => s.startMystery);
     const solveMysteryStep = useGameStore((s) => s.solveMysteryStep);
-    const useMysteryHint = useGameStore((s) => s.useMysteryHint);
+    // Renamed locally: the `use` prefix makes the hooks linter treat this
+    // plain store action as a React Hook.
+    const spendMysteryHint = useGameStore((s) => s.useMysteryHint);
     const endMystery = useGameStore((s) => s.endMystery);
     const abandonMystery = useGameStore((s) => s.abandonMystery);
     const addXP = useGameStore((s) => s.addXP);
@@ -120,8 +122,8 @@ export default function MysteryArena() {
 
         if (cost > 0) spendGold(-cost);
         playQuest();
-        useMysteryHint(mystery.currentStep);
-    }, [mystery.steps, mystery.currentStep, gold, spendGold, useMysteryHint, playQuest]);
+        spendMysteryHint(mystery.currentStep);
+    }, [mystery.steps, mystery.currentStep, gold, spendGold, spendMysteryHint, playQuest]);
 
     const handleMysteryComplete = useCallback(() => {
         const state = useGameStore.getState();

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Flag, BarChart3, ChevronLeft } from 'lucide-react';
@@ -14,7 +14,7 @@ const TABS = [
   { id: 'analytics', label: 'Stats & Records', icon: <BarChart3 size={16} /> },
 ];
 
-export default function ProgressPage() {
+function ProgressPageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'goals';
   const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'goals');
@@ -38,4 +38,13 @@ export default function ProgressPage() {
       </div>
     </motion.div>
   );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function ProgressPage() {
+    return (
+        <Suspense fallback={null}>
+            <ProgressPageContent />
+        </Suspense>
+    );
 }

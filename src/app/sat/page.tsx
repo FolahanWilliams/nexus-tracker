@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { GraduationCap, Brain, FileText, BarChart3, BookOpen, ChevronLeft } from 'lucide-react';
@@ -18,7 +18,7 @@ const TABS = [
     { id: 'vocab', label: 'Vocab Bank', icon: <BookOpen size={16} /> },
 ];
 
-export default function SATPage() {
+function SATPageContent() {
     const searchParams = useSearchParams();
     const initialTab = searchParams.get('tab') || 'daily';
     const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'daily');
@@ -49,5 +49,14 @@ export default function SATPage() {
                 {activeTab === 'vocab' && <SATVocabBank />}
             </div>
         </motion.div>
+    );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function SATPage() {
+    return (
+        <Suspense fallback={null}>
+            <SATPageContent />
+        </Suspense>
     );
 }

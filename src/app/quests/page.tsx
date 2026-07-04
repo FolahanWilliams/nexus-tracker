@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Target, Map, Sword, ChevronLeft } from 'lucide-react';
@@ -17,7 +17,7 @@ const TABS = [
   { id: 'bosses', label: 'Bosses', icon: <Sword size={16} /> },
 ];
 
-export default function QuestsPage() {
+function QuestsPageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'quests';
   const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'quests');
@@ -58,4 +58,13 @@ export default function QuestsPage() {
       </div>
     </motion.div>
   );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function QuestsPage() {
+    return (
+        <Suspense fallback={null}>
+            <QuestsPageContent />
+        </Suspense>
+    );
 }

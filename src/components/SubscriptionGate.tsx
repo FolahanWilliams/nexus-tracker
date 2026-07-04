@@ -6,13 +6,18 @@ import { useAuth } from '@/components/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { logger } from '@/lib/logger';
 
+// Paywall kill-switch: gating only runs when explicitly enabled. The app is
+// currently free to use — the Stripe/subscription code stays in place so it
+// can be re-enabled later by setting NEXT_PUBLIC_REQUIRE_SUBSCRIPTION=true.
+const REQUIRE_SUBSCRIPTION = process.env.NEXT_PUBLIC_REQUIRE_SUBSCRIPTION === 'true';
+
 export default function SubscriptionGate({ children }: { children: React.ReactNode }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [status, setStatus] = useState<'loading' | 'active' | 'inactive'>('loading');
 
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (!REQUIRE_SUBSCRIPTION || authLoading || !user) return;
 
     const checkSubscription = async () => {
       try {
@@ -41,6 +46,11 @@ export default function SubscriptionGate({ children }: { children: React.ReactNo
 
     checkSubscription();
   }, [user, authLoading, router]);
+
+  // Gating disabled — everyone through, no subscription check
+  if (!REQUIRE_SUBSCRIPTION) {
+    return <>{children}</>;
+  }
 
   // Not signed in — pass through, overview page handles auth redirect
   if (!authLoading && !user) {

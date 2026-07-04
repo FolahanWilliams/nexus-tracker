@@ -1,23 +1,24 @@
 /**
- * Shared helpers for API routes that call Google Gemini.
+ * Shared helpers for API routes that call the AI layer (Vercel AI Gateway).
  *
  * Centralises the repeated patterns:
- *   1.  API-key check → mock response when the key is absent.
+ *   1.  Gateway-auth check → mock response when no auth is available.
  *   2.  Try / catch wrapper with structured logging and fallback response.
  */
 
 import { NextResponse } from 'next/server';
 import { logger } from './logger';
+import { hasAIGateway } from './env';
 
 /**
- * Return `true` when the Gemini API key is configured.
- * If absent, responds with the supplied mock payload and returns `false`.
+ * Return `null` when AI Gateway auth is configured (key or OIDC token).
+ * If absent, responds with the supplied mock payload instead.
  */
 export function hasApiKeyOrMock<T extends Record<string, unknown>>(
     mockPayload: T,
 ): NextResponse | null {
-    if (process.env.GOOGLE_API_KEY) return null;
-    logger.warn('No GOOGLE_API_KEY found, returning mock response', 'api');
+    if (hasAIGateway()) return null;
+    logger.warn('No AI Gateway auth found, returning mock response', 'api');
     return NextResponse.json({ ...mockPayload, isMock: true });
 }
 

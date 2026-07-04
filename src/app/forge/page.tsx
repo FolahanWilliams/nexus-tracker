@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Library, Brain, ChevronLeft } from 'lucide-react';
@@ -14,7 +14,7 @@ const TABS = [
   { id: 'challenges', label: 'Challenges', icon: <Brain size={16} /> },
 ];
 
-export default function ForgePage() {
+function ForgePageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'vocabulary';
   const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'vocabulary');
@@ -38,4 +38,13 @@ export default function ForgePage() {
       </div>
     </motion.div>
   );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function ForgePage() {
+    return (
+        <Suspense fallback={null}>
+            <ForgePageContent />
+        </Suspense>
+    );
 }

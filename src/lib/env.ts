@@ -8,8 +8,8 @@
 import { logger } from './logger';
 
 interface EnvConfig {
-    /** Google Gemini API key (optional — mock data is used when absent). */
-    GOOGLE_API_KEY: string | undefined;
+    /** Vercel AI Gateway key (optional — OIDC is used on Vercel, mock data when neither is present). */
+    AI_GATEWAY_API_KEY: string | undefined;
     /** Supabase project URL. */
     NEXT_PUBLIC_SUPABASE_URL: string | undefined;
     /** Supabase anonymous/public key. */
@@ -18,10 +18,19 @@ interface EnvConfig {
 
 function getEnv(): EnvConfig {
     return {
-        GOOGLE_API_KEY: process.env.GOOGLE_API_KEY,
+        AI_GATEWAY_API_KEY: process.env.AI_GATEWAY_API_KEY,
         NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     };
+}
+
+/**
+ * Whether the Vercel AI Gateway is reachable: either an explicit API key is
+ * set, or we're running on Vercel / after `vercel env pull` where an OIDC
+ * token authenticates automatically.
+ */
+export function hasAIGateway(): boolean {
+    return !!(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN);
 }
 
 /**
@@ -43,19 +52,15 @@ export function validateEnv(): EnvConfig {
         );
     }
 
-    // Gemini key is optional — all AI routes fall back to mock data without it.
-    if (typeof window === 'undefined' && !env.GOOGLE_API_KEY) {
+    // Gateway auth is optional — all AI routes fall back to mock data without it.
+    if (typeof window === 'undefined' && !hasAIGateway()) {
         logger.warn(
-            'GOOGLE_API_KEY not set. AI features (quest generation, vocab, coaching) ' +
-            'will return mock/fallback data.',
+            'No AI Gateway auth found (AI_GATEWAY_API_KEY or VERCEL_OIDC_TOKEN). ' +
+            'AI features (quest generation, vocab, coaching) will return mock/fallback data. ' +
+            'Run `vercel env pull` or set AI_GATEWAY_API_KEY.',
             'env',
         );
     }
 
     return env;
-}
-
-/** Whether the Gemini API is configured and available. */
-export function hasGeminiKey(): boolean {
-    return !!process.env.GOOGLE_API_KEY;
 }

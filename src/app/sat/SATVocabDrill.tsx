@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BookOpen, Loader2, CheckCircle2, XCircle, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useGameStore } from '@/store/useGameStore';
@@ -34,6 +34,29 @@ export default function SATVocabDrill({ onComplete }: Props) {
 
     const isComplete = session?.blockAComplete;
 
+    // Shuffle once per question with a seeded PRNG — Math.random during render
+    // would reorder the options on every re-render and misalign the selected
+    // answer (and violates the react-hooks/purity rule).
+    const { options, correctIdx } = useMemo(() => {
+        const word = words[quizIdx];
+        if (!word) return { options: [] as string[], correctIdx: -1 };
+        const wrongDefs = words.filter((_, i) => i !== quizIdx).map(w => w.definition);
+        const opts = [word.definition, ...wrongDefs.slice(0, 3)];
+        // Fisher-Yates with a mulberry32 PRNG seeded by the question index
+        let seed = (quizIdx + 1) * 0x9e3779b9;
+        const rand = () => {
+            seed = (seed + 0x6d2b79f5) | 0;
+            let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+        for (let i = opts.length - 1; i > 0; i--) {
+            const j = Math.floor(rand() * (i + 1));
+            [opts[i], opts[j]] = [opts[j], opts[i]];
+        }
+        return { options: opts, correctIdx: opts.indexOf(word.definition) };
+    }, [words, quizIdx]);
+
     const handleGenerate = async () => {
         const existingWords = vocabWords.map(w => w.word);
         const data = await generateWords({ type: 'generate_vocab', count: 3, existingWords });
@@ -56,7 +79,7 @@ export default function SATVocabDrill({ onComplete }: Props) {
         if (showResult) return;
         setSelectedAnswer(idx);
         setShowResult(true);
-        if (idx === 0) setScore(s => s + 1); // correct answer is always shuffled but we track
+        if (idx === correctIdx) setScore(s => s + 1);
     };
 
     const nextQuestion = () => {
@@ -83,10 +106,6 @@ export default function SATVocabDrill({ onComplete }: Props) {
     // Quiz phase
     if (quizPhase && words.length > 0) {
         const word = words[quizIdx];
-        // Simple definition match quiz
-        const wrongDefs = words.filter((_, i) => i !== quizIdx).map(w => w.definition);
-        const options = [word.definition, ...wrongDefs.slice(0, 3)].sort(() => Math.random() - 0.5);
-        const correctIdx = options.indexOf(word.definition);
 
         return (
             <div className="space-y-4">

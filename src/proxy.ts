@@ -29,8 +29,9 @@ export function proxy(_request: NextRequest) {
         'max-age=63072000; includeSubDomains; preload',
     );
 
-    // Basic CSP — allows self, Supabase, Gemini, Stripe, and inline styles
-    // (Tailwind/Framer Motion use inline styles). Tighten as needed.
+    // Basic CSP — allows self, Supabase, Stripe, and inline styles
+    // (Tailwind/Framer Motion use inline styles). AI calls happen server-side
+    // through the Vercel AI Gateway, so no AI hosts are needed here.
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
     const csp = [
         "default-src 'self'",
@@ -38,7 +39,7 @@ export function proxy(_request: NextRequest) {
         `style-src 'self' 'unsafe-inline'`,
         `img-src 'self' data: blob: ${supabaseUrl}`,
         `font-src 'self'`,
-        `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://generativelanguage.googleapis.com https://api.openai.com https://api.stripe.com`,
+        `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://api.stripe.com`,
         `frame-src https://js.stripe.com`,
         "object-src 'none'",
         "base-uri 'self'",

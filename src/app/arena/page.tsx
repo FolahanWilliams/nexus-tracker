@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Swords, Zap, Search, ChevronLeft, Trophy } from 'lucide-react';
@@ -18,7 +18,7 @@ const TABS = [
   { id: 'stats', label: 'Stats', icon: <Trophy size={16} /> },
 ];
 
-export default function ArenaPage() {
+function ArenaPageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'battle';
   const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'battle');
@@ -44,4 +44,13 @@ export default function ArenaPage() {
       </div>
     </motion.div>
   );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function ArenaPage() {
+    return (
+        <Suspense fallback={null}>
+            <ArenaPageContent />
+        </Suspense>
+    );
 }

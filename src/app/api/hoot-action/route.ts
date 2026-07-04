@@ -1,6 +1,5 @@
-import { SchemaType } from '@google/generative-ai';
 import { NextResponse } from 'next/server';
-import { genAI } from '@/lib/gemini';
+import { genAI, SchemaType } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { hasApiKeyOrMock } from '@/lib/api-helpers';
 import { withAuth } from '@/lib/with-auth';

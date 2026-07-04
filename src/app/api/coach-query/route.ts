@@ -54,7 +54,7 @@ interface CoachQueryBody {
 function mockFor(mode: string) {
     if (mode === 'query') {
         return {
-            answer: 'Mock mode: add a GOOGLE_API_KEY to enable real coach queries. In the meantime, your graph shows 0 contacted and 0 wanted entities.',
+            answer: 'Mock mode: configure AI Gateway auth to enable real coach queries. In the meantime, your graph shows 0 contacted and 0 wanted entities.',
             matchedNodes: [] as string[],
         };
     }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Brain, BookOpen, Calendar, Trophy, BarChart3, Network, Search, ChevronLeft } from 'lucide-react';
@@ -24,7 +24,7 @@ const TABS = [
     { id: 'scoreboard', label: 'Scoreboard', icon: <BarChart3 size={16} /> },
 ];
 
-export default function HitsPage() {
+function HitsPageContent() {
     const searchParams = useSearchParams();
     const initialTab = searchParams.get('tab') || 'daily';
     const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'daily');
@@ -58,5 +58,14 @@ export default function HitsPage() {
                 {activeTab === 'scoreboard' && <ScoreboardTab />}
             </div>
         </motion.div>
+    );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function HitsPage() {
+    return (
+        <Suspense fallback={null}>
+            <HitsPageContent />
+        </Suspense>
     );
 }

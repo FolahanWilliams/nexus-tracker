@@ -27,7 +27,8 @@ export const POST = withAuth(async (req) => {
 
         const prompt = `Perform a comprehensive web search for the following query: "${query}".
 Summarize the findings clearly and concisely, focusing on the most relevant and up-to-date information.
-Do not hallucinate; only use information found in the search results.`;
+Do not hallucinate; only use information found in the search results.
+Do not include bracketed citation markers like [1] or [2] in your answer.`;
 
         const result = await model.generateContent(prompt);
         const responseText = result.response.text();

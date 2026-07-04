@@ -4,7 +4,7 @@
 
 QuestFlow is a full-stack productivity platform that applies behavioral psychology, gamification mechanics, and generative AI to solve the hardest problem in personal productivity: sustained engagement. By transforming mundane tasks into an RPG experience — complete with character progression, boss battles, skill trees, and an AI coach — QuestFlow keeps users motivated long after traditional todo apps lose their appeal.
 
-> Built with Next.js 16, React 19, Supabase, Google Gemini AI, and Stripe. PWA-enabled for offline-first mobile use.
+> Built with Next.js 16, React 19, Supabase, the Vercel AI Gateway (Gemini & Perplexity models), and Stripe. PWA-enabled for offline-first mobile use.
 
 ---
 
@@ -14,7 +14,7 @@ Most productivity tools fail because they treat motivation as the user's problem
 
 1. **Immediate Reward** — Every action (completing a task, finishing a focus session, reviewing vocabulary) awards XP, gold, and loot drops with visible, satisfying feedback.
 2. **Progressive Mastery** — Character classes, skill trees, titles, and equipment create a long-term growth arc that mirrors real skill development.
-3. **Intelligent Adaptation** — Gemini-powered AI continuously analyzes user patterns across all domains, detects burnout risk, and proactively adjusts recommendations.
+3. **Intelligent Adaptation** — AI (via the Vercel AI Gateway) continuously analyzes user patterns across all domains, detects burnout risk, and proactively adjusts recommendations.
 
 The result: users don't just track tasks — they build a character that reflects their real-world growth.
 
@@ -24,7 +24,7 @@ The result: users don't just track tasks — they build a character that reflect
 
 ### AI Intelligence Layer (Nexus Pulse)
 
-A cross-domain analytics engine powered by Google Gemini that synthesizes data from every system in the app:
+A cross-domain analytics engine powered by Gemini (via the Vercel AI Gateway) that synthesizes data from every system in the app:
 
 - **Burnout Detection** — Monitors energy ratings, task completion velocity, streak breaks, and reflection sentiment to calculate a real-time burnout risk score (0–1 scale)
 - **Momentum Tracking** — Classifies user trajectory as Rising, Steady, or Declining with week-over-week trend analysis
@@ -34,7 +34,7 @@ A cross-domain analytics engine powered by Google Gemini that synthesizes data f
 
 ### Hoot AI Coach
 
-A conversational AI companion with Gemini function calling that can take real actions in the app:
+A conversational AI companion with AI function calling (Gemini via the Vercel AI Gateway) that can take real actions in the app:
 
 - **12 executable actions** — Create tasks, complete habits, set goals with milestones, initiate boss battles, generate vocabulary, create weekly plans, and more
 - **Persistent Memory** — Stores notes about user preferences, goals, and behavioral patterns across sessions
@@ -110,7 +110,7 @@ A force-directed graph that visualizes your entire learning journey as an interc
 - **Interactive Exploration** — Click nodes for detail panels, hover to highlight connections, search/filter by type, category, date range, and mastery level
 - **Focus Mode** — Hovering a node dims unconnected nodes, revealing the local neighborhood
 - **Fullscreen & Zoom** — WebGL-rendered canvas with pinch-to-zoom, drag, and fullscreen toggle
-- **AI Concept Extraction** — Gemini parses daily logs into discrete concepts, detects synonyms, and computes semantic similarity
+- **AI Concept Extraction** — Gemini (via the AI Gateway) parses daily logs into discrete concepts, detects synonyms, and computes semantic similarity
 
 ### Daily Growth Web (`/growth`)
 
@@ -140,7 +140,7 @@ A temporal network where each logged day becomes a node, connected by shared lea
 | **Frontend** | React 19, Next.js 16 (App Router), TypeScript, Tailwind CSS 4, Framer Motion |
 | **State** | Zustand with 9 composable slices + IndexedDB persistence (including UI persistence & knowledge graph layers) |
 | **Database** | Supabase (PostgreSQL) with Row-Level Security, JSONB columns, triggers |
-| **AI/ML** | Google Gemini 3 Flash with function calling + Google Search grounding |
+| **AI/ML** | Vercel AI Gateway — Gemini 3 Flash (function calling, JSON mode, audio transcription) + Perplexity Sonar (web search) |
 | **Auth** | Supabase Auth (Google OAuth) with auto-profile creation triggers |
 | **Payments** | Stripe subscriptions with 3-day free trial, customer portal, webhooks |
 | **PWA** | next-pwa with service worker caching for offline-first mobile experience |
@@ -210,7 +210,7 @@ npm install
 # Set environment variables
 cp .env.example .env.local
 # Configure: NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY,
-#            GOOGLE_API_KEY, STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY, STRIPE_PRICE_ID
+#            AI_GATEWAY_API_KEY (or Vercel OIDC), STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY, STRIPE_PRICE_ID
 
 # Run development server
 npm run dev

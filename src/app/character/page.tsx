@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { User, Sparkles, ChevronLeft } from 'lucide-react';
@@ -14,7 +14,7 @@ const TABS = [
   { id: 'inventory', label: 'Items & Shop', icon: <Sparkles size={16} /> },
 ];
 
-export default function CharacterPage() {
+function CharacterPageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'profile';
   const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'profile');
@@ -38,4 +38,13 @@ export default function CharacterPage() {
       </div>
     </motion.div>
   );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function CharacterPage() {
+    return (
+        <Suspense fallback={null}>
+            <CharacterPageContent />
+        </Suspense>
+    );
 }

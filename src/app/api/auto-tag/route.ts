@@ -3,6 +3,7 @@ import { genAI, extractJSONObject } from '@/lib/gemini';
 import { logger } from '@/lib/logger';
 import { withAuth } from '@/lib/with-auth';
 import { sanitizePromptInput, clampNumber } from '@/lib/sanitize';
+import { hasAIGateway } from '@/lib/env';
 
 export const POST = withAuth(async (request) => {
     try {
@@ -13,8 +14,8 @@ export const POST = withAuth(async (request) => {
             return NextResponse.json({ error: 'Title is required' }, { status: 400 });
         }
 
-        if (!process.env.GOOGLE_API_KEY) {
-            logger.warn('No GOOGLE_API_KEY found, using fallback tagging', 'auto-tag');
+        if (!hasAIGateway()) {
+            logger.warn('No AI Gateway auth found, using fallback tagging', 'auto-tag');
             return NextResponse.json({
                 cleanTitle: title,
                 difficulty: 'Medium',

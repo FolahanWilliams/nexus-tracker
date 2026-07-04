@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Network, GitBranch, ChevronLeft } from 'lucide-react';
@@ -14,7 +14,7 @@ const TABS = [
   { id: 'growth', label: 'Growth Web', icon: <GitBranch size={16} /> },
 ];
 
-export default function InsightsPage() {
+function InsightsPageContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'knowledge';
   const [activeTab, setActiveTab] = useState(TABS.some(t => t.id === initialTab) ? initialTab : 'knowledge');
@@ -38,4 +38,13 @@ export default function InsightsPage() {
       </div>
     </motion.div>
   );
+}
+
+// useSearchParams requires a Suspense boundary for static prerendering.
+export default function InsightsPage() {
+    return (
+        <Suspense fallback={null}>
+            <InsightsPageContent />
+        </Suspense>
+    );
 }
